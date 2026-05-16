@@ -26,7 +26,7 @@ export default function AuthPage({ go }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <TopBar title="Join meet oc." />
+      <TopBar title="Join duo oc." />
 
       <div style={{ padding: '32px 16px' }}>
         <label

@@ -12,7 +12,7 @@ function Wordmark() {
         lineHeight:    1,
       }}
     >
-      <span className="gradient-text">meet oc.</span>
+      <span className="gradient-text">duo oc.</span>
     </span>
   );
 }

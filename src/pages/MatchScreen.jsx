@@ -24,7 +24,7 @@ export default function MatchScreen({ duo, requestData = {}, go }) {
           }}
         >
           <span style={{ fontSize: 20, fontWeight: 800 }}>
-            <span className="gradient-text">meet oc.</span>
+            <span className="gradient-text">duo oc.</span>
           </span>
         </header>
         <div style={{ padding: '72px 16px 0', textAlign: 'center' }}>
@@ -47,7 +47,7 @@ export default function MatchScreen({ duo, requestData = {}, go }) {
         }}
       >
         <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>
-          <span className="gradient-text">meet oc.</span>
+          <span className="gradient-text">duo oc.</span>
         </span>
       </header>
 

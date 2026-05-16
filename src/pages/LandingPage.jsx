@@ -274,7 +274,7 @@ export default function LandingPage({ go }) {
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
         {/* Logo */}
         <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 36 }}>
-          <span className="gradient-text">meet oc.</span>
+          <span className="gradient-text">duo oc.</span>
         </div>
 
         <span
