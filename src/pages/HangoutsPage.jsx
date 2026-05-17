@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { C } from '../tokens';
+import { C, AVATAR_GRADIENTS } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
-import BottomNav from '../components/BottomNav.jsx';
+import InstagramButton from '../components/InstagramButton.jsx';
 import { OC_SPOTS } from '../data/duos.js';
 import { getMyHangouts, acceptHangout, declineHangout } from '../lib/hangouts.js';
 import { getMyDuo } from '../lib/duos.js';
@@ -317,44 +317,84 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
               </p>
             )}
 
-            {confirmed.map((h) => (
-              <div
-                key={h.id}
-                style={{
-                  background:   C.cardElevated,
-                  borderLeft:   `3px solid ${C.success}`,
-                  borderRight:  `0.5px solid ${C.border}`,
-                  borderTop:    `0.5px solid ${C.border}`,
-                  borderBottom: `0.5px solid ${C.border}`,
-                  borderRadius: 14,
-                  padding:      '14px 16px',
-                  marginBottom: 10,
-                }}
-              >
-                <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
-                  Confirmed hangout
-                </p>
-                <HangoutMeta h={h} />
-                <motion.button
-                  type="button"
-                  onClick={() => go('chat')}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.1 }}
+            {confirmed.map((h) => {
+              const otherDuo = h.duo_a_id === myDuo?.id ? h.duo_b : h.duo_a;
+              const members  = otherDuo?.duo_members ?? [];
+              return (
+                <div
+                  key={h.id}
                   style={{
-                    background:   C.gradientCTA,
-                    color:        '#fff',
-                    border:       'none',
-                    borderRadius: 10,
-                    padding:      '10px 20px',
-                    fontSize:     13,
-                    fontWeight:   700,
-                    cursor:       'pointer',
+                    background:   'linear-gradient(145deg, #1C1C22, #151519)',
+                    borderLeft:   `3px solid ${C.success}`,
+                    border:       `0.5px solid rgba(255,255,255,0.06)`,
+                    borderLeftWidth: 3,
+                    borderLeftColor: C.success,
+                    borderRadius: 16,
+                    padding:      20,
+                    marginBottom: 12,
                   }}
                 >
-                  Chat →
-                </motion.button>
-              </div>
-            ))}
+                  {/* Confirmed badge */}
+                  <span
+                    style={{
+                      display:      'inline-block',
+                      background:   'rgba(16,185,129,0.12)',
+                      color:        C.success,
+                      borderRadius: 9999,
+                      padding:      '4px 12px',
+                      fontSize:     12,
+                      fontWeight:   600,
+                      marginBottom: 12,
+                    }}
+                  >
+                    ✓ Confirmed
+                  </span>
+
+                  {/* Duo name + meta */}
+                  <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 4px' }}>
+                    {otherDuo?.name ?? 'Duo'}
+                  </p>
+                  <HangoutMeta h={h} />
+
+                  {/* Divider */}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16, marginBottom: 12 }}>
+                    <p
+                      style={{
+                        fontSize:      11,
+                        fontWeight:    700,
+                        color:         C.muted,
+                        letterSpacing: '0.15em',
+                        textTransform: 'uppercase',
+                        marginBottom:  10,
+                      }}
+                    >
+                      Connect on Instagram
+                    </p>
+
+                    {members.length === 0 ? (
+                      <p style={{ fontSize: 14, color: C.muted }}>Instagram not added yet.</p>
+                    ) : (
+                      members.map((member, idx) => (
+                        member.instagram || member.profiles?.instagram ? (
+                          <InstagramButton
+                            key={idx}
+                            member={{
+                              name: member.profiles?.name ?? 'Member',
+                              ig:   member.instagram || member.profiles?.instagram || '',
+                            }}
+                            avatarBg={AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length]}
+                          />
+                        ) : (
+                          <p key={idx} style={{ fontSize: 14, color: C.muted }}>
+                            Instagram not added yet.
+                          </p>
+                        )
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {/* OC SPOTS */}
             <div style={{ marginBottom: 12, marginTop: 28 }}>
@@ -370,7 +410,6 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
         )}
       </div>
 
-      <BottomNav activePage="hangouts" onNavigate={(tab) => go(tab)} />
     </div>
   );
 }

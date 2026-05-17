@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, ChevronRight, X } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
-import BottomNav from '../components/BottomNav.jsx';
 import { DUOS } from '../data/duos.js';
 import { getDiscoveryDuos } from '../lib/duos.js';
 
@@ -476,7 +475,6 @@ export default function HomePage({ go, onLogout, currentUser }) {
         </div>
       </div>
 
-      <BottomNav activePage="home" onNavigate={(tab) => go(tab)} />
     </div>
   );
 }

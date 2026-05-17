@@ -2,7 +2,6 @@ import { LogOut, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
-import BottomNav from '../components/BottomNav.jsx';
 import { signOut } from '../lib/auth.js';
 
 export default function MePage({ go, currentUser }) {
@@ -105,7 +104,6 @@ export default function MePage({ go, currentUser }) {
         </p>
       </div>
 
-      <BottomNav activePage="me" onNavigate={(tab) => go(tab)} />
     </div>
   );
 }

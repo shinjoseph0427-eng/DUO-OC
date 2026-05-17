@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BottomNav from './components/BottomNav.jsx';
 import HomePage from './pages/HomePage.jsx';
 import DuoDetailPage from './pages/DuoDetailPage.jsx';
 import RequestTwoVTwo from './pages/RequestTwoVTwo.jsx';
@@ -19,11 +20,13 @@ import { getUser, signOut } from './lib/auth.js';
 import { getMyDuo } from './lib/duos.js';
 
 const PAGES = [
-  'landing', 'auth', 'onboarding', 'home', 'explore',
+  'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
   'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'me', 'find_homie', 'propose_hangout', 'counter_hangout', 'edit_profile',
 ];
 
-const PUBLIC_PAGES = ['landing', 'auth'];
+const PUBLIC_PAGES  = ['landing', 'auth', 'login'];
+const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
+const NAV_TAB_PAGES = ['home', 'explore', 'hangouts', 'chat', 'me'];
 
 export default function App() {
   const [page, setPage]               = useState('landing');
@@ -72,25 +75,34 @@ export default function App() {
     <PlaceholderPage go={go} title={title} activePage={activePage} onLogout={handleLogout} />
   );
 
+  const isAuthPage = AUTH_PAGES.includes(page);
+  const activeTab  = NAV_TAB_PAGES.includes(page) ? page : null;
+
   return (
-    <div key={page} className="page-enter">
-      {page === 'landing'     && <LandingPage go={go} />}
-      {page === 'auth'        && <AuthPage go={go} onLogin={setCurrentUser} />}
-      {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} />}
-      {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} />}
-      {page === 'explore'     && fallback('Explore', 'explore')}
-      {page === 'duo_detail'  && (selectedDuo ? <DuoDetailPage duo={selectedDuo} go={go} onLogout={handleLogout} /> : fallback('Duo not found'))}
-      {page === 'request'     && (selectedDuo ? <RequestTwoVTwo duo={selectedDuo} go={go} /> : fallback('Duo not found'))}
-      {page === 'match'       && (selectedDuo ? <MatchScreen duo={selectedDuo} requestData={requestData} go={go} /> : fallback('Match not found'))}
-      {page === 'hangouts'      && <HangoutsPage currentUser={currentUser} go={go} onLogout={handleLogout} />}
-      {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} />}
-      {page === 'chat'        && <ChatListPage go={go} onLogout={handleLogout} />}
-      {page === 'chat_thread' && (selectedChat ? <ChatThreadPage chat={selectedChat} go={go} /> : fallback('Chat not found', 'chat'))}
-      {page === 'me'          && <MePage go={go} currentUser={currentUser} onLogout={handleLogout} />}
-      {page === 'find_homie'      && <FindHomie currentUser={currentUser} go={go} />}
-      {page === 'counter_hangout' && <CounterHangout currentUser={currentUser} hangout={selectedHangout} go={go} />}
-      {page === 'edit_profile'    && <EditProfile currentUser={currentUser} go={go} />}
-      {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
+    <div style={{ paddingBottom: !isAuthPage && currentUser ? 64 : 0 }}>
+      <div key={page} className="page-enter">
+        {page === 'landing'     && <LandingPage go={go} />}
+        {page === 'auth'        && <AuthPage initialMode="signup" go={go} onLogin={setCurrentUser} />}
+        {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} />}
+        {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} />}
+        {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} />}
+        {page === 'explore'     && fallback('Explore', 'explore')}
+        {page === 'duo_detail'  && (selectedDuo ? <DuoDetailPage duo={selectedDuo} go={go} onLogout={handleLogout} /> : fallback('Duo not found'))}
+        {page === 'request'     && (selectedDuo ? <RequestTwoVTwo duo={selectedDuo} go={go} /> : fallback('Duo not found'))}
+        {page === 'match'       && (selectedDuo ? <MatchScreen duo={selectedDuo} requestData={requestData} go={go} /> : fallback('Match not found'))}
+        {page === 'hangouts'        && <HangoutsPage currentUser={currentUser} go={go} onLogout={handleLogout} />}
+        {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} />}
+        {page === 'chat'        && <ChatListPage go={go} onLogout={handleLogout} />}
+        {page === 'chat_thread' && (selectedChat ? <ChatThreadPage chat={selectedChat} go={go} /> : fallback('Chat not found', 'chat'))}
+        {page === 'me'          && <MePage go={go} currentUser={currentUser} />}
+        {page === 'find_homie'      && <FindHomie currentUser={currentUser} go={go} />}
+        {page === 'counter_hangout' && <CounterHangout currentUser={currentUser} hangout={selectedHangout} go={go} />}
+        {page === 'edit_profile'    && <EditProfile currentUser={currentUser} go={go} />}
+        {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
+      </div>
+      {!isAuthPage && currentUser && (
+        <BottomNav activePage={activeTab ?? page} onNavigate={(tab) => go(tab)} />
+      )}
     </div>
   );
 }

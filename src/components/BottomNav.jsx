@@ -15,8 +15,10 @@ export default function BottomNav({ activePage, onNavigate }) {
     <nav
       className="glass"
       style={{
-        position:      'sticky',
+        position:      'fixed',
         bottom:        0,
+        left:          0,
+        right:         0,
         zIndex:        100,
         borderTop:     '0.5px solid rgba(255,255,255,0.07)',
         display:       'flex',

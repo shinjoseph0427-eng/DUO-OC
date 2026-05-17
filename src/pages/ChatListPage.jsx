@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
-import BottomNav from '../components/BottomNav.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
 
 const CHATS = [
@@ -150,7 +149,6 @@ export default function ChatListPage({ go, onLogout }) {
         ))}
       </motion.div>
 
-      <BottomNav activePage="chat" onNavigate={(tab) => go(tab)} />
     </div>
   );
 }

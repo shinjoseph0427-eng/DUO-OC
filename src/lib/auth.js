@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient'
 
-export async function signUp(email, password, name, age, city, instagram) {
+export async function signUp(email, password, name, age, city, instagram, gender) {
   const { data, error } = await supabase.auth.signUp({ email, password })
   if (error) throw error
 
@@ -9,9 +9,10 @@ export async function signUp(email, password, name, age, city, instagram) {
     .insert({
       id: data.user.id,
       name,
-      age: parseInt(age),
+      age:       parseInt(age),
       city,
       instagram: instagram.replace('@', ''),
+      gender:    gender || null,
     })
   if (profileError) throw profileError
 

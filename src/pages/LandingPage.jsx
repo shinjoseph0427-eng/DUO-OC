@@ -414,12 +414,12 @@ export default function LandingPage({ go }) {
               boxShadow:     '0 4px 20px rgba(245,158,11,0.3)',
             }}
           >
-            Create your duo
+            Create your duo →
           </motion.button>
 
           <motion.button
             type="button"
-            onClick={() => go('home')}
+            onClick={() => go('login')}
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.1 }}
             style={{
@@ -435,7 +435,7 @@ export default function LandingPage({ go }) {
               marginBottom: 24,
             }}
           >
-            Browse duos
+            Log in
           </motion.button>
 
           <p

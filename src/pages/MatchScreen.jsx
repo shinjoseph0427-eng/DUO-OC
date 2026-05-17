@@ -188,8 +188,15 @@ export default function MatchScreen({ duo, requestData = {}, go }) {
           </motion.div>
         </motion.div>
 
-        <motion.div variants={fadeUp} initial="initial" animate="animate" transition={{ delay: 0.32 }}>
-          <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
+        <motion.div variants={fadeUp} initial="initial" animate="animate" transition={{ delay: 0.32 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+        >
+          <PremiumButton fullWidth onClick={() => go('propose_hangout', duo)}>
+            Plan a Hangout →
+          </PremiumButton>
+          <PremiumButton variant="ghost" fullWidth onClick={() => go('home')}>
+            Back to Home
+          </PremiumButton>
         </motion.div>
       </div>
     </div>
