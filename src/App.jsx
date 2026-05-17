@@ -11,11 +11,14 @@ import AuthPage from './pages/AuthPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import MePage from './pages/MePage.jsx';
 import FindHomie from './pages/FindHomie.jsx';
+import ProposeHangout from './pages/ProposeHangout.jsx';
+import HangoutsPage from './pages/HangoutsPage.jsx';
 import { getUser, signOut } from './lib/auth.js';
+import { getMyDuo } from './lib/duos.js';
 
 const PAGES = [
   'landing', 'auth', 'onboarding', 'home', 'explore',
-  'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'me', 'find_homie',
+  'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'me', 'find_homie', 'propose_hangout',
 ];
 
 const PUBLIC_PAGES = ['landing', 'auth'];
@@ -25,7 +28,9 @@ export default function App() {
   const [selectedDuo, setSelectedDuo] = useState(null);
   const [requestData, setRequestData] = useState({});
   const [selectedChat, setSelectedChat] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser,     setCurrentUser]     = useState(null);
+  const [myDuo,           setMyDuo]           = useState(null);
+  const [selectedHangout, setSelectedHangout] = useState(null);
 
   useEffect(() => {
     getUser().then(user => {
@@ -35,6 +40,12 @@ export default function App() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      getMyDuo(currentUser.id).then(setMyDuo).catch(() => {});
+    }
+  }, [currentUser]);
 
   const go = (newPage, duo = null, reqData = null) => {
     if (!PUBLIC_PAGES.includes(newPage) && !currentUser) {
@@ -68,7 +79,8 @@ export default function App() {
       {page === 'duo_detail'  && (selectedDuo ? <DuoDetailPage duo={selectedDuo} go={go} onLogout={handleLogout} /> : fallback('Duo not found'))}
       {page === 'request'     && (selectedDuo ? <RequestTwoVTwo duo={selectedDuo} go={go} /> : fallback('Duo not found'))}
       {page === 'match'       && (selectedDuo ? <MatchScreen duo={selectedDuo} requestData={requestData} go={go} /> : fallback('Match not found'))}
-      {page === 'hangouts'    && <PlaceholderPage go={go} title="Hangouts" activePage="hangouts" onLogout={handleLogout} />}
+      {page === 'hangouts'      && <HangoutsPage currentUser={currentUser} go={go} onLogout={handleLogout} />}
+      {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} />}
       {page === 'chat'        && <ChatListPage go={go} onLogout={handleLogout} />}
       {page === 'chat_thread' && (selectedChat ? <ChatThreadPage chat={selectedChat} go={go} /> : fallback('Chat not found', 'chat'))}
       {page === 'me'          && <MePage go={go} currentUser={currentUser} onLogout={handleLogout} />}

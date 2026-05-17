@@ -179,8 +179,8 @@ export default function DuoDetailPage({ duo, go, onLogout }) {
         </motion.p>
 
         <motion.div variants={staggerItem} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <PremiumButton fullWidth onClick={() => go('request', duo)}>
-            Plan a 2v2 →
+          <PremiumButton fullWidth onClick={() => go('propose_hangout', duo)}>
+            Request 2v2 Hangout →
           </PremiumButton>
           <PremiumButton variant="ghost" fullWidth>
             Message Duo

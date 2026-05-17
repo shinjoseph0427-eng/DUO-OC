@@ -1,16 +1,11 @@
+import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import BottomNav from '../components/BottomNav.jsx';
 import { OC_SPOTS } from '../data/duos.js';
-
-const PENDING = [
-  { id: 1, fromDuo: "Mia & Jess",    fromCities: "Irvine + Newport",       vibe: "Boba",   when: "This Friday" },
-  { id: 2, fromDuo: "Sophie & Ana",  fromCities: "Newport + Costa Mesa",   vibe: "Coffee", when: "Saturday"    },
-];
-
-const CONFIRMED = [
-  { id: 3, duoName: "Jay & Marcus", vibe: "Dinner", when: "Saturday", spot: "Anaheim Packing House" },
-];
+import { getMyHangouts, acceptHangout, declineHangout } from '../lib/hangouts.js';
+import { getMyDuo } from '../lib/duos.js';
 
 const SECTION_LABEL = {
   fontSize:      10,
@@ -18,6 +13,22 @@ const SECTION_LABEL = {
   letterSpacing: '1px',
   textTransform: 'uppercase',
   color:         C.muted,
+};
+
+const TIME_LABELS = {
+  morning:   'Morning (10am–12pm)',
+  afternoon: 'Afternoon (12pm–4pm)',
+  evening:   'Evening (4pm–7pm)',
+  night:     'Night (7pm–10pm)',
+};
+
+const DATE_LABELS = {
+  today:     'Today',
+  tomorrow:  'Tomorrow',
+  friday:    'This Friday',
+  saturday:  'Saturday',
+  sunday:    'This Sunday',
+  next_week: 'Next week',
 };
 
 function SpotCard({ spot }) {
@@ -32,7 +43,6 @@ function SpotCard({ spot }) {
         textAlign:    'center',
         flexShrink:   0,
         cursor:       'pointer',
-        transition:   'border-color 0.15s',
       }}
     >
       <p style={{ fontSize: 18, marginBottom: 6 }}>{spot.emoji}</p>
@@ -42,137 +52,247 @@ function SpotCard({ spot }) {
   );
 }
 
-export default function HangoutsPage({ go }) {
+function HangoutMeta({ h }) {
+  const dateLabel = DATE_LABELS[h.date] ?? h.date ?? '';
+  const timeLabel = TIME_LABELS[h.time_slot] ?? h.time_slot ?? '';
+  return (
+    <>
+      <p style={{ fontSize: 13, color: C.muted, margin: '4px 0 8px' }}>
+        {[h.vibe, dateLabel, timeLabel].filter(Boolean).join(' · ')}
+      </p>
+      {h.place && (
+        <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px' }}>📍 {h.place}</p>
+      )}
+    </>
+  );
+}
+
+export default function HangoutsPage({ currentUser, go, onLogout }) {
+  const [hangouts, setHangouts] = useState([]);
+  const [myDuo,    setMyDuo]    = useState(null);
+  const [loading,  setLoading]  = useState(true);
+
+  const load = useCallback(() => {
+    if (!currentUser) { setLoading(false); return; }
+    getMyDuo(currentUser.id).then((duo) => {
+      setMyDuo(duo);
+      if (duo) return getMyHangouts(duo.id);
+      return [];
+    }).then((data) => {
+      setHangouts(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [currentUser]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAccept = async (id) => {
+    await acceptHangout(id);
+    load();
+  };
+
+  const handleDecline = async (id) => {
+    await declineHangout(id);
+    load();
+  };
+
+  const incoming  = hangouts.filter((h) => h.status === 'pending'   && h.duo_b_id === myDuo?.id);
+  const outgoing  = hangouts.filter((h) => h.status === 'pending'   && h.duo_a_id === myDuo?.id);
+  const confirmed = hangouts.filter((h) => h.status === 'confirmed');
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
-      <TopBar title="Hangouts" />
+      <TopBar title="Hangouts" onLogout={onLogout} />
 
       <div style={{ flex: 1, padding: '20px 16px', paddingBottom: 80, overflowY: 'auto' }}>
 
-        {/* PENDING */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <p style={SECTION_LABEL}>Pending</p>
-          <span
-            style={{
-              background:    'rgba(245,158,11,0.12)',
-              color:         C.amber,
-              borderRadius:  9999,
-              padding:       '2px 10px',
-              fontSize:      11,
-              fontWeight:    700,
-            }}
-          >
-            {PENDING.length}
-          </span>
-        </div>
-
-        {PENDING.map((item) => (
-          <div
-            key={item.id}
-            style={{
-              background:   C.cardElevated,
-              borderLeft:   `3px solid ${C.amber}`,
-              borderRight:  `0.5px solid ${C.border}`,
-              borderTop:    `0.5px solid ${C.border}`,
-              borderBottom: `0.5px solid ${C.border}`,
-              borderRadius: 14,
-              padding:      '14px 16px',
-              marginBottom: 10,
-            }}
-          >
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 2 }}>{item.fromDuo}</p>
-            <p style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{item.fromCities}</p>
-            <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>{item.vibe} · {item.when}</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                style={{
-                  flex:         1,
-                  background:   C.gradientCTA,
-                  color:        '#fff',
-                  border:       'none',
-                  borderRadius: 10,
-                  padding:      10,
-                  fontSize:     13,
-                  fontWeight:   700,
-                  cursor:       'pointer',
-                  boxShadow:    '0 2px 12px rgba(245,158,11,0.2)',
-                }}
-              >
-                Confirm
-              </button>
-              <button
-                type="button"
-                style={{
-                  flex:         1,
-                  background:   'transparent',
-                  color:        C.muted,
-                  border:       `0.5px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding:      10,
-                  fontSize:     13,
-                  fontWeight:   700,
-                  cursor:       'pointer',
-                }}
-              >
-                Decline
-              </button>
+        {loading ? (
+          <p style={{ fontSize: 14, color: C.muted, textAlign: 'center', padding: '40px 0' }}>
+            Loading…
+          </p>
+        ) : (
+          <>
+            {/* INCOMING PENDING */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={SECTION_LABEL}>Pending</p>
+              {incoming.length > 0 && (
+                <span
+                  style={{
+                    background:   'rgba(245,158,11,0.12)',
+                    color:        C.amber,
+                    borderRadius: 9999,
+                    padding:      '2px 10px',
+                    fontSize:     11,
+                    fontWeight:   700,
+                  }}
+                >
+                  {incoming.length}
+                </span>
+              )}
             </div>
-          </div>
-        ))}
 
-        {/* CONFIRMED */}
-        <div style={{ marginBottom: 12, marginTop: 28 }}>
-          <p style={SECTION_LABEL}>Confirmed</p>
-        </div>
+            {incoming.length === 0 && outgoing.length === 0 && (
+              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
+                No pending hangouts.
+              </p>
+            )}
 
-        {CONFIRMED.map((item) => (
-          <div
-            key={item.id}
-            style={{
-              background:   C.cardElevated,
-              borderLeft:   `3px solid ${C.success}`,
-              borderRight:  `0.5px solid ${C.border}`,
-              borderTop:    `0.5px solid ${C.border}`,
-              borderBottom: `0.5px solid ${C.border}`,
-              borderRadius: 14,
-              padding:      '14px 16px',
-              marginBottom: 10,
-            }}
-          >
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 4 }}>{item.duoName}</p>
-            <p style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>{item.vibe} · {item.when}</p>
-            <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>📍 {item.spot}</p>
-            <button
-              type="button"
-              style={{
-                background:   C.gradientCTA,
-                color:        '#fff',
-                border:       'none',
-                borderRadius: 10,
-                padding:      '10px 20px',
-                fontSize:     13,
-                fontWeight:   700,
-                cursor:       'pointer',
-              }}
+            {incoming.map((h) => (
+              <div
+                key={h.id}
+                style={{
+                  background:   C.cardElevated,
+                  borderLeft:   `3px solid ${C.amber}`,
+                  borderRight:  `0.5px solid ${C.border}`,
+                  borderTop:    `0.5px solid ${C.border}`,
+                  borderBottom: `0.5px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding:      '14px 16px',
+                  marginBottom: 10,
+                }}
+              >
+                <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>
+                  Hangout request
+                </p>
+                <HangoutMeta h={h} />
+                {h.message && (
+                  <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
+                    "{h.message}"
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <motion.button
+                    type="button"
+                    onClick={() => handleAccept(h.id)}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      flex:         1,
+                      background:   C.gradientCTA,
+                      color:        '#fff',
+                      border:       'none',
+                      borderRadius: 10,
+                      padding:      10,
+                      fontSize:     13,
+                      fontWeight:   700,
+                      cursor:       'pointer',
+                      boxShadow:    '0 2px 12px rgba(245,158,11,0.2)',
+                    }}
+                  >
+                    ✓ Accept
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => handleDecline(h.id)}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      flex:         1,
+                      background:   'transparent',
+                      color:        C.muted,
+                      border:       `0.5px solid ${C.border}`,
+                      borderRadius: 10,
+                      padding:      10,
+                      fontSize:     13,
+                      fontWeight:   700,
+                      cursor:       'pointer',
+                    }}
+                  >
+                    ✗ Decline
+                  </motion.button>
+                </div>
+              </div>
+            ))}
+
+            {/* OUTGOING PENDING */}
+            {outgoing.length > 0 && (
+              <>
+                <p style={{ ...SECTION_LABEL, marginTop: 20, marginBottom: 12 }}>Sent</p>
+                {outgoing.map((h) => (
+                  <div
+                    key={h.id}
+                    style={{
+                      background:   C.cardElevated,
+                      borderLeft:   `3px solid rgba(245,158,11,0.3)`,
+                      borderRight:  `0.5px solid ${C.border}`,
+                      borderTop:    `0.5px solid ${C.border}`,
+                      borderBottom: `0.5px solid ${C.border}`,
+                      borderRadius: 14,
+                      padding:      '14px 16px',
+                      marginBottom: 10,
+                    }}
+                  >
+                    <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>
+                      Waiting for reply…
+                    </p>
+                    <HangoutMeta h={h} />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* CONFIRMED */}
+            <div style={{ marginBottom: 12, marginTop: 28 }}>
+              <p style={SECTION_LABEL}>Confirmed</p>
+            </div>
+
+            {confirmed.length === 0 && (
+              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
+                No confirmed hangouts yet.
+              </p>
+            )}
+
+            {confirmed.map((h) => (
+              <div
+                key={h.id}
+                style={{
+                  background:   C.cardElevated,
+                  borderLeft:   `3px solid ${C.success}`,
+                  borderRight:  `0.5px solid ${C.border}`,
+                  borderTop:    `0.5px solid ${C.border}`,
+                  borderBottom: `0.5px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding:      '14px 16px',
+                  marginBottom: 10,
+                }}
+              >
+                <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
+                  Confirmed hangout
+                </p>
+                <HangoutMeta h={h} />
+                <motion.button
+                  type="button"
+                  onClick={() => go('chat')}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ duration: 0.1 }}
+                  style={{
+                    background:   C.gradientCTA,
+                    color:        '#fff',
+                    border:       'none',
+                    borderRadius: 10,
+                    padding:      '10px 20px',
+                    fontSize:     13,
+                    fontWeight:   700,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Chat →
+                </motion.button>
+              </div>
+            ))}
+
+            {/* OC SPOTS */}
+            <div style={{ marginBottom: 12, marginTop: 28 }}>
+              <p style={SECTION_LABEL}>OC Spots</p>
+            </div>
+            <div
+              className="no-scrollbar"
+              style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8 }}
             >
-              Chat →
-            </button>
-          </div>
-        ))}
-
-        {/* OC SPOTS */}
-        <div style={{ marginBottom: 12, marginTop: 28 }}>
-          <p style={SECTION_LABEL}>OC Spots</p>
-        </div>
-
-        <div
-          className="no-scrollbar"
-          style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8 }}
-        >
-          {OC_SPOTS.map((spot) => <SpotCard key={spot.id} spot={spot} />)}
-        </div>
-
+              {OC_SPOTS.map((spot) => <SpotCard key={spot.id} spot={spot} />)}
+            </div>
+          </>
+        )}
       </div>
 
       <BottomNav activePage="hangouts" onNavigate={(tab) => go(tab)} />
