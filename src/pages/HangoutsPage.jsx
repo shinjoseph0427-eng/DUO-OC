@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { Calendar } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import InstagramButton from '../components/InstagramButton.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 import { OC_SPOTS } from '../data/duos.js';
 import { getMyHangouts, acceptHangout, declineHangout } from '../lib/hangouts.js';
 import { getMyDuo } from '../lib/duos.js';
@@ -67,7 +69,7 @@ function HangoutMeta({ h }) {
   );
 }
 
-export default function HangoutsPage({ currentUser, go, onLogout }) {
+export default function HangoutsPage({ currentUser, go, onLogout, showToast }) {
   const [hangouts, setHangouts] = useState([]);
   const [myDuo,    setMyDuo]    = useState(null);
   const [loading,  setLoading]  = useState(true);
@@ -89,6 +91,7 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
   const handleAccept = async (id) => {
     await acceptHangout(id);
     load();
+    showToast?.('Hangout locked in. Go say hi.', 'success');
   };
 
   const handleDecline = async (id) => {
@@ -132,7 +135,16 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
               )}
             </div>
 
-            {incoming.length === 0 && outgoing.length === 0 && (
+            {hangouts.length === 0 && (
+              <EmptyState
+                icon={Calendar}
+                title="No hangouts yet."
+                subtitle="Start by proposing a 2v2 to a duo you like."
+                style={{ marginBottom: 24 }}
+              />
+            )}
+
+            {incoming.length === 0 && outgoing.length === 0 && hangouts.length > 0 && (
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
                 No pending hangouts.
               </p>

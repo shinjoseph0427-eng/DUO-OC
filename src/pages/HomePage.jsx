@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, ChevronRight, X } from 'lucide-react';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { Bell, ChevronRight, X, Users } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
+import SkeletonCard from '../components/SkeletonCard.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 import { DUOS } from '../data/duos.js';
 import { getDiscoveryDuos } from '../lib/duos.js';
 
 const PORTRAIT_H = 200;
-const CARD_TRANSITION = { duration: 0.22, ease: [0.16, 1, 0.3, 1] };
 
 function DeckCard({ duo }) {
   const tags = duo.vibes.slice(0, 2);
@@ -100,8 +101,8 @@ function DeckCard({ duo }) {
       <div style={{ padding: '14px 16px 18px' }}>
         <p
           style={{
-            fontSize:      18,
-            fontWeight:    800,
+            fontSize:      20,
+            fontWeight:    900,
             color:         C.white,
             marginBottom:  3,
             letterSpacing: '-0.4px',
@@ -114,7 +115,8 @@ function DeckCard({ duo }) {
         </p>
         <p
           style={{
-            fontSize:     12,
+            fontSize:     11,
+            fontWeight:   400,
             color:        C.muted,
             marginBottom: tags.length > 0 ? 12 : 0,
             overflow:     'hidden',
@@ -238,7 +240,7 @@ function DeckActions({ onPass, onView, onRequest }) {
           boxShadow:    '0 4px 16px rgba(245,158,11,0.25)',
         }}
       >
-        Request 2v2
+        Plan 2v2
       </motion.button>
     </div>
   );
@@ -315,24 +317,33 @@ function normalizeDuo(d) {
 export default function HomePage({ go, onLogout, currentUser }) {
   const [deckDuos, setDeckDuos] = useState([...DUOS]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [direction, setDirection] = useState(0);
+
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 200], [-20, 20]);
+  const passOpacity = useTransform(x, [-120, -20], [1, 0]);
+  const likeOpacity = useTransform(x, [20, 120], [0, 1]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser) { setLoading(false); return; }
     getDiscoveryDuos(currentUser.id)
       .then((duos) => {
         if (duos && duos.length > 0) setDeckDuos(duos.map(normalizeDuo));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [currentUser]);
 
   const isDeckDone   = currentIndex >= deckDuos.length;
   const currentDuo   = isDeckDone ? null : deckDuos[currentIndex];
   const nextDuo      = deckDuos[currentIndex + 1] ?? null;
 
-  const handlePass    = () => setCurrentIndex((i) => Math.min(i + 1, deckDuos.length));
+  const handlePass    = () => { setDirection(-1); setCurrentIndex((i) => Math.min(i + 1, deckDuos.length)); x.set(0); };
+  const handleLike    = () => { setDirection(1);  setCurrentIndex((i) => Math.min(i + 1, deckDuos.length)); x.set(0); };
   const handleView    = () => currentDuo && go('duo_detail', currentDuo);
   const handleRequest = () => currentDuo && go('request', currentDuo);
-  const handleRestart = () => setCurrentIndex(0);
+  const handleRestart = () => { setCurrentIndex(0); setDirection(0); };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
@@ -393,14 +404,11 @@ export default function HomePage({ go, onLogout, currentUser }) {
               fontWeight:    800,
               letterSpacing: '-0.8px',
               color:         C.white,
-              margin:        '0 0 4px',
+              margin:        '0 0 20px',
             }}
           >
-            Who's the next 2v2?
+            Who's next.
           </h1>
-          <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.4 }}>
-            One duo at a time. No pressure.
-          </p>
         </div>
 
         {/* Find a Homie banner */}
@@ -419,7 +427,7 @@ export default function HomePage({ go, onLogout, currentUser }) {
         >
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0, marginBottom: 2 }}>
-              No duo yet?
+              Flying solo?
             </p>
             <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
               Find a Homie to roll with
@@ -442,13 +450,21 @@ export default function HomePage({ go, onLogout, currentUser }) {
               flexShrink:   0,
             }}
           >
-            Find →
+            Find someone
           </motion.button>
         </div>
 
         <div style={{ padding: '0 16px' }}>
-          {isDeckDone ? (
-            <DeckEmpty onRestart={handleRestart} />
+          {loading ? (
+            <SkeletonCard />
+          ) : isDeckDone ? (
+            <EmptyState
+              icon={Users}
+              title="All caught up."
+              subtitle="You've seen all duos for now. Check back soon."
+              action={handleRestart}
+              actionLabel="Start over"
+            />
           ) : (
             <>
               <div style={{ position: 'relative', paddingBottom: 36 }}>
@@ -456,11 +472,40 @@ export default function HomePage({ go, onLogout, currentUser }) {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={currentIndex}
-                    initial={{ opacity: 0, y: 20, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -12, scale: 0.98 }}
-                    transition={CARD_TRANSITION}
+                    style={{ x, rotate, position: 'relative' }}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0.7}
+                    onDragEnd={(_, info) => {
+                      if (info.offset.x < -80) handlePass();
+                      else if (info.offset.x > 80) handleLike();
+                      else x.set(0);
+                    }}
+                    initial={{ scale: 0.96, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 320, damping: 30 } }}
+                    exit={{
+                      x: direction * 320,
+                      rotate: direction * 22,
+                      opacity: 0,
+                      transition: { duration: 0.28, ease: 'easeIn' }
+                    }}
                   >
+                    {/* PASS overlay */}
+                    <motion.div style={{ opacity: passOpacity, position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
+                      <span style={{
+                        fontSize: 18, fontWeight: 800, color: '#EF4444',
+                        border: '2px solid #EF4444', borderRadius: 6, padding: '3px 10px',
+                        display: 'block', transform: 'rotate(-12deg)',
+                      }}>PASS</span>
+                    </motion.div>
+                    {/* 2v2 overlay */}
+                    <motion.div style={{ opacity: likeOpacity, position: 'absolute', top: 20, right: 20, zIndex: 10 }}>
+                      <span style={{
+                        fontSize: 18, fontWeight: 800, color: '#10B981',
+                        border: '2px solid #10B981', borderRadius: 6, padding: '3px 10px',
+                        display: 'block', transform: 'rotate(12deg)',
+                      }}>2v2</span>
+                    </motion.div>
                     <DeckCard duo={currentDuo} />
                   </motion.div>
                 </AnimatePresence>

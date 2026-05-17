@@ -366,7 +366,7 @@ export default function OnboardingFlow({ go, currentUser }) {
       <div style={{ height: 2, background: 'rgba(255,255,255,0.06)' }}>
         <motion.div
           animate={{ width: `${(step / 4) * 100}%` }}
-          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ type: 'spring', stiffness: 280, damping: 30 }}
           style={{ height: '100%', background: C.gradientCTA, borderRadius: '0 2px 2px 0' }}
         />
       </div>
@@ -374,10 +374,10 @@ export default function OnboardingFlow({ go, currentUser }) {
       <AnimatePresence mode="wait">
         <motion.main
           key={step}
-          initial={{ opacity: 0, x: 12 }}
+          initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -8 }}
-          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          exit={{ opacity: 0, x: -16 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
           style={{ padding: '24px 16px 120px' }}
         >
           <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 8px' }}>

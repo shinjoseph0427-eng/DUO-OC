@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import BottomNav from './components/BottomNav.jsx';
+import Toast from './components/Toast.jsx';
 import HomePage from './pages/HomePage.jsx';
 import DuoDetailPage from './pages/DuoDetailPage.jsx';
 import RequestTwoVTwo from './pages/RequestTwoVTwo.jsx';
@@ -36,6 +37,12 @@ export default function App() {
   const [currentUser,     setCurrentUser]     = useState(null);
   const [myDuo,           setMyDuo]           = useState(null);
   const [selectedHangout, setSelectedHangout] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2800);
+  };
 
   useEffect(() => {
     getUser().then(user => {
@@ -82,16 +89,16 @@ export default function App() {
     <div style={{ paddingBottom: !isAuthPage && currentUser ? 64 : 0 }}>
       <div key={page} className="page-enter">
         {page === 'landing'     && <LandingPage go={go} />}
-        {page === 'auth'        && <AuthPage initialMode="signup" go={go} onLogin={setCurrentUser} />}
-        {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} />}
+        {page === 'auth'        && <AuthPage initialMode="signup" go={go} onLogin={setCurrentUser} showToast={showToast} />}
+        {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} showToast={showToast} />}
         {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} />}
         {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} />}
         {page === 'explore'     && fallback('Explore', 'explore')}
         {page === 'duo_detail'  && (selectedDuo ? <DuoDetailPage duo={selectedDuo} go={go} onLogout={handleLogout} /> : fallback('Duo not found'))}
         {page === 'request'     && (selectedDuo ? <RequestTwoVTwo duo={selectedDuo} go={go} /> : fallback('Duo not found'))}
         {page === 'match'       && (selectedDuo ? <MatchScreen duo={selectedDuo} requestData={requestData} go={go} /> : fallback('Match not found'))}
-        {page === 'hangouts'        && <HangoutsPage currentUser={currentUser} go={go} onLogout={handleLogout} />}
-        {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} />}
+        {page === 'hangouts'        && <HangoutsPage currentUser={currentUser} go={go} onLogout={handleLogout} showToast={showToast} />}
+        {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} showToast={showToast} />}
         {page === 'chat'        && <ChatListPage go={go} onLogout={handleLogout} />}
         {page === 'chat_thread' && (selectedChat ? <ChatThreadPage chat={selectedChat} go={go} /> : fallback('Chat not found', 'chat'))}
         {page === 'me'          && <MePage go={go} currentUser={currentUser} />}
@@ -100,6 +107,7 @@ export default function App() {
         {page === 'edit_profile'    && <EditProfile currentUser={currentUser} go={go} />}
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
       </div>
+      <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
       {!isAuthPage && currentUser && (
         <BottomNav activePage={activeTab ?? page} onNavigate={(tab) => go(tab)} />
       )}

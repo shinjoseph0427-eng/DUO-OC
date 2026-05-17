@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { C } from '../tokens';
+import { popIn } from '../lib/motion.js';
 import TopBar from '../components/TopBar.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
@@ -82,26 +83,28 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go }) {
             gap:            16,
           }}
         >
-          <div
-            style={{
-              width:          72,
-              height:         72,
-              borderRadius:   20,
-              background:     C.gradientCTA,
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              marginBottom:   8,
-            }}
-          >
-            <Sparkles size={32} color="#0A0A0F" strokeWidth={2} />
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <motion.div
+              variants={popIn} initial="initial" animate="animate"
+              style={{
+                width: 72, height: 72, borderRadius: '50%',
+                background: C.gradientCTA,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Check size={32} color="#fff" strokeWidth={2.5} />
+            </motion.div>
+            <div className="pulse-ring" style={{
+              position: 'absolute', inset: -12,
+              borderRadius: '50%', border: '1.5px solid rgba(245,158,11,0.3)',
+              pointerEvents: 'none',
+            }} />
           </div>
-          <p style={{ fontSize: 22, fontWeight: 900, color: C.white, margin: 0, letterSpacing: '-0.5px' }}>
-            Hangout proposed! 🎉
-          </p>
-          <p style={{ fontSize: 14, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            Waiting for {duo?.name ?? 'them'} to accept.
-          </p>
+          <motion.p variants={popIn} initial="initial" animate="animate"
+            style={{ fontSize: 36, fontWeight: 900, color: C.white, letterSpacing: -1, margin: '0 0 8px' }}>
+            Sent.
+          </motion.p>
+          <p style={{ fontSize: 14, color: C.muted }}>Waiting for {duo?.name ?? 'them'} to reply.</p>
           <div style={{ marginTop: 16, width: '100%', maxWidth: 280 }}>
             <PremiumButton fullWidth onClick={() => go('home')}>
               Back to Home

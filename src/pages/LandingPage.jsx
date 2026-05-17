@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { Lock, MapPin, Shield } from 'lucide-react';
 import { C } from '../tokens';
 
 const PREVIEW_DUOS = [
@@ -62,6 +63,12 @@ const PREVIEW_DUOS = [
 const N = PREVIEW_DUOS.length;
 const PORTRAIT_H = 188;
 const SPRING = { type: 'spring', stiffness: 320, damping: 28, mass: 0.9 };
+
+const item = (delay) => ({
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94], delay },
+});
 
 function LandingDeckCard({ duo }) {
   return (
@@ -242,6 +249,9 @@ export default function LandingPage({ go }) {
   const next1 = PREVIEW_DUOS[(currentIndex + 1) % N];
   const next2 = PREVIEW_DUOS[(currentIndex + 2) % N];
 
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 200], [-18, 18]);
+
   return (
     <div
       style={{
@@ -256,6 +266,7 @@ export default function LandingPage({ go }) {
         overflow:      'hidden',
       }}
     >
+      {/* Dual background glows */}
       <div
         aria-hidden="true"
         style={{
@@ -265,7 +276,20 @@ export default function LandingPage({ go }) {
           transform:     'translateX(-50%)',
           width:         560,
           height:        400,
-          background:    'radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 65%)',
+          background:    'radial-gradient(circle, rgba(245,158,11,0.05) 0%, transparent 65%)',
+          pointerEvents: 'none',
+          zIndex:        0,
+        }}
+      />
+      <div
+        aria-hidden="true"
+        style={{
+          position:      'absolute',
+          bottom:        -80,
+          right:         -80,
+          width:         360,
+          height:        360,
+          background:    'radial-gradient(circle, rgba(244,114,182,0.03) 0%, transparent 65%)',
           pointerEvents: 'none',
           zIndex:        0,
         }}
@@ -273,11 +297,15 @@ export default function LandingPage({ go }) {
 
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
         {/* Logo */}
-        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 36 }}>
+        <motion.div
+          {...item(0)}
+          style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 36 }}
+        >
           <span className="gradient-text">duo oc.</span>
-        </div>
+        </motion.div>
 
-        <span
+        <motion.span
+          {...item(0.05)}
           style={{
             fontSize:      10,
             fontWeight:    700,
@@ -288,38 +316,56 @@ export default function LandingPage({ go }) {
             marginBottom:  14,
           }}
         >
-          OC Only · 2v2 Hangouts
-        </span>
+          Orange County · 18–25
+        </motion.span>
 
-        <h1
+        <motion.h1
+          {...item(0.1)}
           style={{
             fontSize:      40,
-            fontWeight:    800,
             lineHeight:    1.0,
-            letterSpacing: '-1.6px',
             margin:        '0 0 12px',
-            color:         C.white,
           }}
         >
-          2v2 hangouts.
+          <span style={{ fontWeight: 900, letterSpacing: -2, color: C.white }}>2v2 hangouts.</span>
           <br />
-          No pressure.
-        </h1>
+          <span style={{ fontWeight: 300, letterSpacing: -1, color: C.muted }}>No pressure.</span>
+        </motion.h1>
 
-        <p
+        <motion.p
+          {...item(0.15)}
           style={{
             color:      C.muted,
             fontSize:   14,
             lineHeight: 1.6,
-            margin:     '0 0 32px',
+            margin:     '0 0 24px',
             maxWidth:   300,
           }}
         >
           Bring your friend, meet another duo, and make plans around OC.
-        </p>
+        </motion.p>
+
+        {/* Trust pills */}
+        <motion.div {...item(0.2)} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+          {[
+            { Icon: Lock,   text: 'Instagram unlocked on match' },
+            { Icon: MapPin, text: 'Orange County only' },
+            { Icon: Shield, text: '18–25 only' },
+          ].map(({ Icon, text }) => (
+            <div key={text} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              borderRadius: 9999, padding: '6px 12px',
+            }}>
+              <Icon size={12} color={C.muted} strokeWidth={2} />
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>{text}</span>
+            </div>
+          ))}
+        </motion.div>
 
         {/* Card stack */}
-        <div style={{ marginBottom: 10 }}>
+        <motion.div {...item(0.25)} style={{ marginBottom: 10 }}>
           <div style={{ perspective: 1100, perspectiveOrigin: '50% 40%' }}>
             <div style={{ position: 'relative', paddingBottom: 42 }}>
               <div
@@ -354,6 +400,7 @@ export default function LandingPage({ go }) {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={currentIndex}
+                    style={{ x, rotate, cursor: 'pointer' }}
                     initial={{ opacity: 0, rotateY: 12, scale: 0.95 }}
                     animate={{ opacity: 1, rotateY: 0,  scale: 1    }}
                     exit={{    opacity: 0, rotateY: -14, scale: 0.96 }}
@@ -370,7 +417,6 @@ export default function LandingPage({ go }) {
                     tabIndex={0}
                     onKeyDown={(e) => e.key === 'Enter' && advance()}
                     aria-label={`Preview: ${PREVIEW_DUOS[currentIndex].name}. Tap to see next.`}
-                    style={{ cursor: 'pointer' }}
                   >
                     <LandingDeckCard duo={PREVIEW_DUOS[currentIndex]} />
                   </motion.div>
@@ -390,10 +436,10 @@ export default function LandingPage({ go }) {
           >
             Tap or swipe to discover another duo
           </p>
-        </div>
+        </motion.div>
 
         {/* CTAs */}
-        <div style={{ marginTop: 'auto', paddingTop: 32 }}>
+        <motion.div {...item(0.3)} style={{ marginTop: 'auto', paddingTop: 32 }}>
           <motion.button
             type="button"
             onClick={() => go('auth')}
@@ -449,7 +495,7 @@ export default function LandingPage({ go }) {
           >
             18–25 only · Orange County · Public places first
           </p>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

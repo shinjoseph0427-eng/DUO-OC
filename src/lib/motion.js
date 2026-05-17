@@ -1,50 +1,43 @@
-// Shared Framer Motion variants for meet oc.
-// Keep animations fast, tactile, and premium. No excessive bounce.
-// Framer Motion v12 respects prefers-reduced-motion automatically.
-
-const ease = [0.16, 1, 0.3, 1]; // custom ease-out-expo
+export { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 
 export const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease } },
-  exit:    { opacity: 0, y: -4, transition: { duration: 0.16, ease: 'easeIn' } },
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] } },
+  exit:    { opacity: 0, y: -6, transition: { duration: 0.12 } },
 };
 
 export const cardVariants = {
-  initial: { opacity: 0, y: 12, scale: 0.98 },
-  animate: { opacity: 1, y: 0,  scale: 1,    transition: { duration: 0.24, ease } },
+  initial: { opacity: 0, y: 16, scale: 0.98 },
+  animate: { opacity: 1, y: 0,  scale: 1, transition: { type: 'spring', stiffness: 320, damping: 30 } },
 };
 
 export const staggerContainer = {
-  animate: {
-    transition: { staggerChildren: 0.07, delayChildren: 0.04 },
-  },
+  initial: {},
+  animate: { transition: { staggerChildren: 0.06 } },
 };
 
 export const staggerItem = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease } },
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } },
 };
 
-// Tactile tap for buttons
-export const buttonTap = { whileTap: { scale: 0.97 } };
+export const popIn = {
+  initial: { scale: 0, opacity: 0 },
+  animate: { scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 500, damping: 22 } },
+};
 
-// Softer tap for pills
-export const pillTap = { whileTap: { scale: 0.93 } };
-
-// Match unlock moment — spring pop
-export const matchBurst = {
-  initial: { scale: 0.4, opacity: 0 },
-  animate: {
-    scale: 1,
-    opacity: 1,
-    transition: { type: 'spring', damping: 14, stiffness: 220, mass: 0.8 },
-  },
+export const shake = {
+  animate: { x: [0, -8, 8, -6, 6, -3, 3, 0], transition: { duration: 0.45 } },
 };
 
 export const fadeUp = {
-  initial: { opacity: 0, y: 14 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.28, ease } },
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
+};
+
+export const matchBurst = {
+  initial: { scale: 0.6, opacity: 0 },
+  animate: { scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 420, damping: 18 } },
 };
 
 export const fadeIn = {
@@ -56,3 +49,6 @@ export const messageVariants = {
   initial: { opacity: 0, y: 6, scale: 0.98 },
   animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.18, ease: 'easeOut' } },
 };
+
+export const buttonTap = { whileTap: { scale: 0.97 } };
+export const pillTap   = { whileTap: { scale: 0.93 } };

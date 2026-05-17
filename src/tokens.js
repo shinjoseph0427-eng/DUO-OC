@@ -64,17 +64,15 @@ export const AVATAR_GRADIENTS = [
 ];
 
 export const F = {
-  // backward-compat — Inter is set globally in index.css
-  family: "'Inter', system-ui, -apple-system, Roboto, sans-serif",
-
-  display:  { fontSize: 52, fontWeight: 800, letterSpacing: '-2px',   lineHeight: 1.1  },
-  titleXl:  { fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', lineHeight: 1.15 },
-  titleLg:  { fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.2  },
-  titleMd:  { fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px', lineHeight: 1.25 },
-  bodyLg:   { fontSize: 16, fontWeight: 400, lineHeight: 1.5 },
-  bodySm:   { fontSize: 14, fontWeight: 400, lineHeight: 1.5 },
-  label:    { fontSize: 11, fontWeight: 700, letterSpacing: '0.8px',  textTransform: 'uppercase' },
-  micro:    { fontSize: 11, fontWeight: 500, letterSpacing: '0.5px'  },
+  family:  "'Inter', system-ui, -apple-system, Roboto, sans-serif",
+  display: { fontSize: 40, fontWeight: 900, letterSpacing: -2 },
+  h1:      { fontSize: 28, fontWeight: 800, letterSpacing: -1 },
+  h2:      { fontSize: 22, fontWeight: 800, letterSpacing: -0.5 },
+  h3:      { fontSize: 18, fontWeight: 700 },
+  h3light: { fontSize: 18, fontWeight: 300 },
+  body:    { fontSize: 15, fontWeight: 400, lineHeight: 1.6 },
+  sm:      { fontSize: 13, fontWeight: 400, lineHeight: 1.5 },
+  label:   { fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: '#8C8C96' },
 };
 
 export const R = {

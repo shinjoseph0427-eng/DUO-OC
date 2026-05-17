@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Lock } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
@@ -112,36 +112,20 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
       <div style={{ padding: '40px 24px 80px' }}>
 
         {/* Mode tabs */}
-        <div
-          style={{
-            background:   'rgba(255,255,255,0.04)',
-            borderRadius: 9999,
-            padding:      4,
-            display:      'flex',
-            marginBottom: 32,
-          }}
-        >
+        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 9999, padding: 4, display: 'flex', marginBottom: 32, position: 'relative' }}>
           {['signup', 'login'].map((m) => (
-            <motion.button
-              key={m}
-              type="button"
-              onClick={() => switchMode(m)}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.1 }}
-              style={{
-                flex:         1,
-                height:       40,
-                borderRadius: 9999,
-                border:       'none',
-                background:   mode === m ? C.gradientCTA : 'transparent',
-                color:        mode === m ? '#0A0A0F' : C.muted,
-                fontSize:     14,
-                fontWeight:   700,
-                cursor:       'pointer',
-              }}
-            >
+            <button key={m} type="button" onClick={() => switchMode(m)}
+              style={{ flex:1, height:40, borderRadius:9999, border:'none', background:'transparent',
+                       color: mode===m ? '#0A0A0F' : C.muted, fontSize:14, fontWeight:700, cursor:'pointer',
+                       position:'relative', zIndex:1 }}>
+              {mode===m && (
+                <motion.div layoutId="auth-tab-bg"
+                  style={{ position:'absolute', inset:0, borderRadius:9999, background:C.gradientCTA, zIndex:-1 }}
+                  transition={{ type:'spring', stiffness:400, damping:30 }}
+                />
+              )}
               {m === 'signup' ? 'Sign Up' : 'Log In'}
-            </motion.button>
+            </button>
           ))}
         </div>
 
@@ -245,7 +229,7 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
             >
               <Lock size={14} color={C.amber} strokeWidth={2} style={{ flexShrink: 0 }} />
               <p style={{ fontSize: 12, color: C.amber, margin: 0, lineHeight: 1.4 }}>
-                Instagram locked until match.
+                Instagram stays private until you match.
               </p>
             </div>
 
@@ -385,7 +369,9 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
 
 function ErrorBox({ children }) {
   return (
-    <p
+    <motion.p
+      animate={{ x: [0, -8, 8, -6, 6, -3, 3, 0] }}
+      transition={{ duration: 0.45 }}
       style={{
         fontSize:     13,
         color:        '#EF4444',
@@ -398,6 +384,6 @@ function ErrorBox({ children }) {
       }}
     >
       {children}
-    </p>
+    </motion.p>
   );
 }
