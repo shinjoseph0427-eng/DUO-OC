@@ -98,6 +98,7 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
 
   const incoming  = hangouts.filter((h) => h.status === 'pending'   && h.duo_b_id === myDuo?.id);
   const outgoing  = hangouts.filter((h) => h.status === 'pending'   && h.duo_a_id === myDuo?.id);
+  const countered = hangouts.filter((h) => h.status === 'countered' && h.duo_a_id === myDuo?.id);
   const confirmed = hangouts.filter((h) => h.status === 'confirmed');
 
   return (
@@ -200,6 +201,25 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
                   >
                     ✗ Decline
                   </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => go('counter_hangout', null, null, null, h)}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      flex:         1,
+                      background:   'transparent',
+                      color:        '#A78BFA',
+                      border:       '0.5px solid rgba(139,92,246,0.3)',
+                      borderRadius: 10,
+                      padding:      10,
+                      fontSize:     13,
+                      fontWeight:   700,
+                      cursor:       'pointer',
+                    }}
+                  >
+                    ↩ Counter
+                  </motion.button>
                 </div>
               </div>
             ))}
@@ -226,6 +246,61 @@ export default function HangoutsPage({ currentUser, go, onLogout }) {
                       Waiting for reply…
                     </p>
                     <HangoutMeta h={h} />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* COUNTERED */}
+            {countered.length > 0 && (
+              <>
+                <p style={{ ...SECTION_LABEL, marginTop: 20, marginBottom: 12 }}>New time proposed</p>
+                {countered.map((h) => (
+                  <div
+                    key={h.id}
+                    style={{
+                      background:   C.cardElevated,
+                      borderLeft:   '3px solid #8B5CF6',
+                      borderRight:  `0.5px solid ${C.border}`,
+                      borderTop:    `0.5px solid ${C.border}`,
+                      borderBottom: `0.5px solid ${C.border}`,
+                      borderRadius: 14,
+                      padding:      '14px 16px',
+                      marginBottom: 10,
+                    }}
+                  >
+                    <p style={{ fontSize: 12, color: '#8B5CF6', fontWeight: 700, margin: '0 0 4px' }}>
+                      ↩ New time proposed
+                    </p>
+                    <HangoutMeta h={h} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <motion.button
+                        type="button"
+                        onClick={() => handleAccept(h.id)}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ duration: 0.1 }}
+                        style={{
+                          flex: 1, background: C.gradientCTA, color: '#fff',
+                          border: 'none', borderRadius: 10, padding: 10,
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >
+                        ✓ Accept
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={() => handleDecline(h.id)}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ duration: 0.1 }}
+                        style={{
+                          flex: 1, background: 'transparent', color: C.muted,
+                          border: `0.5px solid ${C.border}`, borderRadius: 10, padding: 10,
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >
+                        ✗ Decline
+                      </motion.button>
+                    </div>
                   </div>
                 ))}
               </>

@@ -13,12 +13,14 @@ import MePage from './pages/MePage.jsx';
 import FindHomie from './pages/FindHomie.jsx';
 import ProposeHangout from './pages/ProposeHangout.jsx';
 import HangoutsPage from './pages/HangoutsPage.jsx';
+import CounterHangout from './pages/CounterHangout.jsx';
+import EditProfile from './pages/EditProfile.jsx';
 import { getUser, signOut } from './lib/auth.js';
 import { getMyDuo } from './lib/duos.js';
 
 const PAGES = [
   'landing', 'auth', 'onboarding', 'home', 'explore',
-  'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'me', 'find_homie', 'propose_hangout',
+  'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'me', 'find_homie', 'propose_hangout', 'counter_hangout', 'edit_profile',
 ];
 
 const PUBLIC_PAGES = ['landing', 'auth'];
@@ -47,13 +49,14 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const go = (newPage, duo = null, reqData = null) => {
+  const go = (newPage, duo = null, reqData = null, chat = null, hangout = null) => {
     if (!PUBLIC_PAGES.includes(newPage) && !currentUser) {
       setPage('landing');
       return;
     }
     setSelectedDuo(duo);
-    if (reqData) setRequestData(reqData);
+    if (reqData)  setRequestData(reqData);
+    if (hangout)  setSelectedHangout(hangout);
     setPage(newPage);
     window.scrollTo(0, 0);
   };
@@ -84,8 +87,10 @@ export default function App() {
       {page === 'chat'        && <ChatListPage go={go} onLogout={handleLogout} />}
       {page === 'chat_thread' && (selectedChat ? <ChatThreadPage chat={selectedChat} go={go} /> : fallback('Chat not found', 'chat'))}
       {page === 'me'          && <MePage go={go} currentUser={currentUser} onLogout={handleLogout} />}
-      {page === 'find_homie'  && <FindHomie currentUser={currentUser} go={go} />}
-      {!PAGES.includes(page)  && <HomePage go={go} onLogout={handleLogout} />}
+      {page === 'find_homie'      && <FindHomie currentUser={currentUser} go={go} />}
+      {page === 'counter_hangout' && <CounterHangout currentUser={currentUser} hangout={selectedHangout} go={go} />}
+      {page === 'edit_profile'    && <EditProfile currentUser={currentUser} go={go} />}
+      {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
     </div>
   );
 }
