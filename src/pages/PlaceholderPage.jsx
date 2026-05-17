@@ -5,7 +5,7 @@ import BottomNav from '../components/BottomNav.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { fadeUp } from '../lib/motion';
 
-export default function PlaceholderPage({ go, title = 'Coming soon', activePage = 'home' }) {
+export default function PlaceholderPage({ go, title = 'Coming soon', activePage = 'home', onLogout }) {
   return (
     <div
       style={{
@@ -16,7 +16,7 @@ export default function PlaceholderPage({ go, title = 'Coming soon', activePage 
         flexDirection: 'column',
       }}
     >
-      <TopBar title={activePage === 'home' ? undefined : title} />
+      <TopBar title={activePage === 'home' ? undefined : title} onLogout={onLogout} />
 
       <motion.main
         variants={fadeUp}

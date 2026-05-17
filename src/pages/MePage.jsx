@@ -2,10 +2,10 @@ import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import BottomNav from '../components/BottomNav.jsx';
 
-export default function MePage({ go }) {
+export default function MePage({ go, currentUser, onLogout }) {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', flexDirection: 'column' }}>
-      <TopBar title="Me" />
+      <TopBar title="Me" onLogout={onLogout} />
 
       <div style={{ flex: 1, padding: '20px 16px' }}>
         <p

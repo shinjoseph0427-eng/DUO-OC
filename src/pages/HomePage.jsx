@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, ChevronRight, X } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import BottomNav from '../components/BottomNav.jsx';
 import { DUOS } from '../data/duos.js';
+import { getDiscoveryDuos } from '../lib/duos.js';
 
 const PORTRAIT_H = 200;
 const CARD_TRANSITION = { duration: 0.22, ease: [0.16, 1, 0.3, 1] };
@@ -293,9 +294,37 @@ function DeckEmpty({ onRestart }) {
   );
 }
 
-export default function HomePage({ go }) {
-  const [deckDuos]     = useState([...DUOS]);
+function normalizeDuo(d) {
+  const members = (d.duo_members ?? []).map((m) => ({
+    name: m.profiles?.name ?? 'Member',
+    age:  '',
+    city: d.city ?? '',
+  }));
+  return {
+    id:        d.id,
+    name:      d.name,
+    vibes:     Array.isArray(d.vibes) ? d.vibes : [],
+    spots:     Array.isArray(d.spots) ? d.spots : [],
+    lookingFor: d.looking_for ?? '',
+    cities:    d.city ?? '',
+    ages:      '',
+    members:   members.length > 0 ? members : [{ name: d.name, age: '', city: '' }],
+    cardBg:    null,
+  };
+}
+
+export default function HomePage({ go, onLogout, currentUser }) {
+  const [deckDuos, setDeckDuos] = useState([...DUOS]);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    getDiscoveryDuos(currentUser.id)
+      .then((duos) => {
+        if (duos && duos.length > 0) setDeckDuos(duos.map(normalizeDuo));
+      })
+      .catch(() => {});
+  }, [currentUser]);
 
   const isDeckDone   = currentIndex >= deckDuos.length;
   const currentDuo   = isDeckDone ? null : deckDuos[currentIndex];
@@ -309,6 +338,7 @@ export default function HomePage({ go }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
       <TopBar
+        onLogout={onLogout}
         rightContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <motion.button
@@ -372,6 +402,49 @@ export default function HomePage({ go }) {
           <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.4 }}>
             One duo at a time. No pressure.
           </p>
+        </div>
+
+        {/* Find a Homie banner */}
+        <div
+          style={{
+            background:     'rgba(245,158,11,0.07)',
+            border:         '1px solid rgba(245,158,11,0.15)',
+            borderRadius:   16,
+            padding:        '14px 16px',
+            margin:         '0 16px 16px',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'space-between',
+            gap:            12,
+          }}
+        >
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0, marginBottom: 2 }}>
+              No duo yet?
+            </p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+              Find a Homie to roll with
+            </p>
+          </div>
+          <motion.button
+            type="button"
+            onClick={() => go('find_homie')}
+            whileTap={{ scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              background:   C.gradientCTA,
+              border:       'none',
+              borderRadius: 10,
+              padding:      '8px 16px',
+              fontSize:     13,
+              fontWeight:   700,
+              color:        '#0A0A0F',
+              cursor:       'pointer',
+              flexShrink:   0,
+            }}
+          >
+            Find →
+          </motion.button>
         </div>
 
         <div style={{ padding: '0 16px' }}>

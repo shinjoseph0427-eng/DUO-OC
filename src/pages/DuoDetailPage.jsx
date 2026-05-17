@@ -34,11 +34,11 @@ function InfoCard({ label, children, accentColor }) {
   );
 }
 
-export default function DuoDetailPage({ duo, go }) {
+export default function DuoDetailPage({ duo, go, onLogout }) {
   if (!duo) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <TopBar showBack onBack={() => go('home')} title="Duo Profile" />
+        <TopBar showBack onBack={() => go('home')} title="Duo Profile" onLogout={onLogout} />
         <div style={{ padding: '72px 16px 0', textAlign: 'center' }}>
           <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
         </div>

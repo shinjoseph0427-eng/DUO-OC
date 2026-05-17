@@ -1,37 +1,30 @@
 import { motion } from 'framer-motion';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, LogOut } from 'lucide-react';
 import { C } from '../tokens';
 
 function Wordmark() {
   return (
-    <span
-      style={{
-        fontSize:      20,
-        fontWeight:    800,
-        letterSpacing: '-0.5px',
-        lineHeight:    1,
-      }}
-    >
+    <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 }}>
       <span className="gradient-text">duo oc.</span>
     </span>
   );
 }
 
-export default function TopBar({ showBack = false, onBack, title, rightContent }) {
+export default function TopBar({ showBack = false, onBack, title, rightContent, onLogout }) {
   return (
     <header
       className="glass"
       style={{
-        position:     'sticky',
-        top:          0,
-        zIndex:       100,
-        height:       56,
-        borderBottom: '0.5px solid rgba(255,255,255,0.07)',
-        display:      'flex',
-        alignItems:   'center',
+        position:       'sticky',
+        top:            0,
+        zIndex:         100,
+        height:         56,
+        borderBottom:   '0.5px solid rgba(255,255,255,0.07)',
+        display:        'flex',
+        alignItems:     'center',
         justifyContent: 'space-between',
-        padding:      '0 16px',
-        boxSizing:    'border-box',
+        padding:        '0 16px',
+        boxSizing:      'border-box',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -78,8 +71,30 @@ export default function TopBar({ showBack = false, onBack, title, rightContent }
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {rightContent}
+        {onLogout && (
+          <motion.button
+            type="button"
+            onClick={onLogout}
+            aria-label="Log out"
+            whileTap={{ scale: 0.88 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              width:          36,
+              height:         36,
+              display:        'inline-flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              borderRadius:   10,
+              background:     'rgba(255,255,255,0.04)',
+              border:         '0.5px solid rgba(255,255,255,0.07)',
+              cursor:         'pointer',
+            }}
+          >
+            <LogOut size={16} color={C.muted} strokeWidth={2} />
+          </motion.button>
+        )}
       </div>
     </header>
   );

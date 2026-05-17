@@ -16,7 +16,7 @@ export const C = {
 
   // Brand accent
   amber:  '#F59E0B',
-  rose:   '#EC4899',
+  rose:   '#F472B6',
   violet: '#8B5CF6',
 
   // Status
@@ -24,8 +24,8 @@ export const C = {
   danger:  '#EF4444',
 
   // Gradients
-  gradientCTA:    'linear-gradient(135deg, #F59E0B, #EC4899)',
-  gradientViolet: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+  gradientCTA:    'linear-gradient(135deg, #F59E0B, #F472B6)',
+  gradientViolet: 'linear-gradient(135deg, #8B5CF6, #F472B6)',
 
   // ── backward-compat aliases (do not use in new code) ──
   orange:    '#F59E0B',
@@ -50,7 +50,7 @@ export const C = {
 
 export const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #FBBF24, #F97316)',
-  'linear-gradient(135deg, #FB7185, #EC4899)',
+  'linear-gradient(135deg, #FB7185, #F472B6)',
   'linear-gradient(135deg, #A78BFA, #8B5CF6)',
   'linear-gradient(135deg, #60A5FA, #6366F1)',
   'linear-gradient(135deg, #2DD4BF, #10B981)',
@@ -60,7 +60,7 @@ export const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #FB923C, #F59E0B)',
   'linear-gradient(135deg, #F87171, #F97316)',
   'linear-gradient(135deg, #F472B6, #F43F5E)',
-  'linear-gradient(135deg, #E879F9, #EC4899)',
+  'linear-gradient(135deg, #E879F9, #F472B6)',
 ];
 
 export const F = {

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { C } from '../tokens';
+import { createDuo } from '../lib/duos.js';
+import { updateProfile } from '../lib/profile.js';
 
 const cities = [
   'Irvine','Newport Beach','Costa Mesa','Fullerton','Anaheim','Orange',
@@ -20,6 +22,7 @@ const lookingForOpts = ['Chill 2v2','Make friends','Dating','Events'];
 
 const initialForm = {
   firstName:'', age:'', ageConfirm:false, city:'', school:'',
+  gender:'',
   intent:[], vibes:[], partnerName:'', partnerContact:'',
   addDuoLater:false, duoName:'', lookingFor:[], ocSpots:'', bio:'', instagram:'',
 };
@@ -208,10 +211,11 @@ function PillGroup({ options, selected, onToggle, error }) {
   );
 }
 
-export default function OnboardingFlow({ go }) {
-  const [step, setStep]     = useState(1);
-  const [form, setForm]     = useState(initialForm);
-  const [errors, setErrors] = useState({});
+export default function OnboardingFlow({ go, currentUser }) {
+  const [step, setStep]       = useState(1);
+  const [form, setForm]       = useState(initialForm);
+  const [errors, setErrors]   = useState({});
+  const [loading, setLoading] = useState(false);
 
   const [title, subtitle] = stepCopy[step];
 
@@ -236,6 +240,7 @@ export default function OnboardingFlow({ go }) {
     if (s === 1) {
       const n = Number(form.age);
       if (!form.firstName.trim())  errs.firstName  = 'First name is required.';
+      if (!form.gender)            errs.gender     = 'Select one.';
       if (!form.age)               errs.age        = 'Age is required.';
       else if (!Number.isFinite(n)) errs.age       = 'Enter a valid age.';
       else if (n < 18 || n > 25)   errs.age        = 'You must be 18–25 to join.';
@@ -261,9 +266,35 @@ export default function OnboardingFlow({ go }) {
   };
 
   const back = () => { if (step > 1) setStep((s) => s - 1); else go('landing'); };
-  const next = () => {
+  const next = async () => {
     if (!validateStep(step)) return;
-    if (step === 4) { go('home'); return; }
+    if (step === 4) {
+      if (currentUser) {
+        try {
+          setLoading(true);
+          await Promise.all([
+            createDuo(currentUser.id, {
+              name:       form.duoName,
+              city:       form.city,
+              vibes:      form.vibes,
+              spots:      form.ocSpots.split(',').map((s) => s.trim()).filter(Boolean),
+              lookingFor: form.lookingFor.join(', '),
+              instagram:  form.instagram,
+            }),
+            updateProfile(currentUser.id, {
+              gender:     form.gender,
+              birth_year: new Date().getFullYear() - parseInt(form.age),
+            }),
+          ]);
+        } catch (err) {
+          console.error('finish error:', err);
+        } finally {
+          setLoading(false);
+        }
+      }
+      go('home');
+      return;
+    }
     setStep((s) => s + 1);
   };
 
@@ -309,8 +340,25 @@ export default function OnboardingFlow({ go }) {
         <div style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 700 }}>
           Create profile
         </div>
-        <div style={{ width: 36, color: C.muted, fontSize: 12, textAlign: 'right' }}>
-          {step}/4
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ color: C.muted, fontSize: 12 }}>{step}/4</span>
+          <motion.button
+            type="button"
+            onClick={() => go('home')}
+            whileTap={{ scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              background:   'none',
+              border:       'none',
+              color:        C.muted,
+              fontSize:     13,
+              fontWeight:   600,
+              cursor:       'pointer',
+              padding:      '4px 8px',
+            }}
+          >
+            Skip →
+          </motion.button>
         </div>
       </header>
 
@@ -347,6 +395,21 @@ export default function OnboardingFlow({ go }) {
                 onChange={(e) => update('firstName', e.target.value)}
                 error={errors.firstName}
               />
+              <div style={{ marginBottom: 16 }}>
+                <Label>I am</Label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {['Male', 'Female', 'Other'].map((g) => (
+                    <VibeOption
+                      key={g}
+                      selected={form.gender === g}
+                      onClick={() => update('gender', g)}
+                    >
+                      {g}
+                    </VibeOption>
+                  ))}
+                </div>
+                <FieldError>{errors.gender}</FieldError>
+              </div>
               <TextField
                 label="Age"
                 type="number"
@@ -483,7 +546,7 @@ export default function OnboardingFlow({ go }) {
             boxShadow:    '0 4px 20px rgba(245,158,11,0.25)',
           }}
         >
-          {step < 4 ? 'Next' : 'Finish profile'}
+          {loading ? 'Creating duo…' : step < 4 ? 'Next' : 'Finish profile'}
         </motion.button>
         {step > 1 && (
           <motion.button

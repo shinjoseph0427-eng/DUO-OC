@@ -64,7 +64,7 @@ img { display: block; max-width: 100%; }
 
 /* ─── Utility classes ─── */
 .gradient-text {
-  background: linear-gradient(135deg, #F59E0B, #EC4899);
+  background: linear-gradient(135deg, #F59E0B, #F472B6);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

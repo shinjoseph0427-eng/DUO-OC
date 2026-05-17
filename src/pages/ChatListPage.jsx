@@ -132,10 +132,10 @@ function ChatRow({ chat, index, go }) {
   );
 }
 
-export default function ChatListPage({ go }) {
+export default function ChatListPage({ go, onLogout }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
-      <TopBar title="Chat" />
+      <TopBar title="Chat" onLogout={onLogout} />
 
       <motion.div
         variants={staggerContainer}
