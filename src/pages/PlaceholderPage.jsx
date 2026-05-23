@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
-import BottomNav from '../components/BottomNav.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { fadeUp } from '../lib/motion';
 
@@ -74,8 +73,6 @@ export default function PlaceholderPage({ go, title = 'Coming soon', activePage 
           Back to Home
         </PremiumButton>
       </motion.main>
-
-      <BottomNav activePage={activePage} onNavigate={(tab) => go(tab)} />
     </div>
   );
 }

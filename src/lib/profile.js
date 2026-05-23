@@ -19,3 +19,19 @@ export async function updateProfile(userId, updates) {
 
   if (error) throw error
 }
+
+export function isProfileOnboardingComplete(profile, duo) {
+  if (profile?.onboarding_complete === true) return true
+  return Boolean(profile?.name && profile?.birth_year && duo?.id)
+}
+
+// Returns true if available, false if taken
+export async function checkUsername(username, excludeUserId = null) {
+  let query = supabase
+    .from('profiles')
+    .select('id')
+    .eq('username', username.toLowerCase())
+  if (excludeUserId) query = query.neq('id', excludeUserId)
+  const { data } = await query.limit(1)
+  return !data?.length
+}

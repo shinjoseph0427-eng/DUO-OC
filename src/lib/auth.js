@@ -4,17 +4,30 @@ export async function signUp(email, password, name, age, city, instagram, gender
   const { data, error } = await supabase.auth.signUp({ email, password })
   if (error) throw error
 
+  const profilePayload = {
+    id: data.user.id,
+    name,
+    age:       parseInt(age),
+    city,
+    instagram: instagram.replace('@', ''),
+    gender:    gender || null,
+    onboarding_complete: false,
+  }
+
   const { error: profileError } = await supabase
     .from('profiles')
-    .insert({
-      id: data.user.id,
-      name,
-      age:       parseInt(age),
-      city,
-      instagram: instagram.replace('@', ''),
-      gender:    gender || null,
-    })
-  if (profileError) throw profileError
+    .insert(profilePayload)
+
+  if (profileError?.code === '42703') {
+    const legacyPayload = { ...profilePayload }
+    delete legacyPayload.onboarding_complete
+    const { error: legacyProfileError } = await supabase
+      .from('profiles')
+      .insert(legacyPayload)
+    if (legacyProfileError) throw legacyProfileError
+  } else if (profileError) {
+    throw profileError
+  }
 
   return data.user
 }

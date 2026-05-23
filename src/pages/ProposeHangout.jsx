@@ -7,6 +7,10 @@ import TopBar from '../components/TopBar.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { proposeHangout } from '../lib/hangouts.js';
+import { logError } from '../lib/logger.js';
+
+const MAX_PLACE_LENGTH = 100;
+const MAX_MESSAGE_LENGTH = 200;
 
 const DATES = [
   { label: 'Today',       value: 'today'     },
@@ -42,7 +46,7 @@ const LABEL_STYLE = {
   marginBottom:  10,
 };
 
-export default function ProposeHangout({ currentUser, duo, myDuo, go }) {
+export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) {
   const [date,     setDate]     = useState(null);
   const [timeSlot, setTimeSlot] = useState(null);
   const [place,    setPlace]    = useState(null);
@@ -51,18 +55,30 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go }) {
   const [loading,  setLoading]  = useState(false);
   const [sent,     setSent]     = useState(false);
 
-  const canSubmit = vibe && date && timeSlot && place && !loading;
+  const cleanMessage = message.trim();
+  const canSubmit =
+    vibe &&
+    date &&
+    timeSlot &&
+    place &&
+    place.length <= MAX_PLACE_LENGTH &&
+    cleanMessage.length <= MAX_MESSAGE_LENGTH &&
+    !loading;
 
   const handlePropose = async () => {
     if (!canSubmit || !myDuo) return;
     try {
       setLoading(true);
-      await proposeHangout(myDuo.id, duo.id, currentUser.id, {
-        date, timeSlot, place, vibe, message,
+      await proposeHangout({
+        fromDuoId:  myDuo.id,
+        toDuoId:    duo.id,
+        proposedBy: currentUser.id,
+        date, timeSlot, place, vibe,
+        message: cleanMessage,
       });
       setSent(true);
     } catch (err) {
-      console.error(err);
+      logError('propose hangout failed', err);
     } finally {
       setLoading(false);
     }
@@ -71,7 +87,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go }) {
   if (sent) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={() => go('home')} title="Propose Hangout" />
+        <TopBar showBack onBack={goBack} title="Propose Hangout" />
         <div
           style={{
             display:        'flex',
@@ -117,7 +133,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={() => go('duo_detail', duo)} title="Propose Hangout" />
+      <TopBar showBack onBack={goBack} title="Propose Hangout" />
 
       <div style={{ padding: '20px 16px 100px' }}>
 
@@ -287,8 +303,9 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go }) {
         <span style={LABEL_STYLE}>Message (optional)</span>
         <textarea
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
           placeholder="Down for a chill 2v2 this weekend?"
+          maxLength={MAX_MESSAGE_LENGTH}
           rows={3}
           style={{
             width:        '100%',

@@ -82,7 +82,7 @@ function HomieCard({ homie, currentUser, sent, onSend }) {
   );
 }
 
-export default function FindHomie({ currentUser, go }) {
+export default function FindHomie({ currentUser, go, goBack }) {
   const [homies, setHomies]           = useState([]);
   const [myProfile, setMyProfile]     = useState(null);
   const [loading, setLoading]         = useState(true);
@@ -113,7 +113,7 @@ export default function FindHomie({ currentUser, go }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={() => go('home')} title="Find a Homie" />
+      <TopBar showBack onBack={goBack} title="Find a Homie" />
 
       <div style={{ paddingBottom: 40 }}>
         {/* Banner */}

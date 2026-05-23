@@ -5,21 +5,24 @@ import TopBar from '../components/TopBar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import Pill from '../components/ui/Pill.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
+import { proposeHangout } from '../lib/hangouts.js';
 
 const VIBES = ['Boba', 'Coffee', 'Beach walk', 'Dinner', 'Gym', 'Night out', 'Anything'];
 const WHENS = ['Tonight', 'Friday', 'Saturday', 'This weekend'];
 
-export default function RequestTwoVTwo({ duo, go }) {
+export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
   const [selectedVibe, setSelectedVibe] = useState(null);
   const [selectedWhen, setSelectedWhen] = useState(null);
   const [message, setMessage]           = useState('Down for a chill 2v2?');
   const [msgFocus, setMsgFocus]         = useState(false);
   const [sent, setSent]                 = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState(null);
 
   if (!duo) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <TopBar showBack onBack={() => go('home')} title="Plan 2v2" />
+        <TopBar showBack onBack={goBack} title="Plan 2v2" />
         <div style={{ padding: '72px 16px 0', textAlign: 'center' }}>
           <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
         </div>
@@ -59,11 +62,34 @@ export default function RequestTwoVTwo({ duo, go }) {
     );
   }
 
-  const canSend = Boolean(selectedVibe && selectedWhen);
+  const canSend = Boolean(selectedVibe && selectedWhen) && !loading;
+
+  const handleSend = async () => {
+    if (!canSend || !myDuo) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await proposeHangout({
+        fromDuoId:  myDuo.id,
+        toDuoId:    duo.id,
+        proposedBy: myDuo.id,
+        vibe:       selectedVibe,
+        timeSlot:   selectedWhen,
+        place:      '',
+        message:    message || '',
+      });
+      setSent(true);
+    } catch (err) {
+      console.error('hangout propose error:', err);
+      setError('요청 전송에 실패했어요. 다시 시도해줘.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <TopBar showBack onBack={() => go('duo_detail', duo)} title="Plan 2v2" />
+      <TopBar showBack onBack={goBack} title="Plan 2v2" />
 
       <motion.div
         variants={staggerContainer}
@@ -214,9 +240,14 @@ export default function RequestTwoVTwo({ duo, go }) {
         </AnimatePresence>
 
         <motion.div variants={staggerItem}>
-          <PremiumButton fullWidth disabled={!canSend} onClick={() => setSent(true)}>
-            Send Request →
+          <PremiumButton fullWidth disabled={!canSend} onClick={handleSend}>
+            {loading ? 'Sending…' : 'Send Request →'}
           </PremiumButton>
+          {error && (
+            <p style={{ fontSize: 13, color: '#EF4444', textAlign: 'center', marginTop: 10 }}>
+              {error}
+            </p>
+          )}
         </motion.div>
       </motion.div>
     </div>

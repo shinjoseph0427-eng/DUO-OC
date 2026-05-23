@@ -4,6 +4,7 @@ import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { counterHangout } from '../lib/hangouts.js';
+import { logError } from '../lib/logger.js';
 
 const DATES = [
   { label: 'Today',       value: 'today'     },
@@ -42,7 +43,7 @@ const LABEL_STYLE = {
   marginBottom:  10,
 };
 
-export default function CounterHangout({ currentUser, hangout, go }) {
+export default function CounterHangout({ currentUser, hangout, go, goBack }) {
   const [date,     setDate]     = useState(hangout?.date     ?? null);
   const [timeSlot, setTimeSlot] = useState(hangout?.time_slot ?? null);
   const [place,    setPlace]    = useState(hangout?.place    ?? null);
@@ -58,7 +59,7 @@ export default function CounterHangout({ currentUser, hangout, go }) {
       await counterHangout(hangout.id, { date, timeSlot, place });
       setSent(true);
     } catch (err) {
-      console.error(err);
+      logError('counter hangout failed', err);
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export default function CounterHangout({ currentUser, hangout, go }) {
   if (sent) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={() => go('hangouts')} title="Suggest New Time" />
+        <TopBar showBack onBack={goBack} title="Suggest New Time" />
         <div
           style={{
             display:        'flex',
@@ -98,7 +99,7 @@ export default function CounterHangout({ currentUser, hangout, go }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={() => go('hangouts')} title="Suggest New Time" />
+      <TopBar showBack onBack={goBack} title="Suggest New Time" />
 
       <div style={{ padding: '20px 16px 100px' }}>
 

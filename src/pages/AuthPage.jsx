@@ -5,6 +5,7 @@ import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { signUp, signIn } from '../lib/auth.js';
+import { logError } from '../lib/logger.js';
 
 const OC_CITIES = [
   'Irvine', 'Newport Beach', 'Costa Mesa', 'Fullerton', 'Anaheim', 'Orange',
@@ -21,6 +22,8 @@ const LABEL = {
   color:         C.muted,
   marginBottom:  8,
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function Field({ label, children }) {
   return <div style={{ marginBottom: 16 }}><span style={LABEL}>{label}</span>{children}</div>;
@@ -74,17 +77,19 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
       setError('All fields are required.');
       return;
     }
+    if (!EMAIL_RE.test(email.trim())) { setError('Please enter a valid email.'); return; }
     const n = Number(age);
     if (n < 18 || n > 25) { setError('You must be 18–25 to join.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     if (!ageConfirm) { setError('Please confirm you are 18 or older.'); return; }
     try {
       setLoading(true);
-      const user = await signUp(email, password, name, age, city, instagram, gender);
+      const user = await signUp(email.trim(), password, name, age, city, instagram, gender);
       onLogin?.(user);
       go('onboarding');
     } catch (err) {
-      setError(err.message);
+      logError('signup failed', err);
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -93,13 +98,16 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
   const handleLogin = async () => {
     setError('');
     if (!email || !password) { setError('Email and password are required.'); return; }
+    if (!EMAIL_RE.test(email.trim())) { setError('Please enter a valid email.'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     try {
       setLoading(true);
-      const user = await signIn(email, password);
+      const user = await signIn(email.trim(), password);
       onLogin?.(user);
       go('home');
     } catch (err) {
-      setError(err.message);
+      logError('login failed', err);
+      setError('Invalid email or password.');
     } finally {
       setLoading(false);
     }
