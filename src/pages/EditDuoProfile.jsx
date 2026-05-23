@@ -4,7 +4,7 @@ import { Plus, X, Loader } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
-import { getMyDuo, updateDuo } from '../lib/duos.js';
+import { getMyDuo, getMyDuos, updateDuo } from '../lib/duos.js';
 import { uploadPhoto, deletePhoto } from '../lib/upload.js';
 
 const MAX_DUO_TEXT_LENGTH = 200;
@@ -134,15 +134,25 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
 
   useEffect(() => {
     if (!currentUser) return;
-    const source = myDuoProp ?? null;
-    if (source) {
-      loadFromDuo(source);
-    } else {
-      getMyDuo(currentUser.id).then((d) => {
-        if (d) { setDuo(d); loadFromDuo(d); }
-      });
+    let cancelled = false;
+
+    if (myDuoProp) {
+      loadFromDuo(myDuoProp);
     }
-  }, [currentUser]);
+
+    const loadFreshDuo = myDuoProp?.id
+      ? getMyDuos(currentUser.id).then((duos) => duos.find((d) => d.id === myDuoProp.id) ?? myDuoProp)
+      : getMyDuo(currentUser.id);
+
+    loadFreshDuo.then((d) => {
+      if (cancelled || !d) return;
+      loadFromDuo(d);
+    }).catch((err) => {
+      console.error('EditDuoProfile getMyDuo failed:', err);
+    });
+
+    return () => { cancelled = true; };
+  }, [currentUser, myDuoProp]);
 
   function loadFromDuo(d) {
     setDuo(d);
@@ -192,11 +202,12 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
         how_we_met:   howWeMet.trim() || null,
         duo_prompt_q: promptQ         || null,
         duo_prompt_a: promptA.trim()  || null,
-      });
+      }, currentUser?.id);
       showToast?.('Duo profile updated ✓', 'success');
       goBack();
-    } catch {
-      showToast?.('Failed to save', 'error');
+    } catch (err) {
+      console.error('EditDuoProfile update failed:', err);
+      showToast?.(err?.message ?? 'Failed to save', 'error');
     } finally {
       setSaving(false);
     }

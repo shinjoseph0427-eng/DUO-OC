@@ -12,8 +12,14 @@ async function assertDuoMember(duoId, currentUserId) {
     .eq('user_id', currentUserId)
     .maybeSingle()
 
-  if (error || !data || data.duos?.status !== 'active') {
-    throw new Error('Unauthorized')
+  if (error) {
+    throw new Error(`Duo room membership check failed: ${error.message}`)
+  }
+  if (!data) {
+    throw new Error('No active duo membership found for this room')
+  }
+  if (data.duos?.status !== 'active') {
+    throw new Error('This duo room is not active')
   }
 }
 
@@ -26,7 +32,7 @@ export async function getDuoMessages(duoId, currentUserId) {
     .eq('duo_id', duoId)
     .order('created_at', { ascending: true })
 
-  if (error) return []
+  if (error) throw new Error(`Duo room messages load failed: ${error.message}`)
   return data ?? []
 }
 
@@ -49,14 +55,15 @@ export async function sendDuoMessage({ duoId, senderUserId, content }) {
     .select('id, duo_id, sender_user_id, content, created_at, profiles(name, avatar_url)')
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(`Duo room message send failed: ${error.message}`)
   return data
 }
 
 export async function subscribeDuoMessages(duoId, currentUserId, callback) {
   try {
     await assertDuoMember(duoId, currentUserId)
-  } catch {
+  } catch (error) {
+    console.error('Duo room realtime auth failed:', error)
     return null
   }
 

@@ -293,28 +293,53 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
         {/* Duo card */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 }}>
           <p style={{ ...SECTION_LABEL, margin: 0 }}>My Duo</p>
-          {myDuo && (
+          <div style={{ display: 'flex', gap: 8 }}>
             <motion.button
               type="button"
-              aria-label="Edit duo profile"
-              onClick={() => go('edit_duo_profile')}
+              aria-label="My Duos"
+              onClick={() => go('my_duos')}
               whileTap={{ scale: 0.88 }}
               transition={{ duration: 0.1 }}
               style={{
-                width:          30,
                 height:         30,
                 borderRadius:   8,
                 background:     'rgba(255,255,255,0.05)',
                 border:         `0.5px solid ${C.border}`,
+                color:          C.muted,
+                fontSize:       11,
+                fontWeight:     800,
+                padding:        '0 10px',
                 display:        'flex',
                 alignItems:     'center',
                 justifyContent: 'center',
                 cursor:         'pointer',
               }}
             >
-              <Settings2 size={14} color={C.muted} strokeWidth={1.8} />
+              My Duos
             </motion.button>
-          )}
+            {myDuo && (
+              <motion.button
+                type="button"
+                aria-label="Edit duo profile"
+                onClick={() => go('edit_duo_profile')}
+                whileTap={{ scale: 0.88 }}
+                transition={{ duration: 0.1 }}
+                style={{
+                  width:          30,
+                  height:         30,
+                  borderRadius:   8,
+                  background:     'rgba(255,255,255,0.05)',
+                  border:         `0.5px solid ${C.border}`,
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  cursor:         'pointer',
+                }}
+              >
+                <Settings2 size={14} color={C.muted} strokeWidth={1.8} />
+              </motion.button>
+            )}
+          </div>
         </div>
         {myDuo ? (
           <div

@@ -68,9 +68,13 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
   const [input, setInput] = useState('');
   const [inputFocus, setInputFocus] = useState(false);
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [sendError, setSendError] = useState('');
   const messagesEndRef = useRef(null);
 
   const duoId = myDuo?.id;
+  const memberCount = myDuo?.duo_members?.length ?? 0;
   const memberNames = useMemo(() => {
     const map = {};
     (myDuo?.duo_members ?? []).forEach((member) => {
@@ -84,16 +88,27 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
   }, []);
 
   useEffect(() => {
-    if (!duoId || !currentUser?.id) return;
+    if (!duoId || !currentUser?.id || memberCount < 2) {
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     let unsub = null;
 
+    setLoading(true);
+    setErrorMessage('');
     getDuoMessages(duoId, currentUser.id).then((msgs) => {
       if (cancelled) return;
       setMessages(msgs);
       setTimeout(scrollToBottom, 50);
-    }).catch(() => {});
+    }).catch((error) => {
+      if (cancelled) return;
+      console.error('DuoRoomPage load failed:', error);
+      setErrorMessage(error?.message ?? 'Failed to load Duo Room messages.');
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     subscribeDuoMessages(duoId, currentUser.id, (newMsg) => {
       setMessages((prev) => {
@@ -102,15 +117,21 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
       });
       setTimeout(scrollToBottom, 50);
     }).then((fn) => {
-      if (cancelled) fn?.();
-      else unsub = fn;
+      if (cancelled) {
+        fn?.();
+      } else {
+        unsub = fn;
+        if (!fn) {
+          setErrorMessage((prev) => prev || 'Realtime subscription is unavailable for this Duo Room.');
+        }
+      }
     });
 
     return () => {
       cancelled = true;
       unsub?.();
     };
-  }, [duoId, currentUser?.id, scrollToBottom]);
+  }, [duoId, currentUser?.id, memberCount, scrollToBottom]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -119,6 +140,7 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
 
     setInput('');
     setSending(true);
+    setSendError('');
 
     const optimistic = {
       id: `opt-${Date.now()}`,
@@ -137,9 +159,11 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
         senderUserId: currentUser.id,
         content: text,
       });
-    } catch {
+    } catch (error) {
+      console.error('DuoRoomPage send failed:', error);
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setInput(text);
+      setSendError(error?.message ?? 'Failed to send message.');
     } finally {
       setSending(false);
     }
@@ -153,6 +177,40 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
   };
 
   const duoName = myDuo?.name ?? 'My Duo';
+
+  if (!myDuo) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+        <header style={{ background: C.bg2, borderBottom: `0.5px solid ${C.border}`, height: 56, display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px' }}>
+          <motion.button type="button" aria-label="Back" onClick={() => go('me')} whileTap={{ scale: 0.88 }} transition={{ duration: 0.1 }} style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <ArrowLeft size={18} color={C.white} strokeWidth={2} />
+          </motion.button>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: 800 }}>Duo Room</div>
+          <div style={{ width: 36 }} />
+        </header>
+        <p style={{ fontSize: 14, color: C.muted, textAlign: 'center', padding: '44px 24px' }}>
+          No active duo found.
+        </p>
+      </div>
+    );
+  }
+
+  if (memberCount < 2) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+        <header style={{ background: C.bg2, borderBottom: `0.5px solid ${C.border}`, height: 56, display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px' }}>
+          <motion.button type="button" aria-label="Back" onClick={() => go('me')} whileTap={{ scale: 0.88 }} transition={{ duration: 0.1 }} style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <ArrowLeft size={18} color={C.white} strokeWidth={2} />
+          </motion.button>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: 800 }}>Duo Room</div>
+          <div style={{ width: 36 }} />
+        </header>
+        <p style={{ fontSize: 14, color: C.muted, textAlign: 'center', padding: '44px 24px' }}>
+          Create a duo first.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: C.bg, display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -213,7 +271,30 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
           gap: 10,
         }}
       >
-        {messages.length === 0 && (
+        {loading && (
+          <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 40 }}>
+            Loading Duo Room...
+          </p>
+        )}
+        {!loading && errorMessage && (
+          <div
+            style={{
+              background: 'rgba(239,68,68,0.09)',
+              border: '0.5px solid rgba(239,68,68,0.28)',
+              borderRadius: 16,
+              padding: 14,
+              marginTop: 20,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 4px' }}>
+              Duo Room error
+            </p>
+            <p style={{ fontSize: 12, color: 'rgba(245,245,248,0.72)', margin: 0, lineHeight: 1.45 }}>
+              {errorMessage}
+            </p>
+          </div>
+        )}
+        {!loading && !errorMessage && messages.length === 0 && (
           <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 40 }}>
             Start your duo room conversation.
           </p>
@@ -246,8 +327,14 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
           alignItems: 'center',
           gap: 8,
           flexShrink: 0,
+          position: 'relative',
         }}
       >
+        {sendError && (
+          <div style={{ position: 'absolute', left: 14, right: 14, bottom: 60, background: 'rgba(239,68,68,0.12)', border: '0.5px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '9px 12px' }}>
+            <p style={{ fontSize: 12, color: C.white, margin: 0, lineHeight: 1.35 }}>{sendError}</p>
+          </div>
+        )}
         <input
           type="text"
           aria-label="Message your duo"
@@ -278,9 +365,9 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
           whileTap={input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? { scale: 0.88 } : {}}
           transition={{ duration: 0.1 }}
           style={{
-            width: 38,
+            width: sending ? 86 : 38,
             height: 38,
-            borderRadius: '50%',
+            borderRadius: sending ? 9999 : '50%',
             background: input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? C.gradientCTA : C.cardElevated,
             border: 'none',
             cursor: input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? 'pointer' : 'default',
@@ -291,11 +378,15 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
             transition: 'background 0.15s',
           }}
         >
-          <SendHorizonal
-            size={16}
-            color={input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? '#fff' : C.muted}
-            strokeWidth={2}
-          />
+          {sending ? (
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Sending...</span>
+          ) : (
+            <SendHorizonal
+              size={16}
+              color={input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? '#fff' : C.muted}
+              strokeWidth={2}
+            />
+          )}
         </motion.button>
       </div>
     </div>

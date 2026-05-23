@@ -34,12 +34,71 @@ export async function getMyDuo(userId) {
   return memberships.find((membership) => membership.duos?.status === 'active')?.duos || memberships[0]?.duos || null
 }
 
-export async function updateDuo(duoId, updates) {
+export async function getMyDuos(userId) {
+  const { data, error } = await supabase
+    .from('duo_members')
+    .select(`
+      duo_id,
+      duos(
+        id,
+        name,
+        city,
+        duo_bio,
+        how_we_met,
+        duo_prompt_q,
+        duo_prompt_a,
+        vibes,
+        spots,
+        looking_for,
+        duo_photos,
+        status,
+        created_at,
+        duo_members(
+          user_id,
+          instagram,
+          profiles(name, age, birth_year, city, instagram, avatar_url, photos)
+        )
+      )
+    `)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('getMyDuos error:', error)
+    return []
+  }
+
+  return (data ?? [])
+    .map((membership) => membership.duos)
+    .filter((duo) => duo?.status === 'active')
+    .sort((a, b) => new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0))
+    .slice(0, 3)
+}
+
+export async function updateDuo(duoId, updates, userId = null) {
+  if (userId) {
+    const { data: membership, error: membershipError } = await supabase
+      .from('duo_members')
+      .select('id, duos(status)')
+      .eq('duo_id', duoId)
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (membershipError) {
+      throw new Error(`duo membership check failed: ${membershipError.message}`)
+    }
+    if (!membership) {
+      throw new Error('Only duo members can edit this profile')
+    }
+    if (membership.duos?.status !== 'active') {
+      throw new Error('Only active duos can be edited')
+    }
+  }
+
   const { error } = await supabase
     .from('duos')
     .update(updates)
     .eq('id', duoId)
-  if (error) throw error
+  if (error) throw new Error(`duo update failed: ${error.message}`)
 }
 
 export async function getExploreDuos(userId) {

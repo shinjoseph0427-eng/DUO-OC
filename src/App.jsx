@@ -14,6 +14,7 @@ import AuthPage from './pages/AuthPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import ExplorePage from './pages/ExplorePage.jsx';
 import MePage from './pages/MePage.jsx';
+import MyDuosPage from './pages/MyDuosPage.jsx';
 import FindHomie from './pages/FindHomie.jsx';
 import HomieProfilePage from './pages/HomieProfilePage.jsx';
 import HomieInboxPage from './pages/HomieInboxPage.jsx';
@@ -30,7 +31,7 @@ import { supabase } from './lib/supabaseClient.js';
 const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
   'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'duo_room',
-  'me', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
+  'me', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
 ];
 
 const PUBLIC_PAGES  = ['landing', 'auth', 'login'];
@@ -38,7 +39,7 @@ const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'explore', 'hangouts', 'chat', 'me'];
 const ONBOARDED_PAGES = [
   'home', 'explore', 'duo_detail', 'request', 'match', 'hangouts', 'chat',
-  'chat_thread', 'duo_room', 'me', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
+  'chat_thread', 'duo_room', 'me', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
   'edit_profile', 'edit_duo_profile',
 ];
 
@@ -221,10 +222,11 @@ export default function App() {
         {page === 'chat_thread' && (selectedChat
           ? <ChatThreadPage chat={selectedChat} go={go} goBack={goBack} currentUser={currentUser} myDuo={myDuo} />
           : fallback('Chat not found', 'chat'))}
-        {page === 'duo_room'    && (myDuo
-          ? <DuoRoomPage currentUser={currentUser} myDuo={myDuo} go={go} goBack={goBack} />
+        {page === 'duo_room'    && ((selectedDuo ?? myDuo)
+          ? <DuoRoomPage currentUser={currentUser} myDuo={selectedDuo ?? myDuo} go={go} goBack={goBack} />
           : fallback('Duo not found', 'me'))}
         {page === 'me'          && <MePage go={go} currentUser={currentUser} myDuo={myDuo} />}
+        {page === 'my_duos'     && <MyDuosPage currentUser={currentUser} myDuo={myDuo} go={go} />}
         {page === 'find_homie'      && <FindHomie currentUser={currentUser} go={go} goBack={goBack} />}
         {page === 'homie_profile'   && (selectedDuo
           ? <HomieProfilePage homie={selectedDuo} currentUser={currentUser} go={go} />
@@ -232,7 +234,7 @@ export default function App() {
         {page === 'homie_inbox'     && <HomieInboxPage currentUser={currentUser} go={go} goBack={goBack} onDuoChanged={refreshMyDuo} />}
         {page === 'counter_hangout' && <CounterHangout currentUser={currentUser} hangout={selectedHangout} go={go} goBack={goBack} />}
         {page === 'edit_profile'     && <EditProfile currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
-        {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
+        {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} myDuo={selectedDuo ?? myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
