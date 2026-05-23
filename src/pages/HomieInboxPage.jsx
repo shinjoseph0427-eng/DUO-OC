@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Inbox, MapPin, UserCheck } from 'lucide-react';
+import { Home, Inbox, MapPin, MessageCircle, Settings2, UserCheck, Users } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { acceptHomieRequest, getMyHomieRequests } from '../lib/homie.js';
+import { getMyDuo } from '../lib/duos.js';
 
 function getSender(request) {
   return request?.profiles ?? request?.profile ?? request?.from_profile ?? {};
@@ -61,6 +62,76 @@ function AcceptedCard({ profile, duoId }) {
         <p style={{ fontSize: 12, color: 'rgba(245,245,248,0.68)', margin: 0, lineHeight: 1.4 }}>
           You joined {name}'s duo{duoId ? ` (${duoId.slice(0, 8)})` : ''}.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function DuoSuccessCard({ duo }) {
+  const members = duo?.duo_members ?? [];
+  const memberCount = members.length || 2;
+  const tags = [
+    ...(Array.isArray(duo?.vibes) ? duo.vibes : []),
+    ...(Array.isArray(duo?.spots) ? duo.spots : []),
+  ].filter(Boolean).slice(0, 4);
+
+  return (
+    <div
+      style={{
+        background: C.cardElevated,
+        border: `0.5px solid ${C.border}`,
+        borderRadius: 18,
+        overflow: 'hidden',
+        marginBottom: 18,
+      }}
+    >
+      <div style={{ height: 3, background: C.gradientCTA }} />
+      <div style={{ padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              background: 'rgba(245,158,11,0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Users size={20} color={C.amber} strokeWidth={2.2} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 17, fontWeight: 900, color: C.white, margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {duo?.name ?? 'Your Duo'}
+            </p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+              {[duo?.city, `${memberCount} members`].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+        </div>
+
+        {tags.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  background: 'rgba(245,158,11,0.1)',
+                  color: C.amber,
+                  border: '0.5px solid rgba(245,158,11,0.22)',
+                  borderRadius: 9999,
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -141,7 +212,7 @@ function RequestCard({ request, accepting, accepted, onAccept }) {
           variant={accepted ? 'ghost' : 'primary'}
           style={{ height: 46, padding: '0 18px' }}
         >
-          {accepted ? 'Accepted' : 'Accept'}
+          {accepting ? 'Accepting...' : accepted ? 'Accepted' : 'Accept'}
         </PremiumButton>
       </div>
     </motion.div>
@@ -150,17 +221,23 @@ function RequestCard({ request, accepting, accepted, onAccept }) {
 
 export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }) {
   const [requests, setRequests] = useState([]);
-  const [acceptedDuos, setAcceptedDuos] = useState([]);
-  const [acceptingId, setAcceptingId] = useState(null);
+  const [acceptedDuo, setAcceptedDuo] = useState(null);
+  const [acceptedHomieName, setAcceptedHomieName] = useState('');
+  const [acceptingRequestId, setAcceptingRequestId] = useState(null);
   const [acceptedIds, setAcceptedIds] = useState({});
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
   const loadRequests = useCallback(async () => {
     if (!currentUser?.id) return;
     setLoading(true);
+    try {
       const nextRequests = await getMyHomieRequests(currentUser.id);
       setRequests(nextRequests);
-    setLoading(false);
+    } finally {
+      setLoading(false);
+    }
   }, [currentUser?.id]);
 
   useEffect(() => {
@@ -181,19 +258,86 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
   }, [currentUser?.id]);
 
   const handleAccept = async (request) => {
-    if (!request?.id || acceptingId) return;
+    if (!request?.id || acceptingRequestId) return;
 
-    setAcceptingId(request.id);
+    setAcceptingRequestId(request.id);
+    setErrorMessage('');
+    setSuccessMessage('');
     try {
+      const sender = getSender(request);
       const result = await acceptHomieRequest(request.id);
       setAcceptedIds((prev) => ({ ...prev, [request.id]: true }));
-      setAcceptedDuos((prev) => [{ profile: getSender(request), duoId: result?.duo_id }, ...prev]);
-      await onDuoChanged?.();
+      setAcceptedHomieName(sender?.name ?? 'your homie');
+      setSuccessMessage('You are now a duo.');
+      let nextDuo = null;
+      try {
+        nextDuo = await onDuoChanged?.();
+      } catch (refreshError) {
+        console.error('HomieInboxPage onDuoChanged refresh failed:', refreshError);
+      }
+      if (!nextDuo && currentUser?.id) {
+        nextDuo = await getMyDuo(currentUser.id);
+      }
+      setAcceptedDuo(nextDuo ?? { id: result?.duo_id, name: 'Your Duo', duo_members: [{}, {}] });
       await loadRequests();
+    } catch (err) {
+      console.error('HomieInboxPage accept homie request failed:', err);
+      setErrorMessage(err?.message ?? 'Failed to accept Homie request. Please try again.');
     } finally {
-      setAcceptingId(null);
+      setAcceptingRequestId(null);
     }
   };
+
+  if (acceptedDuo) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+        <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
+
+        <div style={{ padding: '28px 16px 104px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 22 }}>
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 18,
+                background: 'rgba(16,185,129,0.12)',
+                border: '0.5px solid rgba(16,185,129,0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}
+            >
+              <UserCheck size={28} color={C.success} strokeWidth={2.3} />
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: 0, color: C.white, margin: '0 0 8px' }}>
+              Duo is created!
+            </h1>
+            <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.55, margin: 0 }}>
+              You and {acceptedHomieName || 'your homie'} are now a duo.
+            </p>
+          </div>
+
+          <DuoSuccessCard duo={acceptedDuo} />
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            <PremiumButton fullWidth onClick={() => go('duo_room')} style={{ gap: 8 }}>
+              <MessageCircle size={16} strokeWidth={2.2} />
+              Open Duo Room
+            </PremiumButton>
+            <PremiumButton fullWidth variant="ghost" onClick={() => go('edit_duo_profile')} style={{ gap: 8 }}>
+              <Settings2 size={16} strokeWidth={2.2} />
+              Edit Duo Profile
+            </PremiumButton>
+            <PremiumButton fullWidth variant="ghost" onClick={() => go('home')} style={{ gap: 8 }}>
+              <Home size={16} strokeWidth={2.2} />
+              Back Home
+            </PremiumButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
@@ -212,15 +356,38 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
           </p>
         </div>
 
-        {acceptedDuos.length > 0 && (
-          <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
-            {acceptedDuos.map((accepted, index) => (
-              <AcceptedCard
-                key={`${accepted.profile?.id ?? 'accepted'}-${accepted.duoId ?? index}`}
-                profile={accepted.profile}
-                duoId={accepted.duoId}
-              />
-            ))}
+        {successMessage && (
+          <div
+            style={{
+              background: 'rgba(16,185,129,0.09)',
+              border: '0.5px solid rgba(16,185,129,0.28)',
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: 0 }}>
+              {successMessage}
+            </p>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div
+            style={{
+              background: 'rgba(239,68,68,0.09)',
+              border: '0.5px solid rgba(239,68,68,0.28)',
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 4px' }}>
+              Could not accept request.
+            </p>
+            <p style={{ fontSize: 12, color: 'rgba(245,245,248,0.72)', margin: 0, lineHeight: 1.45 }}>
+              {errorMessage}
+            </p>
           </div>
         )}
 
@@ -243,7 +410,7 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
               <RequestCard
                 key={request.id}
                 request={request}
-                accepting={acceptingId === request.id}
+                accepting={acceptingRequestId === request.id}
                 accepted={!!acceptedIds[request.id]}
                 onAccept={handleAccept}
               />

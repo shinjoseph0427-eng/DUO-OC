@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { X, Users, Heart } from 'lucide-react';
+import { X, Users, Heart, Inbox } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import SkeletonCard from '../components/SkeletonCard.jsx';
@@ -9,6 +9,7 @@ import NotificationBell from '../components/NotificationBell.jsx';
 import { getDiscoveryDuos } from '../lib/duos.js';
 import { recordSwipe, getSwipedDuoIds } from '../lib/swipes.js';
 import { getBlockedDuoIds } from '../lib/safety.js';
+import { getMyHomieRequests } from '../lib/homie.js';
 
 const PORTRAIT_H = 210;
 const AVATAR_GRADS = ['#1a1a2e', '#16213e', '#0f3460', '#533483'];
@@ -317,6 +318,8 @@ export default function HomePage({ go, onLogout, currentUser, myDuo }) {
   const [deckDuos,     setDeckDuos]     = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading,      setLoading]      = useState(true);
+  const [homieRequestCount, setHomieRequestCount] = useState(0);
+  const [homieRequestsLoading, setHomieRequestsLoading] = useState(false);
   const [direction,    setDirection]    = useState(0);
   const [swiping,      setSwiping]      = useState(false);
   const [matchState,   setMatchState]   = useState(null); // { matchedDuo }
@@ -349,6 +352,27 @@ export default function HomePage({ go, onLogout, currentUser, myDuo }) {
 
     fetchDeck();
   }, [currentUser, myDuo?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser?.id) {
+      setHomieRequestCount(0);
+      setHomieRequestsLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    setHomieRequestsLoading(true);
+    getMyHomieRequests(currentUser.id)
+      .then((requests) => {
+        if (cancelled) return;
+        setHomieRequestCount(requests.length);
+      })
+      .finally(() => {
+        if (!cancelled) setHomieRequestsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
 
   const isDeckDone  = currentIndex >= deckDuos.length;
   const currentDuo  = isDeckDone ? null : deckDuos[currentIndex];
@@ -414,6 +438,38 @@ export default function HomePage({ go, onLogout, currentUser, myDuo }) {
             Who's next.
           </h1>
         </div>
+
+        {(homieRequestCount > 0 || homieRequestsLoading) && (
+          <div style={{ background: 'linear-gradient(145deg, rgba(245,158,11,0.11), rgba(244,114,182,0.08))', border: '1px solid rgba(245,158,11,0.22)', borderRadius: 16, padding: '14px 16px', margin: '0 16px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: 'rgba(245,158,11,0.13)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Inbox size={18} color={C.amber} strokeWidth={2.1} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 2px' }}>
+                  {homieRequestsLoading
+                    ? 'Checking Homie requests'
+                    : homieRequestCount === 1
+                      ? 'You have a new Homie request'
+                      : `You have ${homieRequestCount} Homie requests`}
+                </p>
+                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+                  Review who wants to duo up.
+                </p>
+              </div>
+            </div>
+            <motion.button
+              type="button"
+              onClick={() => go('homie_inbox')}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              disabled={homieRequestsLoading}
+              style={{ background: C.gradientCTA, border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 800, color: '#0A0A0F', cursor: homieRequestsLoading ? 'default' : 'pointer', flexShrink: 0, opacity: homieRequestsLoading ? 0.65 : 1 }}
+            >
+              View Requests
+            </motion.button>
+          </div>
+        )}
 
         {/* Find a Homie banner */}
         <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 16, padding: '14px 16px', margin: '0 16px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

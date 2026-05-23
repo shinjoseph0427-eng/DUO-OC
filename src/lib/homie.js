@@ -1,29 +1,34 @@
 import { supabase } from './supabaseClient.js'
 import { createNotificationForUser } from './notifications.js'
 
-async function getProfile(userId) {
+function throwStep(message, error) {
+  const detail = error?.message ?? error?.details ?? error?.hint ?? null
+  throw new Error(detail ? `${message}: ${detail}` : message)
+}
+
+async function getProfile(userId, label) {
   const { data, error } = await supabase
     .from('profiles')
     .select('id, name, city, instagram')
     .eq('id', userId)
     .single()
 
-  if (error) return null
+  if (error) throwStep(`${label} profile load failed`, error)
   return data
 }
 
-async function getActiveDuoMembership(userId) {
+async function getActiveDuoMembership(userId, label = 'sender duo lookup failed') {
   const { data, error } = await supabase
     .from('duo_members')
     .select('id, duo_id, instagram, duos(*, duo_members(user_id))')
     .eq('user_id', userId)
 
-  if (error) throw error
+  if (error) throwStep(label, error)
   return (data ?? []).find((membership) => membership.duos?.status === 'active') ?? null
 }
 
 async function ensureSenderDuo(senderProfile, receiverProfile) {
-  const senderMembership = await getActiveDuoMembership(senderProfile.id)
+  const senderMembership = await getActiveDuoMembership(senderProfile.id, 'sender duo lookup failed')
   if (senderMembership?.duo_id) return senderMembership.duo_id
 
   const duoName = [senderProfile.name, receiverProfile?.name].filter(Boolean).join(' & ') || 'New Duo'
@@ -40,7 +45,7 @@ async function ensureSenderDuo(senderProfile, receiverProfile) {
     .select()
     .single()
 
-  if (duoError) throw duoError
+  if (duoError) throwStep('sender duo create failed', duoError)
 
   const { data: existingMember, error: existingError } = await supabase
     .from('duo_members')
@@ -49,7 +54,7 @@ async function ensureSenderDuo(senderProfile, receiverProfile) {
     .eq('user_id', senderProfile.id)
     .maybeSingle()
 
-  if (existingError) throw existingError
+  if (existingError) throwStep('sender duo member lookup failed', existingError)
 
   if (!existingMember) {
     const { error: memberError } = await supabase
@@ -60,7 +65,7 @@ async function ensureSenderDuo(senderProfile, receiverProfile) {
         instagram: senderProfile.instagram,
       })
 
-    if (memberError) throw memberError
+    if (memberError) throwStep('sender duo member insert failed', memberError)
   }
 
   return duo.id
@@ -74,7 +79,7 @@ async function ensureDuoMember(duoId, profile) {
     .eq('user_id', profile.id)
     .maybeSingle()
 
-  if (existingError) throw existingError
+  if (existingError) throwStep('duo member lookup failed', existingError)
   if (existingMember) return existingMember
 
   const { data, error } = await supabase
@@ -87,7 +92,7 @@ async function ensureDuoMember(duoId, profile) {
     .select()
     .single()
 
-  if (error) throw error
+  if (error) throwStep('duo member insert failed', error)
   return data
 }
 
@@ -104,8 +109,22 @@ async function deactivateReceiverSoloDuo(receiverMembership, finalDuoId) {
     .update({ status: 'inactive' })
     .eq('id', receiverMembership.duo_id)
 
-  if (error) throw error
+  if (error) throwStep('receiver old duo deactivate failed', error)
   return receiverMembership.duo_id
+}
+
+async function notifyHomieAccepted(fromUserId, payload) {
+  const { error } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: fromUserId,
+      type: 'homie_accepted',
+      payload,
+    })
+
+  if (error) {
+    console.error('acceptHomieRequest notification insert failed:', error)
+  }
 }
 
 export async function findHomies(currentUser, myProfile) {
@@ -177,7 +196,7 @@ export async function acceptHomieRequest(requestId) {
     .single()
 
   if (requestError || !request) {
-    throw requestError ?? new Error('Homie request not found')
+    throwStep('request load failed', requestError ?? new Error('Homie request not found'))
   }
 
   const { from_user_id: fromUserId, to_user_id: toUserId } = request
@@ -186,16 +205,16 @@ export async function acceptHomieRequest(requestId) {
   }
 
   const [senderProfile, receiverProfile] = await Promise.all([
-    getProfile(fromUserId),
-    getProfile(toUserId),
+    getProfile(fromUserId, 'sender'),
+    getProfile(toUserId, 'receiver'),
   ])
 
   if (!senderProfile || !receiverProfile) {
-    throw new Error('Could not load homie request profiles')
+    throw new Error('profiles load failed')
   }
 
   const finalDuoId = await ensureSenderDuo(senderProfile, receiverProfile)
-  const receiverActiveMembership = await getActiveDuoMembership(toUserId)
+  const receiverActiveMembership = await getActiveDuoMembership(toUserId, 'receiver old duo lookup failed')
   await ensureDuoMember(finalDuoId, receiverProfile)
   const deactivatedDuoId = await deactivateReceiverSoloDuo(receiverActiveMembership, finalDuoId)
 
@@ -206,9 +225,9 @@ export async function acceptHomieRequest(requestId) {
     .select()
     .single()
 
-  if (acceptError) throw acceptError
+  if (acceptError) throwStep('request update failed', acceptError)
 
-  await createNotificationForUser(fromUserId, 'homie_accepted', {
+  await notifyHomieAccepted(fromUserId, {
     accepted_by_user_id: toUserId,
     accepted_by_name: receiverProfile.name,
     duo_id: finalDuoId,
