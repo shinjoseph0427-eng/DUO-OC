@@ -1,34 +1,10 @@
 import { supabase } from './supabaseClient'
 
-export async function signUp(email, password, name, age, city, instagram, gender) {
+export async function signUp(email, password) {
   const { data, error } = await supabase.auth.signUp({ email, password })
   if (error) throw error
-
-  const profilePayload = {
-    id: data.user.id,
-    name,
-    age:       parseInt(age),
-    city,
-    instagram: instagram.replace('@', ''),
-    gender:    gender || null,
-    onboarding_complete: false,
-  }
-
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .insert(profilePayload)
-
-  if (profileError?.code === '42703') {
-    const legacyPayload = { ...profilePayload }
-    delete legacyPayload.onboarding_complete
-    const { error: legacyProfileError } = await supabase
-      .from('profiles')
-      .insert(legacyPayload)
-    if (legacyProfileError) throw legacyProfileError
-  } else if (profileError) {
-    throw profileError
-  }
-
+  // Create a minimal profile row so updateProfile works during onboarding
+  await supabase.from('profiles').upsert({ id: data.user.id, onboarding_complete: false })
   return data.user
 }
 

@@ -1,407 +1,317 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Check, Loader, MapPin, Navigation } from 'lucide-react';
+import { ChevronLeft, Check } from 'lucide-react';
 import { C } from '../tokens';
 import { createDuo } from '../lib/duos.js';
-import { updateProfile, checkUsername } from '../lib/profile.js';
+import { updateProfile } from '../lib/profile.js';
 import { logError } from '../lib/logger.js';
 
-const MAX_NAME_LENGTH = 80;
-const MAX_CITY_LENGTH = 80;
-const MAX_INSTAGRAM_LENGTH = 30;
-const MAX_DUO_NAME_LENGTH = 100;
-const MAX_SHORT_TEXT_LENGTH = 100;
-const MAX_BIO_LENGTH = 120;
-
-const schools = [
-  'UCI','CSUF','Chapman','Fullerton College','Cypress College',
-  'Orange Coast College','Other',
-];
-
-const intentOptions  = ['Hangout','Social','Dating','Friends'];
-const vibeOptions    = ['ABG','Gym','Nights out','Beach','Boba','Coffee','Cars','Business','Content','Sports','Study','Music'];
-const lookingForOpts = ['Chill 2v2','Make friends','Dating','Events'];
-
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const VIBES = ['Coffee', 'Boba', 'Gym', 'Beach', 'Bowling', 'Food', 'Nightlife', 'Shopping', 'Drives', 'Games'];
 
 const initialForm = {
-  firstName: '', age: '', ageConfirm: false, school: '', gender: '',
-  username: '', city: '', lat: null, lng: null,
-  intent: [], vibes: [],
-  partnerName: '', partnerContact: '', addDuoLater: false,
-  duoName: '', lookingFor: [], ocSpots: '', bio: '', instagram: '',
+  name:      '',
+  age:       '',
+  city:      '',
+  instagram: '',
+  duoName:   '',
+  vibes:     [],
 };
 
-const stepCopy = {
-  1: ['You',               'Start with the basics. 18–25 only.'],
-  2: ['Username & location', 'Claim your handle and set where you\'re based.'],
-  3: ['Your vibe',         'Pick what kind of hangouts feel like you.'],
-  4: ['Create your duo',   'Bring a friend now, or add them later.'],
-  5: ['Duo profile',       'This is what other duos see before they plan a 2v2.'],
-};
+// Steps: 1 = About you, 2 = Friend?, 3 = Duo profile, 4 = Done
+// Step 2 has no footer CTA — the choice buttons navigate directly.
+// Step 4 has no footer CTA — the "Find Duos" button is inside the body.
 
-function cleanInstagram(v) { return v.trim().replace(/^@/, '').toLowerCase(); }
-
-function Label({ children }) {
+function FieldLabel({ children }) {
   return (
-    <label
-      style={{
-        fontSize: 10, fontWeight: 700, color: C.muted,
-        letterSpacing: '1px', marginBottom: 8, textTransform: 'uppercase', display: 'block',
-      }}
-    >
+    <p style={{ fontSize: 13, fontWeight: 600, color: C.white, margin: '0 0 8px' }}>
       {children}
-    </label>
+    </p>
   );
 }
 
 function FieldError({ children }) {
   if (!children) return null;
   return (
-    <div style={{ fontSize: 12, color: C.danger, marginTop: -8, marginBottom: 12, lineHeight: 1.4 }}>
+    <p style={{ fontSize: 12, color: C.danger, margin: '-4px 0 14px', lineHeight: 1.4 }}>
       {children}
-    </div>
+    </p>
   );
 }
 
-function TextField({ label, error, style, onFocus, onBlur, suffix, ...props }) {
-  const [focused, setFocused] = useState(false);
+function TextInput({ value, onChange, placeholder, type = 'text', prefix, error, focused, onFocus, onBlur }) {
   return (
-    <div>
-      <Label>{label}</Label>
-      <div style={{ position: 'relative' }}>
-        <input
-          {...props}
-          aria-label={props['aria-label'] ?? label}
-          onFocus={(e) => { setFocused(true); onFocus?.(e); }}
-          onBlur={(e) => { setFocused(false); onBlur?.(e); }}
+    <div style={{ position: 'relative', marginBottom: error ? 6 : 16 }}>
+      {prefix && (
+        <span
           style={{
-            background:   C.cardElevated,
-            border:       `0.5px solid ${error ? C.danger : focused ? C.amber : 'rgba(255,255,255,0.09)'}`,
-            borderRadius: 14,
-            padding:      suffix ? '14px 44px 14px 16px' : '14px 16px',
-            fontSize:     15,
-            color:        C.white,
-            width:        '100%',
-            outline:      'none',
-            marginBottom: error ? 10 : 16,
-            boxSizing:    'border-box',
-            boxShadow:    focused ? '0 0 0 3px rgba(245,158,11,0.12)' : 'none',
-            transition:   'border-color 0.15s, box-shadow 0.15s',
-            ...style,
+            position:  'absolute',
+            left:      16,
+            top:       '50%',
+            transform: 'translateY(-50%)',
+            color:     C.muted,
+            fontSize:  15,
+            userSelect:'none',
           }}
-        />
-        {suffix && (
-          <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-56%)' }}>
-            {suffix}
-          </div>
-        )}
-      </div>
-      <FieldError>{error}</FieldError>
-    </div>
-  );
-}
-
-function SelectField({ label, value, onChange, options, error }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div>
-      <Label>{label}</Label>
-      <select
-        aria-label={label}
+        >
+          {prefix}
+        </span>
+      )}
+      <input
+        type={type}
         value={value}
         onChange={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        placeholder={placeholder}
         style={{
-          background: C.cardElevated,
-          border: `0.5px solid ${error ? C.danger : focused ? C.amber : 'rgba(255,255,255,0.09)'}`,
-          borderRadius: 14, padding: '14px 16px', fontSize: 15,
-          color: value ? C.white : C.muted, width: '100%', outline: 'none',
-          marginBottom: 16, boxSizing: 'border-box', appearance: 'none', WebkitAppearance: 'none',
-          transition: 'border-color 0.15s',
-        }}
-      >
-        <option value="">Select one</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-      <FieldError>{error}</FieldError>
-    </div>
-  );
-}
-
-function TextAreaField({ label, error, value, onChange, maxLength }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div>
-      <Label>{label}</Label>
-      <textarea
-        aria-label={label} value={value} onChange={onChange} maxLength={maxLength}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} rows={4}
-        style={{
-          background: C.cardElevated,
-          border: `0.5px solid ${error ? C.danger : focused ? C.amber : 'rgba(255,255,255,0.09)'}`,
-          borderRadius: 14, padding: '14px 16px', fontSize: 15, color: C.white,
-          width: '100%', outline: 'none', marginBottom: 6, resize: 'none',
-          boxSizing: 'border-box', boxShadow: focused ? '0 0 0 3px rgba(245,158,11,0.12)' : 'none',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
+          width:        '100%',
+          background:   C.cardElevated,
+          border:       `0.5px solid ${error ? C.danger : focused ? C.amber : 'rgba(255,255,255,0.09)'}`,
+          borderRadius: 14,
+          padding:      prefix ? '14px 16px 14px 30px' : '14px 16px',
+          fontSize:     15,
+          color:        C.white,
+          outline:      'none',
+          boxSizing:    'border-box',
+          boxShadow:    focused ? '0 0 0 3px rgba(245,158,11,0.12)' : 'none',
+          transition:   'border-color 0.15s, box-shadow 0.15s',
         }}
       />
-      <div style={{ color: C.muted, fontSize: 12, textAlign: 'right', marginBottom: 12 }}>
-        {value.length}/{maxLength}
-      </div>
-      <FieldError>{error}</FieldError>
     </div>
   );
 }
 
-function VibeOption({ selected, children, onClick }) {
+function VibePill({ selected, onClick, children }) {
   return (
     <motion.button
-      type="button" onClick={onClick} aria-pressed={selected}
-      whileTap={{ scale: 0.92 }} transition={{ duration: 0.1 }}
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      whileTap={{ scale: 0.92 }}
+      transition={{ duration: 0.1 }}
       animate={{
         background:  selected ? 'rgba(245,158,11,0.14)' : C.cardElevated,
         borderColor: selected ? 'rgba(245,158,11,0.45)' : 'rgba(255,255,255,0.08)',
         color:       selected ? C.amber : C.muted,
       }}
-      style={{ border: '0.5px solid', borderRadius: 9999, padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
+      style={{
+        border:     '0.5px solid',
+        borderRadius: 9999,
+        padding:    '9px 16px',
+        fontSize:   13,
+        fontWeight: 600,
+        cursor:     'pointer',
+        userSelect: 'none',
+      }}
     >
       {children}
     </motion.button>
   );
 }
 
-function PillGroup({ options, selected, onToggle, error }) {
-  return (
-    <>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-        {options.map((o) => (
-          <VibeOption key={o} selected={selected.includes(o)} onClick={() => onToggle(o)}>
-            {o}
-          </VibeOption>
-        ))}
-      </div>
-      <FieldError>{error}</FieldError>
-    </>
-  );
-}
-
-// Username status badge
-function UsernameBadge({ status }) {
-  if (status === 'checking') return <Loader size={15} color={C.muted} style={{ animation: 'spin 0.8s linear infinite' }} />;
-  if (status === 'available') return <Check size={15} color={C.success} strokeWidth={2.5} />;
-  if (status === 'taken') return <span style={{ fontSize: 13, color: C.danger, fontWeight: 700 }}>✕</span>;
-  return null;
-}
-
-function UsernameStatusText({ status }) {
-  if (status === 'available') return <p style={{ fontSize: 12, color: C.success, margin: '-8px 0 14px' }}>Available ✓</p>;
-  if (status === 'taken') return <p style={{ fontSize: 12, color: C.danger, margin: '-8px 0 14px' }}>Already taken</p>;
-  return null;
+function useField(initial = '') {
+  const [value,   setValue]   = useState(initial);
+  const [focused, setFocused] = useState(false);
+  return {
+    value,
+    set:     setValue,
+    focused,
+    onFocus: () => setFocused(true),
+    onBlur:  () => setFocused(false),
+  };
 }
 
 export default function OnboardingFlow({ go, currentUser, onComplete }) {
   const [step,    setStep]    = useState(1);
-  const [form,    setForm]    = useState(initialForm);
   const [errors,  setErrors]  = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Username availability
-  const [usernameStatus, setUsernameStatus] = useState(''); // '' | 'checking' | 'available' | 'taken'
-  const debRef = useRef(null);
+  const name      = useField('');
+  const age       = useField('');
+  const city      = useField('');
+  const instagram = useField('');
+  const duoName   = useField('');
+  const [vibes, setVibes] = useState([]);
 
-  // Location state
-  const [locMode, setLocMode] = useState('idle'); // 'idle' | 'requesting' | 'success' | 'denied' | 'manual'
-
-  const [title, subtitle] = stepCopy[step];
-
-  const update = (field, value) => {
-    setForm((c) => ({ ...c, [field]: value }));
-    setErrors((c) => ({ ...c, [field]: undefined }));
+  const toggleVibe = (v) => {
+    setVibes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
+    setErrors((e) => ({ ...e, vibes: undefined }));
   };
 
-  const toggleArray = (field, value, max) => {
-    setForm((c) => {
-      const exists = c[field].includes(value);
-      const next   = exists
-        ? c[field].filter((i) => i !== value)
-        : max && c[field].length >= max ? c[field] : [...c[field], value];
-      return { ...c, [field]: next };
-    });
-    setErrors((c) => ({ ...c, [field]: undefined }));
-  };
+  const clearErr = (field) => setErrors((e) => ({ ...e, [field]: undefined }));
 
-  const handleUsernameChange = (raw) => {
-    const v = raw.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
-    update('username', v);
-    setUsernameStatus('');
-    clearTimeout(debRef.current);
-    if (!USERNAME_RE.test(v)) return;
-    setUsernameStatus('checking');
-    debRef.current = setTimeout(async () => {
-      const available = await checkUsername(v, currentUser?.id);
-      setUsernameStatus(available ? 'available' : 'taken');
-    }, 500);
-  };
-
-  const handleUseLocation = () => {
-    setLocMode('requesting');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        update('lat', lat);
-        update('lng', lng);
-        setLocMode('success');
-      },
-      () => setLocMode('denied'),
-    );
-  };
-
-  const validateStep = (s) => {
+  // Validate step 1 fields
+  const validateStep1 = () => {
     const errs = {};
-    if (s === 1) {
-      const n = Number(form.age);
-      if (!form.firstName.trim())   errs.firstName  = 'First name is required.';
-      if (!form.gender)             errs.gender     = 'Select one.';
-      if (!form.age)                errs.age        = 'Age is required.';
-      else if (!Number.isFinite(n)) errs.age        = 'Enter a valid age.';
-      else if (n < 18 || n > 25)    errs.age        = 'You must be 18–25 to join.';
-      if (!form.ageConfirm)         errs.ageConfirm = 'Confirm that you are 18 or older.';
-      if (!form.school)             errs.school     = 'School is required.';
-    }
-    if (s === 2) {
-      if (!form.username.trim()) {
-        errs.username = 'Username is required.';
-      } else if (!USERNAME_RE.test(form.username)) {
-        errs.username = 'Letters, numbers, underscores only (3-20 chars).';
-      } else if (usernameStatus === 'taken') {
-        errs.username = 'This username is already taken.';
-      } else if (usernameStatus === 'checking') {
-        errs.username = 'Still checking availability…';
-      } else if (usernameStatus !== 'available') {
-        errs.username = 'Checking username availability…';
-      }
-      if (form.city.length > MAX_CITY_LENGTH) errs.city = 'City must be 80 characters or less.';
-    }
-    if (s === 3) {
-      if (form.intent.length < 1) errs.intent = 'Pick at least one intent.';
-      if (form.vibes.length  < 1) errs.vibes  = 'Pick at least one vibe.';
-      if (form.vibes.length  > 5) errs.vibes  = 'Choose up to 5 vibes.';
-    }
-    if (s === 5) {
-      if (!form.duoName.trim())           errs.duoName    = 'Duo name is required.';
-      if (form.duoName.length > MAX_DUO_NAME_LENGTH) errs.duoName = 'Duo name must be 100 characters or less.';
-      if (form.lookingFor.length < 1)     errs.lookingFor = 'Pick at least one option.';
-      if (!form.ocSpots.trim())           errs.ocSpots    = 'Favorite OC spots are required.';
-      if (form.ocSpots.length > MAX_SHORT_TEXT_LENGTH) errs.ocSpots = 'Favorite OC spots must be 100 characters or less.';
-      if (form.bio.length > MAX_BIO_LENGTH)          errs.bio        = 'Bio must be 120 characters or less.';
-      if (!form.instagram.trim())         errs.instagram  = 'Instagram is required.';
-      else if (form.instagram.length > MAX_INSTAGRAM_LENGTH) errs.instagram = 'Instagram must be 30 characters or less.';
-      else if (/\s/.test(form.instagram)) errs.instagram  = 'Instagram handle cannot contain spaces.';
+    if (!name.value.trim())      errs.name = 'Your first name is required.';
+    if (!age.value)              errs.age  = 'Your age is required.';
+    else {
+      const n = Number(age.value);
+      if (!Number.isFinite(n) || n < 18 || n > 25) errs.age = 'You must be between 18 and 25 to join.';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const TOTAL = 5;
-  const back = () => { if (step > 1) setStep((s) => s - 1); else go('landing'); };
-
-  const next = async () => {
-    if (!validateStep(step)) return;
-    if (step === TOTAL) {
-      if (currentUser) {
-        try {
-          setLoading(true);
-          await Promise.all([
-            createDuo(currentUser.id, {
-              name:       form.duoName,
-              city:       form.city,
-              vibes:      form.vibes,
-              spots:      form.ocSpots.split(',').map((s) => s.trim()).filter(Boolean),
-              lookingFor: form.lookingFor.join(', '),
-              instagram:  form.instagram,
-            }),
-            updateProfile(currentUser.id, {
-              name:       form.firstName,
-              gender:     form.gender,
-              birth_year: new Date().getFullYear() - parseInt(form.age),
-              username:   form.username.toLowerCase(),
-              city:       form.city || null,
-              lat:        form.lat  ?? null,
-              lng:        form.lng  ?? null,
-            }),
-          ]);
-          try {
-            await updateProfile(currentUser.id, { onboarding_complete: true });
-          } catch (err) {
-            logError('onboarding_complete update failed', err);
-          }
-          if (onComplete) {
-            onComplete({
-              name:       form.firstName,
-              birth_year: new Date().getFullYear() - parseInt(form.age),
-            });
-          } else {
-            go('home');
-          }
-          return;
-        } catch (err) {
-          logError('finish error:', err);
-          return;
-        } finally {
-          setLoading(false);
-        }
-      }
-      return;
-    }
-    setStep((s) => s + 1);
+  // Validate step 3 fields
+  const validateStep3 = () => {
+    const errs = {};
+    if (!duoName.value.trim()) errs.duoName = 'Give your duo a name.';
+    if (vibes.length < 1)      errs.vibes   = 'Pick at least one vibe.';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
+
+  const buildProfileUpdate = () => ({
+    name:       name.value.trim(),
+    birth_year: new Date().getFullYear() - parseInt(age.value),
+    city:       city.value.trim() || null,
+    instagram:  instagram.value.trim().replace(/^@/, '') || null,
+    onboarding_complete: true,
+  });
+
+  // Step 1 → Step 2
+  const handleNextFromStep1 = () => {
+    if (validateStep1()) setStep(2);
+  };
+
+  // Step 2 solo path: save profile → Done
+  const handleSolo = async () => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      await updateProfile(currentUser.id, buildProfileUpdate());
+      if (onComplete) {
+        onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
+      } else {
+        go('home');
+      }
+    } catch (err) {
+      logError('solo save error', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2 → Step 3 (duo path)
+  const handleInviteFriend = () => setStep(3);
+
+  // Step 3 → Done
+  const handleCreateDuo = async () => {
+    if (!validateStep3() || !currentUser) return;
+    try {
+      setLoading(true);
+      await Promise.all([
+        updateProfile(currentUser.id, buildProfileUpdate()),
+        createDuo(currentUser.id, {
+          name:       duoName.value.trim(),
+          city:       city.value.trim() || '',
+          vibes,
+          spots:      [],
+          lookingFor: '',
+          instagram:  instagram.value.trim().replace(/^@/, '') || '',
+        }),
+      ]);
+      setStep(4);
+    } catch (err) {
+      logError('create duo error', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Done → Home
+  const handleFindDuos = () => {
+    if (onComplete) {
+      onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
+    } else {
+      go('home');
+    }
+  };
+
+  const back = () => {
+    if (step === 2) { setStep(1); return; }
+    if (step === 3) { setStep(2); return; }
+  };
+
+  // Progress: steps 1-3 = 33/66/100%, step 4 = 100%
+  const progress = step === 1 ? 33 : step === 2 ? 66 : 100;
+
+  const stepLabel = step === 1
+    ? 'Step 1 of 3 — About you'
+    : step === 2
+    ? 'Step 2 of 3 — Got a friend?'
+    : step === 3
+    ? 'Step 3 of 3 — Duo profile'
+    : null;
+
+  const showBackBtn = step === 2 || step === 3;
+  const showFooterCTA = step === 1 || step === 3;
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white, paddingBottom: 32 }}>
+
       {/* Header */}
-      <header
-        className="glass"
-        style={{
-          height: 56, borderBottom: '0.5px solid rgba(255,255,255,0.07)',
-          display: 'flex', alignItems: 'center', padding: '0 16px',
-          position: 'sticky', top: 0, zIndex: 100, boxSizing: 'border-box', gap: 8,
-        }}
-      >
-        <motion.button
-          type="button" onClick={back} aria-label="Back"
-          whileTap={{ scale: 0.88 }} transition={{ duration: 0.1 }}
+      {step < 4 && (
+        <header
+          className="glass"
           style={{
-            width: 36, height: 36, border: '0.5px solid rgba(255,255,255,0.08)',
-            background: 'rgba(255,255,255,0.06)', borderRadius: 10, color: C.white,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height:      56,
+            borderBottom:'0.5px solid rgba(255,255,255,0.07)',
+            display:     'flex',
+            alignItems:  'center',
+            padding:     '0 16px',
+            position:    'sticky',
+            top:         0,
+            zIndex:      100,
+            boxSizing:   'border-box',
+            gap:         8,
           }}
         >
-          <ChevronLeft size={20} strokeWidth={2.2} />
-        </motion.button>
-        <div style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 700 }}>
-          Create profile
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: C.muted, fontSize: 12 }}>{step}/{TOTAL}</span>
-          <motion.button
-            type="button" onClick={() => go('home')} whileTap={{ scale: 0.95 }} transition={{ duration: 0.1 }}
-            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 8px' }}
-          >
-            Skip →
-          </motion.button>
-        </div>
-      </header>
+          {showBackBtn ? (
+            <motion.button
+              type="button"
+              onClick={back}
+              aria-label="Back"
+              whileTap={{ scale: 0.88 }}
+              transition={{ duration: 0.1 }}
+              style={{
+                width:          36,
+                height:         36,
+                border:         '0.5px solid rgba(255,255,255,0.08)',
+                background:     'rgba(255,255,255,0.06)',
+                borderRadius:   10,
+                color:          C.white,
+                cursor:         'pointer',
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ChevronLeft size={20} strokeWidth={2.2} />
+            </motion.button>
+          ) : (
+            <div style={{ width: 36 }} />
+          )}
 
-      {/* Progress bar */}
-      <div style={{ height: 2, background: 'rgba(255,255,255,0.06)' }}>
-        <motion.div
-          animate={{ width: `${(step / TOTAL) * 100}%` }}
-          transition={{ type: 'spring', stiffness: 280, damping: 30 }}
-          style={{ height: '100%', background: C.gradientCTA, borderRadius: '0 2px 2px 0' }}
-        />
-      </div>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 700, color: C.white }}>
+            Create profile
+          </div>
+
+          <div style={{ width: 36 }} />
+        </header>
+      )}
+
+      {/* Progress bar (steps 1-3 only) */}
+      {step < 4 && (
+        <div style={{ height: 2, background: 'rgba(255,255,255,0.06)' }}>
+          <motion.div
+            animate={{ width: `${progress}%` }}
+            transition={{ type: 'spring', stiffness: 280, damping: 30 }}
+            style={{ height: '100%', background: C.gradientCTA, borderRadius: '0 2px 2px 0' }}
+          />
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         <motion.main
@@ -410,320 +320,313 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -16 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          style={{ padding: '24px 16px 120px' }}
+          style={{ padding: '28px 20px 140px' }}
         >
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 8px' }}>
-            {title}
-          </h1>
-          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 24px' }}>
-            {subtitle}
-          </p>
 
-          {/* ── Step 1: Basics ── */}
+          {/* ── Step 1: About you ── */}
           {step === 1 && (
             <>
-              <TextField
-                label="First name"
-                value={form.firstName}
-                onChange={(e) => update('firstName', e.target.value.slice(0, MAX_NAME_LENGTH))}
-                maxLength={MAX_NAME_LENGTH}
-                error={errors.firstName}
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
+                {stepLabel}
+              </p>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
+                About you
+              </h1>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
+                Tell us a little about yourself.
+              </p>
+
+              <FieldLabel>First name</FieldLabel>
+              <TextInput
+                value={name.value}
+                onChange={(e) => { name.set(e.target.value); clearErr('name'); }}
+                onFocus={name.onFocus}
+                onBlur={name.onBlur}
+                focused={name.focused}
+                placeholder="Your first name"
+                error={errors.name}
               />
-              <div style={{ marginBottom: 16 }}>
-                <Label>I am</Label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {['Male', 'Female', 'Other'].map((g) => (
-                    <VibeOption key={g} selected={form.gender === g} onClick={() => update('gender', g)}>
-                      {g}
-                    </VibeOption>
-                  ))}
-                </div>
-                <FieldError>{errors.gender}</FieldError>
-              </div>
-              <TextField
-                label="Age" type="number"
-                value={form.age}
-                onChange={(e) => update('age', e.target.value)}
+              <FieldError>{errors.name}</FieldError>
+
+              <FieldLabel>Age</FieldLabel>
+              <TextInput
+                type="number"
+                value={age.value}
+                onChange={(e) => { age.set(e.target.value); clearErr('age'); }}
+                onFocus={age.onFocus}
+                onBlur={age.onBlur}
+                focused={age.focused}
+                placeholder="18 – 25"
                 error={errors.age}
               />
-              <motion.button
-                type="button"
-                aria-pressed={form.ageConfirm}
-                aria-label="Confirm I am 18 or older"
-                onClick={() => update('ageConfirm', !form.ageConfirm)}
-                whileTap={{ scale: 0.98 }} transition={{ duration: 0.1 }}
-                style={{
-                  background: C.cardElevated,
-                  border: `0.5px solid ${errors.ageConfirm ? C.danger : 'rgba(255,255,255,0.08)'}`,
-                  borderRadius: 14, padding: 14, display: 'flex', gap: 10,
-                  alignItems: 'center', width: '100%', color: C.white, fontSize: 14,
-                  marginBottom: 16, cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                <span
-                  style={{
-                    width: 18, height: 18, borderRadius: 5,
-                    border: `1.5px solid ${form.ageConfirm ? C.amber : 'rgba(255,255,255,0.2)'}`,
-                    background: form.ageConfirm ? C.amber : 'transparent', flexShrink: 0,
-                    transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  {form.ageConfirm && <span style={{ fontSize: 11, color: '#fff', fontWeight: 800 }}>✓</span>}
-                </span>
-                I confirm I am 18 or older.
-              </motion.button>
-              <FieldError>{errors.ageConfirm}</FieldError>
-              <SelectField
-                label="School"
-                value={form.school}
-                onChange={(e) => update('school', e.target.value)}
-                options={schools}
-                error={errors.school}
+              <FieldError>{errors.age}</FieldError>
+
+              <FieldLabel>City <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
+              <TextInput
+                value={city.value}
+                onChange={(e) => city.set(e.target.value)}
+                onFocus={city.onFocus}
+                onBlur={city.onBlur}
+                focused={city.focused}
+                placeholder="e.g. Irvine, Newport Beach"
               />
+
+              <FieldLabel>Instagram <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
+              <TextInput
+                value={instagram.value}
+                onChange={(e) => instagram.set(e.target.value)}
+                onFocus={instagram.onFocus}
+                onBlur={instagram.onBlur}
+                focused={instagram.focused}
+                placeholder="yourhandle"
+                prefix="@"
+              />
+              <p style={{ fontSize: 12, color: C.muted, margin: '-8px 0 0', lineHeight: 1.4 }}>
+                Only shared with a duo after you both match.
+              </p>
             </>
           )}
 
-          {/* ── Step 2: Username + Location ── */}
+          {/* ── Step 2: Got a friend? ── */}
           {step === 2 && (
             <>
-              {/* Username */}
-              <div style={{ marginBottom: 4 }}>
-                <Label>Username</Label>
-                <div style={{ position: 'relative' }}>
-                  <span
-                    style={{
-                      position: 'absolute', left: 16, top: '50%', transform: 'translateY(-56%)',
-                      color: C.muted, fontSize: 15, userSelect: 'none',
-                    }}
-                  >
-                    @
-                  </span>
-                  <input
-                    value={form.username}
-                    onChange={(e) => handleUsernameChange(e.target.value)}
-                    placeholder="yourhandle"
-                    aria-label="Username"
-                    style={{
-                      background: C.cardElevated,
-                      border: `0.5px solid ${
-                        errors.username   ? C.danger :
-                        usernameStatus === 'available' ? C.success :
-                        usernameStatus === 'taken'     ? C.danger :
-                        'rgba(255,255,255,0.09)'
-                      }`,
-                      borderRadius: 14, padding: '14px 44px 14px 32px', fontSize: 15,
-                      color: C.white, width: '100%', outline: 'none',
-                      marginBottom: errors.username ? 10 : 8,
-                      boxSizing: 'border-box', transition: 'border-color 0.15s',
-                    }}
-                  />
-                  <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-56%)' }}>
-                    <UsernameBadge status={usernameStatus} />
-                  </div>
-                </div>
-                {errors.username ? (
-                  <FieldError>{errors.username}</FieldError>
-                ) : (
-                  <UsernameStatusText status={usernameStatus} />
-                )}
-                <p style={{ fontSize: 12, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>
-                  Letters, numbers, underscores. 3–20 characters.
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
+                {stepLabel}
+              </p>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
+                Got a friend?
+              </h1>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 24px' }}>
+                duo oc. is built around pairs. You and a friend make a team, then you meet another team for a 2v2 hangout.
+              </p>
+
+              {/* Explainer box */}
+              <div
+                style={{
+                  background:   'rgba(245,158,11,0.06)',
+                  border:       '0.5px solid rgba(245,158,11,0.18)',
+                  borderRadius: 16,
+                  padding:      '16px 18px',
+                  marginBottom: 32,
+                }}
+              >
+                <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 6px' }}>
+                  How it works
+                </p>
+                <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.65 }}>
+                  Create a duo with a friend. Other duos find you and propose a hangout. You both confirm and plans are made — no awkward one-on-ones.
                 </p>
               </div>
 
-              {/* Location */}
-              <Label>Location</Label>
-
-              {locMode === 'idle' && (
-                <motion.button
-                  type="button"
-                  onClick={handleUseLocation}
-                  whileTap={{ scale: 0.97 }} transition={{ duration: 0.1 }}
-                  style={{
-                    width: '100%', padding: '14px 16px', borderRadius: 14,
-                    background: 'rgba(245,158,11,0.08)',
-                    border: '0.5px solid rgba(245,158,11,0.25)',
-                    color: C.amber, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    marginBottom: 12,
-                  }}
-                >
-                  <Navigation size={16} strokeWidth={2} />
-                  Use my location
-                </motion.button>
-              )}
-
-              {locMode === 'requesting' && (
-                <div
-                  style={{
-                    padding: '14px 16px', borderRadius: 14, background: C.cardElevated,
-                    border: '0.5px solid rgba(255,255,255,0.08)', display: 'flex',
-                    alignItems: 'center', gap: 10, marginBottom: 12, color: C.muted, fontSize: 14,
-                  }}
-                >
-                  <Loader size={16} style={{ animation: 'spin 0.8s linear infinite' }} />
-                  Requesting location…
-                </div>
-              )}
-
-              {locMode === 'success' && (
-                <div
-                  style={{
-                    padding: '12px 14px', borderRadius: 14,
-                    background: 'rgba(16,185,129,0.08)',
-                    border: '0.5px solid rgba(16,185,129,0.25)',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    marginBottom: 12, color: C.success, fontSize: 13,
-                  }}
-                >
-                  <Check size={14} strokeWidth={2.5} />
-                  Location saved. Add your city manually so people know your area.
-                </div>
-              )}
-
-              {locMode === 'denied' && (
-                <div
-                  style={{
-                    padding: '12px 14px', borderRadius: 14,
-                    background: 'rgba(239,68,68,0.07)',
-                    border: '0.5px solid rgba(239,68,68,0.2)',
-                    marginBottom: 12, color: C.danger, fontSize: 13, lineHeight: 1.5,
-                  }}
-                >
-                  Location access denied. Enter your city below.
-                </div>
-              )}
-
-              {/* Manual city input (always shown after success/denied, or as fallback) */}
-              {(locMode === 'success' || locMode === 'denied' || locMode === 'manual') && (
-                <div style={{ marginTop: locMode === 'success' ? 0 : 0 }}>
-                  <Label>City</Label>
-                  <input
-                    value={form.city}
-                    onChange={(e) => update('city', e.target.value.slice(0, MAX_CITY_LENGTH))}
-                    placeholder="e.g. Irvine, Newport Beach…"
-                    aria-label="City"
-                    maxLength={MAX_CITY_LENGTH}
-                    style={{
-                      background: C.cardElevated,
-                      border: '0.5px solid rgba(255,255,255,0.09)',
-                      borderRadius: 14, padding: '14px 16px', fontSize: 15,
-                      color: C.white, width: '100%', outline: 'none',
-                      marginBottom: 16, boxSizing: 'border-box',
-                    }}
-                  />
-                  <FieldError>{errors.city}</FieldError>
-                </div>
-              )}
-
-              {locMode === 'idle' && (
-                <button
-                  type="button"
-                  onClick={() => setLocMode('manual')}
-                  style={{
-                    background: 'none', border: 'none', color: C.muted,
-                    fontSize: 13, cursor: 'pointer', padding: '4px 0', display: 'block',
-                  }}
-                >
-                  Enter city manually →
-                </button>
-              )}
-
-              <button
+              {/* Choice buttons */}
+              <motion.button
                 type="button"
-                onClick={() => { update('city', ''); update('lat', null); update('lng', null); setLocMode('idle'); }}
+                onClick={handleInviteFriend}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
                 style={{
-                  background: 'none', border: 'none', color: C.muted,
-                  fontSize: 12, cursor: 'pointer', padding: '8px 0', display: 'block', marginTop: 4,
+                  width:        '100%',
+                  height:       58,
+                  borderRadius: 16,
+                  border:       'none',
+                  background:   C.gradientCTA,
+                  color:        '#fff',
+                  fontSize:     16,
+                  fontWeight:   800,
+                  cursor:       'pointer',
+                  marginBottom: 12,
+                  letterSpacing:'-0.2px',
+                  boxShadow:    '0 4px 20px rgba(245,158,11,0.28)',
                 }}
               >
-                Skip location for now
-              </button>
-            </>
-          )}
+                I have a friend in mind
+              </motion.button>
 
-          {/* ── Step 3: Vibes ── */}
-          {step === 3 && (
-            <>
-              <Label>Intent</Label>
-              <PillGroup options={intentOptions} selected={form.intent} onToggle={(v) => toggleArray('intent', v)} error={errors.intent} />
-              <Label>Vibes</Label>
-              <div style={{ color: C.muted, fontSize: 12, margin: '-2px 0 12px' }}>Choose up to 5.</div>
-              <PillGroup options={vibeOptions} selected={form.vibes} onToggle={(v) => toggleArray('vibes', v, 5)} error={errors.vibes} />
-            </>
-          )}
+              <motion.button
+                type="button"
+                onClick={handleSolo}
+                disabled={loading}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
+                style={{
+                  width:        '100%',
+                  height:       52,
+                  borderRadius: 16,
+                  border:       '0.5px solid rgba(255,255,255,0.1)',
+                  background:   'rgba(255,255,255,0.04)',
+                  color:        loading ? C.muted : C.white,
+                  fontSize:     15,
+                  fontWeight:   600,
+                  cursor:       loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {loading ? 'Saving…' : 'Start on my own for now'}
+              </motion.button>
 
-          {/* ── Step 4: Duo partner ── */}
-          {step === 4 && (
-            <>
-              <TextField label="Partner name" value={form.partnerName} onChange={(e) => update('partnerName', e.target.value.slice(0, MAX_NAME_LENGTH))} maxLength={MAX_NAME_LENGTH} />
-              <TextField label="Partner contact" placeholder="Phone or Instagram" value={form.partnerContact} onChange={(e) => update('partnerContact', e.target.value.slice(0, MAX_SHORT_TEXT_LENGTH))} maxLength={MAX_SHORT_TEXT_LENGTH} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 20px' }}>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
-                <div style={{ color: C.muted, fontSize: 12, fontWeight: 700 }}>or</div>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
-              </div>
-              <VibeOption selected={form.addDuoLater} onClick={() => update('addDuoLater', !form.addDuoLater)}>
-                Add duo later
-              </VibeOption>
-            </>
-          )}
-
-          {/* ── Step 5: Duo profile ── */}
-          {step === 5 && (
-            <>
-              <TextField
-                label="Duo name"
-                placeholder={form.firstName ? `${form.firstName} & friend` : ''}
-                value={form.duoName}
-                onChange={(e) => update('duoName', e.target.value.slice(0, MAX_DUO_NAME_LENGTH))}
-                maxLength={MAX_DUO_NAME_LENGTH}
-                error={errors.duoName}
-              />
-              <Label>Looking for</Label>
-              <PillGroup options={lookingForOpts} selected={form.lookingFor} onToggle={(v) => toggleArray('lookingFor', v)} error={errors.lookingFor} />
-              <TextField label="OC spots" placeholder="Irvine Spectrum, Boba, Newport" value={form.ocSpots} onChange={(e) => update('ocSpots', e.target.value.slice(0, MAX_SHORT_TEXT_LENGTH))} maxLength={MAX_SHORT_TEXT_LENGTH} error={errors.ocSpots} />
-              <TextAreaField label="Bio" value={form.bio} onChange={(e) => update('bio', e.target.value.slice(0, MAX_BIO_LENGTH))} maxLength={MAX_BIO_LENGTH} error={errors.bio} />
-              <TextField
-                label="Instagram"
-                placeholder="@yourhandle"
-                value={form.instagram ? `@${form.instagram}` : ''}
-                onChange={(e) => update('instagram', cleanInstagram(e.target.value).slice(0, MAX_INSTAGRAM_LENGTH))}
-                maxLength={MAX_INSTAGRAM_LENGTH + 1}
-                error={errors.instagram}
-              />
-              <p style={{ color: C.muted, fontSize: 12, marginTop: -10, lineHeight: 1.5 }}>
-                Instagram unlocks only after a match.
+              <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
+                You can add a friend later from your profile.
               </p>
             </>
+          )}
+
+          {/* ── Step 3: Duo profile ── */}
+          {step === 3 && (
+            <>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
+                {stepLabel}
+              </p>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
+                Create your duo
+              </h1>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
+                This is what other duos see when browsing. Keep it simple.
+              </p>
+
+              <FieldLabel>Duo name</FieldLabel>
+              <TextInput
+                value={duoName.value}
+                onChange={(e) => { duoName.set(e.target.value); clearErr('duoName'); }}
+                onFocus={duoName.onFocus}
+                onBlur={duoName.onBlur}
+                focused={duoName.focused}
+                placeholder={name.value ? `${name.value.trim()} & friend` : 'e.g. Jae & Miles'}
+                error={errors.duoName}
+              />
+              <FieldError>{errors.duoName}</FieldError>
+
+              <FieldLabel>Vibes</FieldLabel>
+              <p style={{ fontSize: 12, color: C.muted, margin: '-4px 0 14px', lineHeight: 1.4 }}>
+                Pick everything that sounds like you.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {VIBES.map((v) => (
+                  <VibePill key={v} selected={vibes.includes(v)} onClick={() => toggleVibe(v)}>
+                    {v}
+                  </VibePill>
+                ))}
+              </div>
+              <FieldError>{errors.vibes}</FieldError>
+            </>
+          )}
+
+          {/* ── Step 4: Done ── */}
+          {step === 4 && (
+            <div
+              style={{
+                minHeight:      'calc(100vh - 64px)',
+                display:        'flex',
+                flexDirection:  'column',
+                alignItems:     'center',
+                justifyContent: 'center',
+                textAlign:      'center',
+                padding:        '0 8px',
+              }}
+            >
+              {/* Check circle */}
+              <div
+                style={{
+                  width:          72,
+                  height:         72,
+                  borderRadius:   '50%',
+                  background:     C.gradientCTA,
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  marginBottom:   28,
+                  boxShadow:      '0 8px 32px rgba(245,158,11,0.32)',
+                }}
+              >
+                <Check size={34} color="#fff" strokeWidth={2.5} />
+              </div>
+
+              <h1
+                style={{
+                  fontSize:      32,
+                  fontWeight:    800,
+                  letterSpacing: '-1px',
+                  margin:        '0 0 12px',
+                  color:         C.white,
+                }}
+              >
+                You are all set.
+              </h1>
+              <p
+                style={{
+                  fontSize:    15,
+                  color:       C.muted,
+                  lineHeight:  1.6,
+                  margin:      '0 0 48px',
+                  maxWidth:    260,
+                }}
+              >
+                Your profile is ready. Start finding duos around OC.
+              </p>
+
+              <motion.button
+                type="button"
+                onClick={handleFindDuos}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
+                style={{
+                  width:         '100%',
+                  maxWidth:      320,
+                  height:        58,
+                  borderRadius:  16,
+                  border:        'none',
+                  background:    C.gradientCTA,
+                  color:         '#fff',
+                  fontSize:      17,
+                  fontWeight:    800,
+                  cursor:        'pointer',
+                  letterSpacing: '-0.2px',
+                  boxShadow:     '0 4px 24px rgba(245,158,11,0.3)',
+                }}
+              >
+                Find Duos
+              </motion.button>
+            </div>
           )}
         </motion.main>
       </AnimatePresence>
 
-      {/* Footer */}
-      <footer
-        className="glass"
-        style={{ position: 'sticky', bottom: 0, padding: '12px 16px 20px', borderTop: '0.5px solid rgba(255,255,255,0.07)', boxSizing: 'border-box' }}
-      >
-        <motion.button
-          type="button" onClick={next} whileTap={{ scale: 0.97 }} transition={{ duration: 0.1 }}
+      {/* Sticky footer CTA (steps 1 and 3 only) */}
+      {showFooterCTA && (
+        <footer
+          className="glass"
           style={{
-            width: '100%', height: 54, borderRadius: 16, border: 'none',
-            background: C.gradientCTA, color: '#fff', fontSize: 16, fontWeight: 800,
-            cursor: 'pointer', boxShadow: '0 4px 20px rgba(245,158,11,0.25)',
+            position:    'fixed',
+            bottom:      0,
+            left:        0,
+            right:       0,
+            padding:     '12px 20px 28px',
+            borderTop:   '0.5px solid rgba(255,255,255,0.07)',
+            boxSizing:   'border-box',
           }}
         >
-          {loading ? 'Creating duo…' : step < TOTAL ? 'Next' : 'Finish profile'}
-        </motion.button>
-        {step > 1 && (
           <motion.button
-            type="button" onClick={back} whileTap={{ scale: 0.97 }} transition={{ duration: 0.1 }}
-            style={{ width: '100%', height: 44, border: 'none', background: 'transparent', color: C.muted, fontSize: 14, fontWeight: 600, marginTop: 8, cursor: 'pointer' }}
+            type="button"
+            onClick={step === 1 ? handleNextFromStep1 : handleCreateDuo}
+            disabled={loading}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              width:         '100%',
+              height:        54,
+              borderRadius:  16,
+              border:        'none',
+              background:    C.gradientCTA,
+              color:         '#fff',
+              fontSize:      16,
+              fontWeight:    800,
+              cursor:        loading ? 'not-allowed' : 'pointer',
+              boxShadow:     '0 4px 20px rgba(245,158,11,0.25)',
+              opacity:       loading ? 0.7 : 1,
+            }}
           >
-            Back
+            {loading ? 'Creating duo…' : step === 1 ? 'Next' : 'Create Duo'}
           </motion.button>
-        )}
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
