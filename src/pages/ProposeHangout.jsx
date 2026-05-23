@@ -54,19 +54,58 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
   const [message,  setMessage]  = useState('');
   const [loading,  setLoading]  = useState(false);
   const [sent,     setSent]     = useState(false);
+  const [error,    setError]    = useState('');
+
+  // ── Fix 4: duo null guard ────────────────────────────────────────────────
+  if (!duo) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
+        <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+            Something went wrong.
+          </p>
+          <p style={{ fontSize: 14, color: C.muted, margin: '0 0 32px', lineHeight: 1.6 }}>
+            Please go back and try again.
+          </p>
+          <PremiumButton fullWidth onClick={() => go('home')}>Go Back</PremiumButton>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Fix 1: myDuo null guard ──────────────────────────────────────────────
+  if (!myDuo) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
+        <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+            You need a duo to propose a hangout.
+          </p>
+          <p style={{ fontSize: 14, color: C.muted, margin: '0 0 32px', lineHeight: 1.6 }}>
+            Go to the Me tab to create your duo first.
+          </p>
+          <PremiumButton fullWidth onClick={() => go('me')}>Go to Me tab</PremiumButton>
+        </div>
+      </div>
+    );
+  }
 
   const cleanMessage = message.trim();
+
+  // ── Fix 2: place is optional — removed from canSubmit ───────────────────
   const canSubmit =
     vibe &&
     date &&
     timeSlot &&
-    place &&
-    place.length <= MAX_PLACE_LENGTH &&
+    (!place || place.length <= MAX_PLACE_LENGTH) &&
     cleanMessage.length <= MAX_MESSAGE_LENGTH &&
     !loading;
 
   const handlePropose = async () => {
-    if (!canSubmit || !myDuo) return;
+    if (!canSubmit) return;
+    setError('');
     try {
       setLoading(true);
       await proposeHangout({
@@ -78,7 +117,10 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
       });
       setSent(true);
     } catch (err) {
+      // ── Fix 3: visible error instead of silent catch ─────────────────────
+      console.error('propose hangout failed:', err);
       logError('propose hangout failed', err);
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -120,7 +162,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
             style={{ fontSize: 36, fontWeight: 900, color: C.white, letterSpacing: -1, margin: '0 0 8px' }}>
             Sent.
           </motion.p>
-          <p style={{ fontSize: 14, color: C.muted }}>Waiting for {duo?.name ?? 'them'} to reply.</p>
+          <p style={{ fontSize: 14, color: C.muted }}>Waiting for {duo.name} to reply.</p>
           <div style={{ marginTop: 16, width: '100%', maxWidth: 280 }}>
             <PremiumButton fullWidth onClick={() => go('home')}>
               Back to Home
@@ -150,13 +192,13 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
             gap:          12,
           }}
         >
-          <InitialsAvatar name={duo?.name ?? '?'} size={40} />
+          <InitialsAvatar name={duo.name} size={40} />
           <div>
             <p style={{ fontSize: 15, fontWeight: 700, color: C.white, margin: 0, marginBottom: 2 }}>
-              {duo?.name ?? 'Unknown Duo'}
+              {duo.name}
             </p>
             <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-              {duo?.cities ?? duo?.city ?? ''}
+              {duo.cities ?? duo.city ?? ''}
             </p>
           </div>
         </div>
@@ -191,10 +233,10 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
         <span style={LABEL_STYLE}>When</span>
         <div
           style={{
-            display:               'grid',
-            gridTemplateColumns:   'repeat(3, 1fr)',
-            gap:                   8,
-            marginBottom:          24,
+            display:             'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap:                 8,
+            marginBottom:        24,
           }}
         >
           {DATES.map((d) => (
@@ -262,8 +304,11 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           ))}
         </div>
 
-        {/* PLACE */}
-        <span style={LABEL_STYLE}>OC Spot</span>
+        {/* PLACE — optional */}
+        <span style={LABEL_STYLE}>Where? (optional)</span>
+        <p style={{ fontSize: 11, color: C.muted, margin: '-6px 0 10px', lineHeight: 1.4 }}>
+          Leave blank if you're open to anywhere.
+        </p>
         <div
           className="no-scrollbar"
           style={{
@@ -278,7 +323,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
             <motion.button
               key={p}
               type="button"
-              onClick={() => setPlace(p)}
+              onClick={() => setPlace(place === p ? null : p)}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
@@ -318,23 +363,38 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
             resize:       'none',
             outline:      'none',
             boxSizing:    'border-box',
-            marginBottom: 32,
+            marginBottom: 20,
           }}
         />
+
+        {/* Error message */}
+        {error && (
+          <p style={{
+            fontSize:     13,
+            color:        '#EF4444',
+            marginBottom: 12,
+            lineHeight:   1.5,
+            background:   'rgba(239,68,68,0.08)',
+            border:       '0.5px solid rgba(239,68,68,0.2)',
+            borderRadius: 10,
+            padding:      '10px 14px',
+          }}>
+            {error}
+          </p>
+        )}
 
         {/* CTA */}
         <PremiumButton
           fullWidth
           onClick={handlePropose}
-          disabled={!canSubmit || !myDuo}
-          style={{ opacity: canSubmit && myDuo ? 1 : 0.45 }}
+          disabled={!canSubmit}
         >
           {loading ? 'Sending…' : 'Propose Hangout →'}
         </PremiumButton>
 
-        {(!vibe || !date || !timeSlot || !place) && (
+        {(!vibe || !date || !timeSlot) && (
           <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 10 }}>
-            Pick a vibe, date, time, and place to continue.
+            Pick a vibe, date, and time to continue.
           </p>
         )}
       </div>
