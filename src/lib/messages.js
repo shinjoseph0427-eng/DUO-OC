@@ -2,16 +2,17 @@ import { supabase } from './supabaseClient.js'
 
 const MAX_MESSAGE_LENGTH = 500
 
-// Resolves the caller's duo_id then verifies it belongs to the hangout.
+// Resolves all caller duo_ids then verifies at least one belongs to the hangout.
 async function assertHangoutMember(hangoutId, currentUserId) {
   if (!currentUserId) throw new Error('Unauthorized')
 
-  const { data: member } = await supabase
+  const { data: memberships } = await supabase
     .from('duo_members')
     .select('duo_id')
     .eq('user_id', currentUserId)
-    .single()
-  if (!member?.duo_id) throw new Error('Unauthorized')
+
+  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  if (duoIds.length === 0) throw new Error('Unauthorized')
 
   const { data: hangout, error } = await supabase
     .from('hangouts')
@@ -19,20 +20,21 @@ async function assertHangoutMember(hangoutId, currentUserId) {
     .eq('id', hangoutId)
     .single()
   if (error || !hangout) throw new Error('Unauthorized')
-  if (hangout.duo_a_id !== member.duo_id && hangout.duo_b_id !== member.duo_id) {
+  if (!duoIds.includes(hangout.duo_a_id) && !duoIds.includes(hangout.duo_b_id)) {
     throw new Error('Unauthorized')
   }
 }
 
 export async function getMyChats(userId) {
-  const { data: member } = await supabase
+  const { data: memberships } = await supabase
     .from('duo_members')
     .select('duo_id')
     .eq('user_id', userId)
-    .single()
 
-  if (!member?.duo_id) return []
-  const myDuoId = member.duo_id
+  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  if (duoIds.length === 0) return []
+
+  const orFilter = duoIds.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
 
   const { data: hangouts, error } = await supabase
     .from('hangouts')
@@ -40,14 +42,14 @@ export async function getMyChats(userId) {
       id, duo_a_id, duo_b_id, created_at,
       duo_a:duos!hangouts_duo_a_id_fkey(
         id, name,
-        duo_members(user_id, profiles(name, avatar_url))
+        duo_members(user_id, profiles(name))
       ),
       duo_b:duos!hangouts_duo_b_id_fkey(
         id, name,
-        duo_members(user_id, profiles(name, avatar_url))
+        duo_members(user_id, profiles(name))
       )
     `)
-    .or(`duo_a_id.eq.${myDuoId},duo_b_id.eq.${myDuoId}`)
+    .or(orFilter)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: false })
 
@@ -55,7 +57,7 @@ export async function getMyChats(userId) {
 
   const results = await Promise.all(
     hangouts.map(async (h) => {
-      const otherDuo = h.duo_a_id === myDuoId ? h.duo_b : h.duo_a
+      const otherDuo = duoIds.includes(h.duo_a_id) ? h.duo_b : h.duo_a
 
       const { data: lastMsg } = await supabase
         .from('messages')
@@ -67,7 +69,7 @@ export async function getMyChats(userId) {
 
       const members = (otherDuo?.duo_members ?? []).map((m) => ({
         name:      m.profiles?.name ?? 'Member',
-        avatarUrl: m.profiles?.avatar_url ?? null,
+        avatarUrl: null,
       }))
 
       return {

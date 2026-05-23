@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Pencil, Camera, MapPin, AtSign, Users, Settings2, MessageCircle } from 'lucide-react';
+import { LogOut, Pencil, Camera, MapPin, AtSign } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { C, AVATAR_GRADIENTS, F } from '../tokens';
 import InstagramButton from '../components/InstagramButton.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
+import MyDuosSection from '../components/MyDuosSection.jsx';
 import { signOut } from '../lib/auth.js';
 import { getMyDuo } from '../lib/duos.js';
 import { getMyProfile } from '../lib/profile.js';
@@ -112,7 +113,6 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
   const age        = calcAge(profile);
   const heroPhoto  = profile?.photos?.[0] ?? null;
   const extraPhotos = [profile?.photos?.[1], profile?.photos?.[2]].filter(Boolean);
-  const hasDuoRoom = (myDuo?.duo_members?.length ?? 0) >= 2;
 
   if (loading) {
     return <div style={{ minHeight: '100vh', background: C.bg }} />;
@@ -253,55 +253,6 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
           )}
         </div>
 
-        <motion.button
-          type="button"
-          onClick={() => go('my_duos')}
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.1 }}
-          style={{
-            width: '100%',
-            minHeight: 54,
-            borderRadius: 14,
-            background: 'rgba(245,158,11,0.1)',
-            border: '0.5px solid rgba(245,158,11,0.28)',
-            color: C.white,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '13px 15px',
-            marginBottom: 16,
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 10,
-                background: 'rgba(245,158,11,0.14)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Users size={16} color={C.amber} strokeWidth={2.2} />
-            </span>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 15, fontWeight: 900, color: C.white }}>
-                My Duos
-              </span>
-              <span style={{ display: 'block', fontSize: 12, color: C.muted, marginTop: 2 }}>
-                View every duo profile you belong to
-              </span>
-            </span>
-          </span>
-          <span style={{ color: C.amber, fontSize: 18, fontWeight: 900 }}>→</span>
-        </motion.button>
-
         {/* Bio */}
         {profile?.bio ? (
           <div
@@ -339,148 +290,10 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
         <PromptCard q={profile?.prompt_q1} a={profile?.prompt_a1} />
         <PromptCard q={profile?.prompt_q2} a={profile?.prompt_a2} />
 
-        {/* Duo card */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 }}>
-          <p style={{ ...SECTION_LABEL, margin: 0 }}>My Duo</p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <motion.button
-              type="button"
-              aria-label="My Duos"
-              onClick={() => go('my_duos')}
-              whileTap={{ scale: 0.88 }}
-              transition={{ duration: 0.1 }}
-              style={{
-                height:         30,
-                borderRadius:   8,
-                background:     'rgba(255,255,255,0.05)',
-                border:         `0.5px solid ${C.border}`,
-                color:          C.muted,
-                fontSize:       11,
-                fontWeight:     800,
-                padding:        '0 10px',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'center',
-                cursor:         'pointer',
-              }}
-            >
-              My Duos
-            </motion.button>
-            {myDuo && (
-              <motion.button
-                type="button"
-                aria-label="Edit duo profile"
-                onClick={() => go('edit_duo_profile')}
-                whileTap={{ scale: 0.88 }}
-                transition={{ duration: 0.1 }}
-                style={{
-                  width:          30,
-                  height:         30,
-                  borderRadius:   8,
-                  background:     'rgba(255,255,255,0.05)',
-                  border:         `0.5px solid ${C.border}`,
-                  display:        'flex',
-                  alignItems:     'center',
-                  justifyContent: 'center',
-                  cursor:         'pointer',
-                }}
-              >
-                <Settings2 size={14} color={C.muted} strokeWidth={1.8} />
-              </motion.button>
-            )}
-          </div>
+        {/* My Duos */}
+        <div style={{ marginTop: 28, marginBottom: 28 }}>
+          <MyDuosSection currentUser={currentUser} go={go} />
         </div>
-        {myDuo ? (
-          <div
-            style={{
-              background:   C.cardElevated,
-              borderLeft:   `3px solid ${C.amber}`,
-              borderRight:  `0.5px solid ${C.border}`,
-              borderTop:    `0.5px solid ${C.border}`,
-              borderBottom: `0.5px solid ${C.border}`,
-              borderRadius: 14,
-              padding:      '16px 16px',
-              marginBottom: 28,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Users size={14} color={C.amber} strokeWidth={2} />
-              <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: 0 }}>{myDuo.name}</p>
-            </div>
-            {myDuo.city && (
-              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <MapPin size={11} strokeWidth={1.8} />{myDuo.city}
-              </p>
-            )}
-            {myDuo.vibes?.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {myDuo.vibes.map((v) => (
-                  <span
-                    key={v}
-                    style={{
-                      background:   'rgba(245,158,11,0.10)',
-                      color:        C.amber,
-                      border:       '0.5px solid rgba(245,158,11,0.25)',
-                      borderRadius: 9999,
-                      padding:      '3px 10px',
-                      fontSize:     12,
-                      fontWeight:   600,
-                    }}
-                  >
-                    {v}
-                  </span>
-                ))}
-              </div>
-            )}
-            {hasDuoRoom && (
-              <motion.button
-                type="button"
-                onClick={() => go('duo_room')}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.1 }}
-                style={{
-                  width: '100%',
-                  height: 46,
-                  marginTop: 14,
-                  borderRadius: 13,
-                  border: 'none',
-                  background: C.gradientCTA,
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                }}
-              >
-                <MessageCircle size={16} strokeWidth={2.2} />
-                Open Duo Room
-              </motion.button>
-            )}
-          </div>
-        ) : (
-          <div
-            style={{
-              background:   C.cardElevated,
-              borderLeft:   `3px solid ${C.amber}`,
-              borderRight:  `0.5px solid ${C.border}`,
-              borderTop:    `0.5px solid ${C.border}`,
-              borderBottom: `0.5px solid ${C.border}`,
-              borderRadius: 14,
-              padding:      16,
-              marginBottom: 28,
-            }}
-          >
-            <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>
-              No duo yet.{' '}
-              <span onClick={() => go('onboarding')} style={{ color: C.amber, cursor: 'pointer', fontWeight: 600 }}>
-                Create one →
-              </span>
-            </p>
-          </div>
-        )}
 
         {/* Matches */}
         <p style={SECTION_LABEL}>Matches</p>

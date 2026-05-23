@@ -7,7 +7,7 @@ import InstagramButton from '../components/InstagramButton.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { OC_SPOTS } from '../data/duos.js';
 import { getMyHangouts, acceptHangout, declineHangout } from '../lib/hangouts.js';
-import { getMyDuo } from '../lib/duos.js';
+import { getMyDuos } from '../lib/duos.js';
 
 const SECTION_LABEL = {
   fontSize:      10,
@@ -71,17 +71,18 @@ function HangoutMeta({ h }) {
 
 export default function HangoutsPage({ currentUser, go, onLogout, showToast }) {
   const [hangouts, setHangouts] = useState([]);
-  const [myDuo,    setMyDuo]    = useState(null);
+  const [myDuos,   setMyDuos]   = useState([]);
   const [loading,  setLoading]  = useState(true);
 
   const load = useCallback(() => {
     if (!currentUser) { setLoading(false); return; }
-    getMyDuo(currentUser.id).then((duo) => {
-      setMyDuo(duo);
-      if (duo) return getMyHangouts(duo.id);
-      return [];
+    getMyDuos(currentUser.id).then((duos) => {
+      setMyDuos(duos ?? []);
+      const ids = (duos ?? []).map((d) => d.id).filter(Boolean);
+      if (ids.length === 0) return [];
+      return getMyHangouts(ids);
     }).then((data) => {
-      setHangouts(data);
+      setHangouts(data ?? []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [currentUser]);
@@ -89,19 +90,25 @@ export default function HangoutsPage({ currentUser, go, onLogout, showToast }) {
   useEffect(() => { load(); }, [load]);
 
   const handleAccept = async (id) => {
-    await acceptHangout(id);
+    const result = await acceptHangout(id, currentUser?.id);
     load();
-    showToast?.('Hangout locked in. Go say hi.', 'success');
+    if (result?.confirmed) {
+      showToast?.('Hangout locked in. Go say hi.', 'success');
+    } else if (result?.waitingForPartner) {
+      showToast?.('You accepted. Waiting for your duo partner.', 'info');
+    }
   };
 
   const handleDecline = async (id) => {
-    await declineHangout(id);
+    await declineHangout(id, currentUser?.id);
     load();
   };
 
-  const incoming  = hangouts.filter((h) => h.status === 'pending'   && h.duo_b_id === myDuo?.id);
-  const outgoing  = hangouts.filter((h) => h.status === 'pending'   && h.duo_a_id === myDuo?.id);
-  const countered = hangouts.filter((h) => h.status === 'countered' && h.duo_a_id === myDuo?.id);
+  const myDuoIds = myDuos.map((d) => d.id);
+
+  const incoming  = hangouts.filter((h) => h.status === 'pending'   && myDuoIds.includes(h.duo_b_id));
+  const outgoing  = hangouts.filter((h) => h.status === 'pending'   && myDuoIds.includes(h.duo_a_id));
+  const countered = hangouts.filter((h) => h.status === 'countered' && myDuoIds.includes(h.duo_a_id));
   const confirmed = hangouts.filter((h) => h.status === 'confirmed');
 
   return (
@@ -150,91 +157,112 @@ export default function HangoutsPage({ currentUser, go, onLogout, showToast }) {
               </p>
             )}
 
-            {incoming.map((h) => (
-              <div
-                key={h.id}
-                style={{
-                  background:   C.cardElevated,
-                  borderLeft:   `3px solid ${C.amber}`,
-                  borderRight:  `0.5px solid ${C.border}`,
-                  borderTop:    `0.5px solid ${C.border}`,
-                  borderBottom: `0.5px solid ${C.border}`,
-                  borderRadius: 14,
-                  padding:      '14px 16px',
-                  marginBottom: 10,
-                }}
-              >
-                <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>
-                  Hangout request
-                </p>
-                <HangoutMeta h={h} />
-                {h.message && (
-                  <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
-                    "{h.message}"
+            {incoming.map((h) => {
+              const alreadyAccepted = (h.receiver_accept_user_ids ?? []).includes(currentUser?.id);
+              return (
+                <div
+                  key={h.id}
+                  style={{
+                    background:   C.cardElevated,
+                    borderLeft:   `3px solid ${C.amber}`,
+                    borderRight:  `0.5px solid ${C.border}`,
+                    borderTop:    `0.5px solid ${C.border}`,
+                    borderBottom: `0.5px solid ${C.border}`,
+                    borderRadius: 14,
+                    padding:      '14px 16px',
+                    marginBottom: 10,
+                  }}
+                >
+                  <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>
+                    Hangout request
                   </p>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <motion.button
-                    type="button"
-                    onClick={() => handleAccept(h.id)}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      flex:         1,
-                      background:   C.gradientCTA,
-                      color:        '#fff',
-                      border:       'none',
-                      borderRadius: 10,
-                      padding:      10,
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                      boxShadow:    '0 2px 12px rgba(245,158,11,0.2)',
-                    }}
-                  >
-                    ✓ Accept
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    onClick={() => handleDecline(h.id)}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      flex:         1,
-                      background:   'transparent',
-                      color:        C.muted,
-                      border:       `0.5px solid ${C.border}`,
-                      borderRadius: 10,
-                      padding:      10,
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                    }}
-                  >
-                    ✗ Decline
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    onClick={() => go('counter_hangout', null, null, null, h)}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      flex:         1,
-                      background:   'transparent',
-                      color:        '#A78BFA',
-                      border:       '0.5px solid rgba(139,92,246,0.3)',
-                      borderRadius: 10,
-                      padding:      10,
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                    }}
-                  >
-                    ↩ Counter
-                  </motion.button>
+                  <HangoutMeta h={h} />
+                  {h.message && (
+                    <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
+                      "{h.message}"
+                    </p>
+                  )}
+
+                  {alreadyAccepted ? (
+                    <div
+                      style={{
+                        background:   'rgba(245,158,11,0.08)',
+                        border:       `0.5px solid rgba(245,158,11,0.25)`,
+                        borderRadius: 10,
+                        padding:      '10px 14px',
+                        fontSize:     13,
+                        color:        C.amber,
+                        fontWeight:   600,
+                        textAlign:    'center',
+                      }}
+                    >
+                      ✓ You accepted — waiting for your duo partner
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <motion.button
+                        type="button"
+                        onClick={() => handleAccept(h.id)}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ duration: 0.1 }}
+                        style={{
+                          flex:         1,
+                          background:   C.gradientCTA,
+                          color:        '#fff',
+                          border:       'none',
+                          borderRadius: 10,
+                          padding:      10,
+                          fontSize:     13,
+                          fontWeight:   700,
+                          cursor:       'pointer',
+                          boxShadow:    '0 2px 12px rgba(245,158,11,0.2)',
+                        }}
+                      >
+                        ✓ Accept
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={() => handleDecline(h.id)}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ duration: 0.1 }}
+                        style={{
+                          flex:         1,
+                          background:   'transparent',
+                          color:        C.muted,
+                          border:       `0.5px solid ${C.border}`,
+                          borderRadius: 10,
+                          padding:      10,
+                          fontSize:     13,
+                          fontWeight:   700,
+                          cursor:       'pointer',
+                        }}
+                      >
+                        ✗ Decline
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={() => go('counter_hangout', null, null, null, h)}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ duration: 0.1 }}
+                        style={{
+                          flex:         1,
+                          background:   'transparent',
+                          color:        '#A78BFA',
+                          border:       '0.5px solid rgba(139,92,246,0.3)',
+                          borderRadius: 10,
+                          padding:      10,
+                          fontSize:     13,
+                          fontWeight:   700,
+                          cursor:       'pointer',
+                        }}
+                      >
+                        ↩ Counter
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* OUTGOING PENDING */}
             {outgoing.length > 0 && (
@@ -330,20 +358,20 @@ export default function HangoutsPage({ currentUser, go, onLogout, showToast }) {
             )}
 
             {confirmed.map((h) => {
-              const otherDuo = h.duo_a_id === myDuo?.id ? h.duo_b : h.duo_a;
+              const otherDuo = myDuoIds.includes(h.duo_a_id) ? h.duo_b : h.duo_a;
               const members  = otherDuo?.duo_members ?? [];
               return (
                 <div
                   key={h.id}
                   style={{
-                    background:   'linear-gradient(145deg, #1C1C22, #151519)',
-                    borderLeft:   `3px solid ${C.success}`,
-                    border:       `0.5px solid rgba(255,255,255,0.06)`,
+                    background:      'linear-gradient(145deg, #1C1C22, #151519)',
+                    borderLeft:      `3px solid ${C.success}`,
+                    border:          `0.5px solid rgba(255,255,255,0.06)`,
                     borderLeftWidth: 3,
                     borderLeftColor: C.success,
-                    borderRadius: 16,
-                    padding:      20,
-                    marginBottom: 12,
+                    borderRadius:    16,
+                    padding:         20,
+                    marginBottom:    12,
                   }}
                 >
                   {/* Confirmed badge */}

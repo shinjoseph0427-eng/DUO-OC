@@ -26,7 +26,7 @@ export async function createDuo(userId, duoData) {
 export async function getMyDuo(userId) {
   const { data, error } = await supabase
     .from('duo_members')
-    .select('duo_id, duos(*, duo_members(user_id, profiles(name, avatar_url, instagram)))')
+    .select('duo_id, duos(*, duo_members(user_id, profiles(name, instagram)))')
     .eq('user_id', userId)
 
   if (error) return null
@@ -56,20 +56,32 @@ export async function getMyDuos(userId) {
         duo_members(
           user_id,
           instagram,
-          profiles(name, age, birth_year, city, instagram, avatar_url, photos)
+          profiles(name, age, birth_year, city, instagram, photos)
         )
       )
     `)
     .eq('user_id', userId)
 
   if (error) {
-    console.error('getMyDuos error:', error)
-    return []
+    console.error('[getMyDuos] supabase error', error)
+    throw new Error(error.message ?? 'Failed to load Duos')
   }
 
-  return (data ?? [])
-    .map((membership) => membership.duos)
-    .filter((duo) => duo?.status === 'active')
+  console.log('[getMyDuos] raw data from supabase', JSON.stringify(data))
+  const rows = data ?? []
+  const mapped = rows.map((membership) => membership.duos)
+  console.log('[getMyDuos] after map (duos)', mapped)
+
+  // If rows came back but every duo is null, RLS is blocking the duos join
+  if (rows.length > 0 && mapped.every((d) => d == null)) {
+    console.error('[getMyDuos] duo_members rows found but duos join returned null — likely RLS blocking duos SELECT')
+    throw new Error('Could not read Duo data. Check Supabase RLS policies on the duos table.')
+  }
+
+  const filtered = mapped.filter((duo) => duo?.status === 'active')
+  console.log('[getMyDuos] after active filter', filtered)
+
+  return filtered
     .sort((a, b) => new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0))
     .slice(0, 3)
 }
@@ -96,7 +108,7 @@ export async function getMyDuoById(userId, duoId) {
         duo_members(
           user_id,
           instagram,
-          profiles(name, age, birth_year, city, instagram, avatar_url, photos)
+          profiles(name, age, birth_year, city, instagram, photos)
         )
       )
     `)
@@ -164,7 +176,7 @@ export async function getExploreDuos(userId) {
       *,
       duo_members(
         user_id, instagram,
-        profiles(id, name, username, avatar_url, photos, bio, city, lat, lng,
+        profiles(id, name, username, photos, bio, city, lat, lng,
           birth_year, instagram, prompt_q1, prompt_a1, prompt_q2, prompt_a2)
       )
     `)

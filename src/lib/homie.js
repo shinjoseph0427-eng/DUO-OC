@@ -17,26 +17,47 @@ async function getProfile(userId, label) {
   return data
 }
 
-async function getActiveDuoMembership(userId, label = 'sender duo lookup failed') {
+async function countActiveDuos(userId) {
   const { data, error } = await supabase
     .from('duo_members')
-    .select('id, duo_id, instagram, duos(*, duo_members(user_id))')
+    .select('duo_id, duos!inner(status)')
     .eq('user_id', userId)
+    .eq('duos.status', 'active')
 
-  if (error) throwStep(label, error)
-  return (data ?? []).find((membership) => membership.duos?.status === 'active') ?? null
+  if (error) throwStep('active duo count failed', error)
+  return (data ?? []).length
 }
 
-async function ensureSenderDuo(senderProfile, receiverProfile) {
-  const senderMembership = await getActiveDuoMembership(senderProfile.id, 'sender duo lookup failed')
-  if (senderMembership?.duo_id) return senderMembership.duo_id
+async function findSharedActiveDuo(senderUserId, receiverUserId) {
+  const { data, error } = await supabase
+    .from('duo_members')
+    .select('duo_id, duos!inner(status)')
+    .eq('user_id', senderUserId)
+    .eq('duos.status', 'active')
 
-  const duoName = [senderProfile.name, receiverProfile?.name].filter(Boolean).join(' & ') || 'New Duo'
+  if (error) throwStep('shared duo lookup failed', error)
+  const senderDuoIds = (data ?? []).map((m) => m.duo_id)
+  if (senderDuoIds.length === 0) return null
+
+  const { data: receiverData, error: receiverError } = await supabase
+    .from('duo_members')
+    .select('duo_id')
+    .eq('user_id', receiverUserId)
+    .in('duo_id', senderDuoIds)
+
+  if (receiverError) throwStep('shared duo receiver check failed', receiverError)
+  return (receiverData ?? [])[0]?.duo_id ?? null
+}
+
+async function createDuoWithMembers(senderProfile, receiverProfile) {
+  const duoName = [senderProfile.name, receiverProfile.name].filter(Boolean).join(' & ') || 'New Duo'
+  const city = receiverProfile.city ?? senderProfile.city ?? null
+
   const { data: duo, error: duoError } = await supabase
     .from('duos')
     .insert({
       name: duoName,
-      city: senderProfile.city ?? receiverProfile?.city ?? null,
+      city,
       vibes: [],
       spots: [],
       looking_for: 'Hangouts',
@@ -45,72 +66,20 @@ async function ensureSenderDuo(senderProfile, receiverProfile) {
     .select()
     .single()
 
-  if (duoError) throwStep('sender duo create failed', duoError)
+  if (duoError) throwStep('duo create failed', duoError)
+  console.log('[acceptHomieRequest] created duo_id', duo.id)
 
-  const { data: existingMember, error: existingError } = await supabase
+  const { error: memberError } = await supabase
     .from('duo_members')
-    .select('id')
-    .eq('duo_id', duo.id)
-    .eq('user_id', senderProfile.id)
-    .maybeSingle()
+    .insert([
+      { duo_id: duo.id, user_id: senderProfile.id, instagram: senderProfile.instagram ?? null },
+      { duo_id: duo.id, user_id: receiverProfile.id, instagram: receiverProfile.instagram ?? null },
+    ])
 
-  if (existingError) throwStep('sender duo member lookup failed', existingError)
-
-  if (!existingMember) {
-    const { error: memberError } = await supabase
-      .from('duo_members')
-      .insert({
-        duo_id: duo.id,
-        user_id: senderProfile.id,
-        instagram: senderProfile.instagram,
-      })
-
-    if (memberError) throwStep('sender duo member insert failed', memberError)
-  }
+  if (memberError) throwStep('duo members insert failed', memberError)
+  console.log('[acceptHomieRequest] inserted duo_members for', senderProfile.id, receiverProfile.id)
 
   return duo.id
-}
-
-async function ensureDuoMember(duoId, profile) {
-  const { data: existingMember, error: existingError } = await supabase
-    .from('duo_members')
-    .select('id')
-    .eq('duo_id', duoId)
-    .eq('user_id', profile.id)
-    .maybeSingle()
-
-  if (existingError) throwStep('duo member lookup failed', existingError)
-  if (existingMember) return existingMember
-
-  const { data, error } = await supabase
-    .from('duo_members')
-    .insert({
-      duo_id: duoId,
-      user_id: profile.id,
-      instagram: profile.instagram,
-    })
-    .select()
-    .single()
-
-  if (error) throwStep('duo member insert failed', error)
-  return data
-}
-
-async function deactivateReceiverSoloDuo(receiverMembership, finalDuoId) {
-  if (!receiverMembership?.duo_id || receiverMembership.duo_id === finalDuoId) {
-    return null
-  }
-
-  const memberCount = receiverMembership.duos?.duo_members?.length ?? 0
-  if (memberCount > 1) return null
-
-  const { error } = await supabase
-    .from('duos')
-    .update({ status: 'inactive' })
-    .eq('id', receiverMembership.duo_id)
-
-  if (error) throwStep('receiver old duo deactivate failed', error)
-  return receiverMembership.duo_id
 }
 
 async function notifyHomieAccepted(fromUserId, payload) {
@@ -199,24 +168,31 @@ export async function acceptHomieRequest(requestId) {
     throwStep('request load failed', requestError ?? new Error('Homie request not found'))
   }
 
-  const { from_user_id: fromUserId, to_user_id: toUserId } = request
-  if (!fromUserId || !toUserId) {
+  const { from_user_id: senderId, to_user_id: receiverId } = request
+  if (!senderId || !receiverId) {
     throw new Error('Homie request is missing sender or receiver')
   }
 
   const [senderProfile, receiverProfile] = await Promise.all([
-    getProfile(fromUserId, 'sender'),
-    getProfile(toUserId, 'receiver'),
+    getProfile(senderId, 'sender'),
+    getProfile(receiverId, 'receiver'),
   ])
 
   if (!senderProfile || !receiverProfile) {
     throw new Error('profiles load failed')
   }
 
-  const finalDuoId = await ensureSenderDuo(senderProfile, receiverProfile)
-  const receiverActiveMembership = await getActiveDuoMembership(toUserId, 'receiver old duo lookup failed')
-  await ensureDuoMember(finalDuoId, receiverProfile)
-  const deactivatedDuoId = await deactivateReceiverSoloDuo(receiverActiveMembership, finalDuoId)
+  const [senderCount, receiverCount] = await Promise.all([
+    countActiveDuos(senderId),
+    countActiveDuos(receiverId),
+  ])
+
+  if (senderCount >= 3) throw new Error("You've reached your 3 Duo limit.")
+  if (receiverCount >= 3) throw new Error("You've reached your 3 Duo limit.")
+
+  const existingDuoId = await findSharedActiveDuo(senderId, receiverId)
+  const finalDuoId = existingDuoId ?? await createDuoWithMembers(senderProfile, receiverProfile)
+  console.log('[acceptHomieRequest] finalDuoId', finalDuoId, existingDuoId ? '(existing)' : '(new)')
 
   const { data: acceptedRequest, error: acceptError } = await supabase
     .from('homie_requests')
@@ -227,8 +203,8 @@ export async function acceptHomieRequest(requestId) {
 
   if (acceptError) throwStep('request update failed', acceptError)
 
-  await notifyHomieAccepted(fromUserId, {
-    accepted_by_user_id: toUserId,
+  await notifyHomieAccepted(senderId, {
+    accepted_by_user_id: receiverId,
     accepted_by_name: receiverProfile.name,
     duo_id: finalDuoId,
   })
@@ -236,6 +212,5 @@ export async function acceptHomieRequest(requestId) {
   return {
     request: acceptedRequest,
     duo_id: finalDuoId,
-    deactivated_duo_id: deactivatedDuoId,
   }
 }

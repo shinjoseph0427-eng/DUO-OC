@@ -266,6 +266,7 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
     try {
       const sender = getSender(request);
       const result = await acceptHomieRequest(request.id);
+      console.log('[HomieInboxPage] accept result', result);
       setAcceptedIds((prev) => ({ ...prev, [request.id]: true }));
       setAcceptedHomieName(sender?.name ?? 'your homie');
       setSuccessMessage('You are now a duo.');
@@ -321,13 +322,13 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
           <DuoSuccessCard duo={acceptedDuo} />
 
           <div style={{ display: 'grid', gap: 10 }}>
-            <PremiumButton fullWidth onClick={() => go('duo_room')} style={{ gap: 8 }}>
+            <PremiumButton fullWidth onClick={() => go('me')} style={{ gap: 8 }}>
+              <Users size={16} strokeWidth={2.2} />
+              View in My Duos
+            </PremiumButton>
+            <PremiumButton fullWidth variant="ghost" onClick={() => go('duo_room')} style={{ gap: 8 }}>
               <MessageCircle size={16} strokeWidth={2.2} />
               Open Duo Room
-            </PremiumButton>
-            <PremiumButton fullWidth variant="ghost" onClick={() => go('edit_duo_profile')} style={{ gap: 8 }}>
-              <Settings2 size={16} strokeWidth={2.2} />
-              Edit Duo Profile
             </PremiumButton>
             <PremiumButton fullWidth variant="ghost" onClick={() => go('home')} style={{ gap: 8 }}>
               <Home size={16} strokeWidth={2.2} />

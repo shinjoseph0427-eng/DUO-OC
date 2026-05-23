@@ -28,7 +28,7 @@ export async function getDuoMessages(duoId, currentUserId) {
 
   const { data, error } = await supabase
     .from('duo_messages')
-    .select('id, duo_id, sender_user_id, content, created_at, profiles(name, avatar_url)')
+    .select('id, duo_id, sender_user_id, content, created_at, profiles(name)')
     .eq('duo_id', duoId)
     .order('created_at', { ascending: true })
 
@@ -52,7 +52,7 @@ export async function sendDuoMessage({ duoId, senderUserId, content }) {
       sender_user_id: senderUserId,
       content: text,
     })
-    .select('id, duo_id, sender_user_id, content, created_at, profiles(name, avatar_url)')
+    .select('id, duo_id, sender_user_id, content, created_at, profiles(name)')
     .single()
 
   if (error) throw new Error(`Duo room message send failed: ${error.message}`)

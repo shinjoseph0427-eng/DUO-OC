@@ -31,7 +31,13 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
   return hangout
 }
 
-export async function getMyHangouts(duoId) {
+// Accepts a single duoId (string) or an array of duoIds.
+export async function getMyHangouts(duoIds) {
+  const ids = Array.isArray(duoIds) ? duoIds : [duoIds]
+  if (ids.length === 0) return []
+
+  const orFilter = ids.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
+
   const { data, error } = await supabase
     .from('hangouts')
     .select(`
@@ -45,42 +51,86 @@ export async function getMyHangouts(duoId) {
         duo_members(instagram, profiles(name, instagram))
       )
     `)
-    .or(`duo_a_id.eq.${duoId},duo_b_id.eq.${duoId}`)
+    .or(orFilter)
     .order('created_at', { ascending: false })
 
   if (error) return []
   return data
 }
 
-export async function acceptHangout(hangoutId) {
+// Two-person approval for pending hangouts (duo_b must both accept).
+// Single-person confirm for countered hangouts (duo_a accepts the counter).
+// Returns { confirmed: bool, waitingForPartner: bool }.
+export async function acceptHangout(hangoutId, currentUserId) {
   const { data: h } = await supabase
-    .from('hangouts').select('duo_a_id, duo_b_id').eq('id', hangoutId).single()
+    .from('hangouts')
+    .select('duo_a_id, duo_b_id, receiver_accept_user_ids, status')
+    .eq('id', hangoutId)
+    .single()
+  if (!h) throw new Error('Hangout not found')
 
-  const { error } = await supabase
-    .from('hangouts').update({ status: 'confirmed' }).eq('id', hangoutId)
+  // Countered: duo_a is accepting the counter — confirm immediately.
+  if (h.status === 'countered') {
+    const { error } = await supabase
+      .from('hangouts').update({ status: 'confirmed' }).eq('id', hangoutId)
+    if (error) throw error
+
+    const { data: duoB } = await supabase.from('duos').select('name').eq('id', h.duo_b_id).single()
+    await createNotificationsForDuo(h.duo_a_id, 'hangout_accepted', {
+      hangout_id: hangoutId,
+      duo_name:   duoB?.name ?? 'a duo',
+    })
+    return { confirmed: true, waitingForPartner: false }
+  }
+
+  // Pending: duo_b requires both members to accept.
+  const { data: duoBMembers } = await supabase
+    .from('duo_members').select('user_id').eq('duo_id', h.duo_b_id)
+  const receiverIds = (duoBMembers ?? []).map((m) => m.user_id)
+
+  const currentAccepts = [...(h.receiver_accept_user_ids ?? [])]
+  if (!currentAccepts.includes(currentUserId)) currentAccepts.push(currentUserId)
+
+  const allAccepted = receiverIds.length > 0 && receiverIds.every((id) => currentAccepts.includes(id))
+
+  const updateData = { receiver_accept_user_ids: currentAccepts }
+  if (allAccepted) updateData.status = 'confirmed'
+
+  const { error } = await supabase.from('hangouts').update(updateData).eq('id', hangoutId)
   if (error) throw error
 
-  if (h) {
-    const { data: duoB } = await supabase
-      .from('duos').select('name').eq('id', h.duo_b_id).single()
+  if (allAccepted) {
+    const { data: duoB } = await supabase.from('duos').select('name').eq('id', h.duo_b_id).single()
     await createNotificationsForDuo(h.duo_a_id, 'hangout_accepted', {
       hangout_id: hangoutId,
       duo_name:   duoB?.name ?? 'a duo',
     })
   }
+
+  return { confirmed: allAccepted, waitingForPartner: !allAccepted }
 }
 
-export async function declineHangout(hangoutId) {
+// Any member of duo_b declining immediately declines the hangout.
+export async function declineHangout(hangoutId, currentUserId) {
   const { data: h } = await supabase
-    .from('hangouts').select('duo_a_id, duo_b_id').eq('id', hangoutId).single()
+    .from('hangouts')
+    .select('duo_a_id, duo_b_id, receiver_decline_user_ids')
+    .eq('id', hangoutId)
+    .single()
+
+  const currentDeclines = [...(h?.receiver_decline_user_ids ?? [])]
+  if (currentUserId && !currentDeclines.includes(currentUserId)) {
+    currentDeclines.push(currentUserId)
+  }
 
   const { error } = await supabase
-    .from('hangouts').update({ status: 'declined' }).eq('id', hangoutId)
+    .from('hangouts')
+    .update({ receiver_decline_user_ids: currentDeclines, status: 'declined' })
+    .eq('id', hangoutId)
   if (error) throw error
 
   if (h) {
-    const { data: duoB } = await supabase
-      .from('duos').select('name').eq('id', h.duo_b_id).single()
+    const { data: duoB } = await supabase.from('duos').select('name').eq('id', h.duo_b_id).single()
     await createNotificationsForDuo(h.duo_a_id, 'hangout_declined', {
       hangout_id: hangoutId,
       duo_name:   duoB?.name ?? 'a duo',
@@ -100,4 +150,18 @@ export async function counterHangout(hangoutId, newData) {
     .eq('id', hangoutId)
 
   if (error) throw error
+}
+
+// Returns pending proposals where duoId is the receiving duo (duo_b).
+export async function getPendingHangoutsForDuo(duoId) {
+  if (!duoId) return []
+  const { data, error } = await supabase
+    .from('hangouts')
+    .select('id, status, vibe, date, time_slot, duo_a:duos!hangouts_duo_a_id_fkey(id, name)')
+    .eq('duo_b_id', duoId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+
+  if (error) return []
+  return data ?? []
 }
