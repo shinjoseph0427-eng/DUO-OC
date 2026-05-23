@@ -193,6 +193,10 @@ export default function App() {
 
   const isAuthPage = AUTH_PAGES.includes(page);
   const activeTab  = NAV_TAB_PAGES.includes(page) ? page : null;
+  const editDuoForRoute = page === 'edit_duo_profile' ? selectedDuo : null;
+  if (page === 'edit_duo_profile') {
+    console.log('[App] selectedDuo for edit_duo_profile', selectedDuo);
+  }
 
   if (!authReady || (currentUser && !profileReady)) {
     return <div style={{ minHeight: '100vh', background: '#0A0A0F' }} />;
@@ -234,7 +238,7 @@ export default function App() {
         {page === 'homie_inbox'     && <HomieInboxPage currentUser={currentUser} go={go} goBack={goBack} onDuoChanged={refreshMyDuo} />}
         {page === 'counter_hangout' && <CounterHangout currentUser={currentUser} hangout={selectedHangout} go={go} goBack={goBack} />}
         {page === 'edit_profile'     && <EditProfile currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
-        {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} myDuo={selectedDuo ?? myDuo} go={go} goBack={goBack} showToast={showToast} />}
+        {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />

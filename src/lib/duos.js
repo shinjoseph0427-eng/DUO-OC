@@ -74,7 +74,57 @@ export async function getMyDuos(userId) {
     .slice(0, 3)
 }
 
+export async function getMyDuoById(userId, duoId) {
+  const { data, error } = await supabase
+    .from('duo_members')
+    .select(`
+      duo_id,
+      duos(
+        id,
+        name,
+        city,
+        duo_bio,
+        how_we_met,
+        duo_prompt_q,
+        duo_prompt_a,
+        vibes,
+        spots,
+        looking_for,
+        duo_photos,
+        status,
+        created_at,
+        duo_members(
+          user_id,
+          instagram,
+          profiles(name, age, birth_year, city, instagram, avatar_url, photos)
+        )
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('duo_id', duoId)
+    .maybeSingle()
+
+  if (error) throw new Error(`duo load failed: ${error.message}`)
+  if (!data?.duos) return null
+  return data.duos
+}
+
 export async function updateDuo(duoId, updates, userId = null) {
+  const allowedFields = new Set([
+    'duo_photos',
+    'duo_bio',
+    'how_we_met',
+    'duo_prompt_q',
+    'duo_prompt_a',
+  ])
+  const safeUpdates = Object.fromEntries(
+    Object.entries(updates ?? {}).filter(([key]) => allowedFields.has(key)),
+  )
+
+  if (Object.keys(safeUpdates).length === 0) {
+    throw new Error('No Duo profile changes to save')
+  }
+
   if (userId) {
     const { data: membership, error: membershipError } = await supabase
       .from('duo_members')
@@ -96,7 +146,7 @@ export async function updateDuo(duoId, updates, userId = null) {
 
   const { error } = await supabase
     .from('duos')
-    .update(updates)
+    .update(safeUpdates)
     .eq('id', duoId)
   if (error) throw new Error(`duo update failed: ${error.message}`)
 }

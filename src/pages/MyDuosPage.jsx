@@ -106,7 +106,15 @@ function DuoCard({ duo, go }) {
               Open Duo Room
             </PremiumButton>
           )}
-          <PremiumButton fullWidth variant="ghost" onClick={() => go('edit_duo_profile', duo)} style={{ gap: 8 }}>
+          <PremiumButton
+            fullWidth
+            variant="ghost"
+            onClick={() => {
+              console.log('[MyDuosPage] edit duo clicked', duo);
+              go('edit_duo_profile', duo);
+            }}
+            style={{ gap: 8 }}
+          >
             <Settings2 size={15} strokeWidth={2.2} />
             Edit Profile
           </PremiumButton>

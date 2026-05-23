@@ -4,7 +4,7 @@ import { Plus, X, Loader } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
-import { getMyDuo, getMyDuos, updateDuo } from '../lib/duos.js';
+import { getMyDuo, getMyDuoById, updateDuo } from '../lib/duos.js';
 import { uploadPhoto, deletePhoto } from '../lib/upload.js';
 
 const MAX_DUO_TEXT_LENGTH = 200;
@@ -122,8 +122,9 @@ function PhotoSlot({ url, uploading, onAdd, onRemove }) {
   );
 }
 
-export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBack, showToast }) {
-  const [duo,       setDuo]       = useState(myDuoProp ?? null);
+export default function EditDuoProfile({ currentUser, duo: selectedDuoProp = null, myDuo: myDuoProp, go, goBack, showToast }) {
+  const initialDuo = selectedDuoProp ?? myDuoProp ?? null;
+  const [duo,       setDuo]       = useState(initialDuo);
   const [photos,    setPhotos]    = useState([null, null, null]);
   const [uploading, setUploading] = useState([false, false, false]);
   const [duoBio,    setDuoBio]    = useState('');
@@ -131,17 +132,26 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
   const [promptQ,   setPromptQ]   = useState(DUO_PROMPT_OPTIONS[0]);
   const [promptA,   setPromptA]   = useState('');
   const [saving,    setSaving]    = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (!currentUser) return;
     let cancelled = false;
+    const incomingDuo = selectedDuoProp ?? myDuoProp ?? null;
 
-    if (myDuoProp) {
-      loadFromDuo(myDuoProp);
+    console.log('[EditDuoProfile] received props', {
+      duo: selectedDuoProp,
+      myDuo: myDuoProp,
+      currentUser,
+    });
+
+    if (incomingDuo) {
+      loadFromDuo(incomingDuo);
     }
 
-    const loadFreshDuo = myDuoProp?.id
-      ? getMyDuos(currentUser.id).then((duos) => duos.find((d) => d.id === myDuoProp.id) ?? myDuoProp)
+    const loadFreshDuo = incomingDuo?.id
+      ? getMyDuoById(currentUser.id, incomingDuo.id).then((d) => d ?? incomingDuo)
       : getMyDuo(currentUser.id);
 
     loadFreshDuo.then((d) => {
@@ -149,10 +159,11 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
       loadFromDuo(d);
     }).catch((err) => {
       console.error('EditDuoProfile getMyDuo failed:', err);
+      setErrorMessage(err?.message ?? 'Failed to load Duo profile.');
     });
 
     return () => { cancelled = true; };
-  }, [currentUser, myDuoProp]);
+  }, [currentUser, selectedDuoProp, myDuoProp]);
 
   function loadFromDuo(d) {
     setDuo(d);
@@ -168,13 +179,22 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
     setUploading((prev) => { const n = [...prev]; n[index] = val; return n; });
 
   const handlePhotoAdd = async (index, file) => {
-    if (!duo?.id) return;
+    const currentDuo = duo ?? selectedDuoProp ?? myDuoProp ?? null;
+    if (!currentDuo?.id) {
+      setErrorMessage('No Duo found. Open this page from My Duos and try again.');
+      showToast?.('No Duo found', 'error');
+      return;
+    }
     setUpl(index, true);
+    setErrorMessage('');
+    setSuccessMessage('');
     try {
-      const url = await uploadPhoto(`duo_${duo.id}`, file);
+      const url = await uploadPhoto(`duo_${currentDuo.id}`, file);
       setPhotos((prev) => { const n = [...prev]; n[index] = url; return n; });
     } catch (err) {
-      showToast?.(err.message, 'error');
+      console.error('EditDuoProfile photo upload failed:', err);
+      setErrorMessage(err?.message ?? 'Failed to add Duo photo.');
+      showToast?.(err?.message ?? 'Failed to add Duo photo.', 'error');
     } finally {
       setUpl(index, false);
     }
@@ -187,7 +207,13 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
   };
 
   const handleSave = async () => {
-    if (!duo?.id) { showToast?.('No duo found', 'error'); return; }
+    const currentDuo = duo ?? selectedDuoProp ?? myDuoProp ?? null;
+    console.log('[EditDuoProfile] currentDuo before save', currentDuo);
+    if (!currentDuo?.id) {
+      setErrorMessage('No Duo found. Open this page from My Duos and try again.');
+      showToast?.('No Duo found', 'error');
+      return;
+    }
     if (duoBio.trim().length > MAX_DUO_TEXT_LENGTH || howWeMet.trim().length > MAX_DUO_TEXT_LENGTH) {
       showToast?.('Duo text must be 200 characters or less', 'error'); return;
     }
@@ -196,17 +222,20 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
     }
     try {
       setSaving(true);
-      await updateDuo(duo.id, {
+      setErrorMessage('');
+      setSuccessMessage('');
+      await updateDuo(currentDuo.id, {
         duo_photos:   photos.filter(Boolean),
         duo_bio:      duoBio.trim()   || null,
         how_we_met:   howWeMet.trim() || null,
         duo_prompt_q: promptQ         || null,
         duo_prompt_a: promptA.trim()  || null,
       }, currentUser?.id);
-      showToast?.('Duo profile updated ✓', 'success');
-      goBack();
+      setSuccessMessage('Duo profile saved.');
+      showToast?.('Duo profile saved.', 'success');
     } catch (err) {
       console.error('EditDuoProfile update failed:', err);
+      setErrorMessage(err?.message ?? 'Failed to save Duo profile.');
       showToast?.(err?.message ?? 'Failed to save', 'error');
     } finally {
       setSaving(false);
@@ -218,6 +247,40 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
       <TopBar showBack onBack={() => go('me')} onLogoClick={() => go('home')} />
 
       <div style={{ padding: '24px 16px 100px' }}>
+        {successMessage && (
+          <div
+            style={{
+              background: 'rgba(16,185,129,0.09)',
+              border: '0.5px solid rgba(16,185,129,0.28)',
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: 0 }}>
+              {successMessage}
+            </p>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div
+            style={{
+              background: 'rgba(239,68,68,0.09)',
+              border: '0.5px solid rgba(239,68,68,0.28)',
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 4px' }}>
+              Duo profile error
+            </p>
+            <p style={{ fontSize: 12, color: 'rgba(245,245,248,0.72)', margin: 0, lineHeight: 1.45 }}>
+              {errorMessage}
+            </p>
+          </div>
+        )}
 
         {/* ── Duo Photos ──────────────────────────── */}
         <span style={LABEL}>Duo Photos</span>
@@ -356,7 +419,7 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
 
         <div style={{ marginTop: 8 }}>
           <PremiumButton fullWidth onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Duo Profile'}
+            {saving ? 'Saving...' : 'Save Duo Profile'}
           </PremiumButton>
         </div>
       </div>
