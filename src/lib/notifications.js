@@ -45,6 +45,17 @@ export function subscribeNotifications(userId, currentUserId, callback) {
   return () => supabase.removeChannel(channel)
 }
 
+export async function createNotificationForUser(userId, type, payload) {
+  const { error } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: userId,
+      type,
+      payload,
+    })
+  if (error) console.error('createNotificationForUser error:', error)
+}
+
 export async function createNotificationsForDuo(duoId, type, payload) {
   const { data: members } = await supabase
     .from('duo_members')

@@ -14,6 +14,7 @@ const TYPE_META = {
   hangout_request:   { emoji: '📅', label: (p) => `${p.duo_name}이 행아웃을 제안했어요`,     page: 'hangouts' },
   hangout_accepted:  { emoji: '✅', label: (p) => `${p.duo_name}이 수락했어요`,               page: 'hangouts' },
   hangout_declined:  { emoji: '❌', label: (p) => `${p.duo_name}이 거절했어요`,               page: 'hangouts' },
+  homie_request:     { label: (p) => 'Someone wants to be your homie',                        page: 'homies'   },
 };
 
 function timeAgo(isoString) {

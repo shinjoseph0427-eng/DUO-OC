@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient.js'
+import { createNotificationForUser } from './notifications.js'
 
 export async function findHomies(currentUser, myProfile) {
   let query = supabase
@@ -32,6 +33,11 @@ export async function sendHomieRequest(fromUserId, toUserId) {
     .insert({ from_user_id: fromUserId, to_user_id: toUserId })
 
   if (error) throw error
+
+  await createNotificationForUser(toUserId, 'homie_request', {
+    from_user_id: fromUserId,
+  })
+
   return { success: true }
 }
 
