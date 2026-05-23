@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Pencil, Camera, MapPin, AtSign, Users, Settings2 } from 'lucide-react';
+import { LogOut, Pencil, Camera, MapPin, AtSign, Users, Settings2, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { C, AVATAR_GRADIENTS, F } from '../tokens';
 import InstagramButton from '../components/InstagramButton.jsx';
@@ -112,6 +112,7 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
   const age        = calcAge(profile);
   const heroPhoto  = profile?.photos?.[0] ?? null;
   const extraPhotos = [profile?.photos?.[1], profile?.photos?.[2]].filter(Boolean);
+  const hasDuoRoom = (myDuo?.duo_members?.length ?? 0) >= 2;
 
   if (loading) {
     return <div style={{ minHeight: '100vh', background: C.bg }} />;
@@ -356,6 +357,33 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
                   </span>
                 ))}
               </div>
+            )}
+            {hasDuoRoom && (
+              <motion.button
+                type="button"
+                onClick={() => go('duo_room')}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
+                style={{
+                  width: '100%',
+                  height: 46,
+                  marginTop: 14,
+                  borderRadius: 13,
+                  border: 'none',
+                  background: C.gradientCTA,
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                <MessageCircle size={16} strokeWidth={2.2} />
+                Open Duo Room
+              </motion.button>
             )}
           </div>
         ) : (

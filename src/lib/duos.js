@@ -28,9 +28,10 @@ export async function getMyDuo(userId) {
     .from('duo_members')
     .select('duo_id, duos(*, duo_members(user_id, profiles(name, avatar_url, instagram)))')
     .eq('user_id', userId)
-    .single()
+
   if (error) return null
-  return data?.duos || null
+  const memberships = Array.isArray(data) ? data : (data ? [data] : [])
+  return memberships.find((membership) => membership.duos?.status === 'active')?.duos || memberships[0]?.duos || null
 }
 
 export async function updateDuo(duoId, updates) {
@@ -42,12 +43,11 @@ export async function updateDuo(duoId, updates) {
 }
 
 export async function getExploreDuos(userId) {
-  const { data: myMember } = await supabase
+  const { data: myMembers } = await supabase
     .from('duo_members')
-    .select('duo_id')
+    .select('duo_id, duos(status)')
     .eq('user_id', userId)
-    .single()
-  const myDuoId = myMember?.duo_id
+  const myDuoId = (myMembers ?? []).find((m) => m.duos?.status === 'active')?.duo_id
 
   const { data: duos, error } = await supabase
     .from('duos')
@@ -65,12 +65,11 @@ export async function getExploreDuos(userId) {
 }
 
 export async function getDiscoveryDuos(userId) {
-  const { data: myMember } = await supabase
+  const { data: myMembers } = await supabase
     .from('duo_members')
-    .select('duo_id')
+    .select('duo_id, duos(status)')
     .eq('user_id', userId)
-    .single()
-  const myDuoId = myMember?.duo_id
+  const myDuoId = (myMembers ?? []).find((m) => m.duos?.status === 'active')?.duo_id
 
   const { data: duos, error } = await supabase
     .from('duos')
