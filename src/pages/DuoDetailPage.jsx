@@ -153,6 +153,12 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
     );
   }
 
+  // True when the current user is already a member of this duo.
+  // Checks duo_members.user_id (Supabase format) and falls back to myDuo.id equality.
+  const isOwnDuo =
+    (duo.duo_members ?? []).some((m) => m.user_id === currentUser?.id) ||
+    (myDuo?.id != null && duo.id === myDuo.id);
+
   const members   = normalizeMembers(duo);
   const heroPhoto = duo.duo_photos?.[0] ?? null;
   const vibes     = duo.vibes ?? [];
@@ -382,12 +388,14 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
           Instagram unlocks only after both duos confirm.
         </motion.p>
 
-        {/* CTA */}
-        <motion.div variants={staggerItem}>
-          <PremiumButton fullWidth onClick={() => go('propose_hangout', duo)}>
-            Propose 2v2 Hangout →
-          </PremiumButton>
-        </motion.div>
+        {/* CTA — hidden when viewing an own duo */}
+        {!isOwnDuo && (
+          <motion.div variants={staggerItem}>
+            <PremiumButton fullWidth onClick={() => go('propose_hangout', duo)}>
+              Propose 2v2 Hangout →
+            </PremiumButton>
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Report / Block modal */}

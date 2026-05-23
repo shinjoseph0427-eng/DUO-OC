@@ -1,7 +1,32 @@
 import { supabase } from './supabaseClient.js'
 import { createNotificationsForDuo } from './notifications.js'
 
+async function assertCanPropose(fromDuoId, toDuoId, proposedBy) {
+  if (!fromDuoId || !toDuoId || !proposedBy) throw new Error('Missing required fields for hangout proposal')
+  if (fromDuoId === toDuoId) throw new Error('Cannot propose a hangout to your own duo')
+
+  // Proposer must be a member of the source duo.
+  const { data: fromMembership } = await supabase
+    .from('duo_members')
+    .select('duo_id')
+    .eq('duo_id', fromDuoId)
+    .eq('user_id', proposedBy)
+    .maybeSingle()
+  if (!fromMembership) throw new Error('You are not a member of the source duo')
+
+  // Proposer must NOT be a member of the target duo.
+  const { data: toMembership } = await supabase
+    .from('duo_members')
+    .select('duo_id')
+    .eq('duo_id', toDuoId)
+    .eq('user_id', proposedBy)
+    .maybeSingle()
+  if (toMembership) throw new Error('Cannot propose a hangout to a duo you are already a member of')
+}
+
 export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, timeSlot, place, vibe, message }) {
+  await assertCanPropose(fromDuoId, toDuoId, proposedBy)
+
   const { data: hangout, error } = await supabase
     .from('hangouts')
     .insert({

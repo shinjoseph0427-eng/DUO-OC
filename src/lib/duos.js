@@ -168,7 +168,12 @@ export async function getExploreDuos(userId) {
     .from('duo_members')
     .select('duo_id, duos(status)')
     .eq('user_id', userId)
-  const myDuoId = (myMembers ?? []).find((m) => m.duos?.status === 'active')?.duo_id
+  // Collect ALL active duo IDs so every duo the user belongs to is excluded.
+  const myDuoIds = new Set(
+    (myMembers ?? [])
+      .filter((m) => m.duos?.status === 'active')
+      .map((m) => m.duo_id),
+  )
 
   const { data: duos, error } = await supabase
     .from('duos')
@@ -182,7 +187,7 @@ export async function getExploreDuos(userId) {
     `)
     .order('created_at', { ascending: false })
   if (error) return []
-  return duos.filter((d) => d.id !== myDuoId)
+  return duos.filter((d) => !myDuoIds.has(d.id))
 }
 
 export async function getDiscoveryDuos(userId) {
@@ -190,7 +195,11 @@ export async function getDiscoveryDuos(userId) {
     .from('duo_members')
     .select('duo_id, duos(status)')
     .eq('user_id', userId)
-  const myDuoId = (myMembers ?? []).find((m) => m.duos?.status === 'active')?.duo_id
+  const myDuoIds = new Set(
+    (myMembers ?? [])
+      .filter((m) => m.duos?.status === 'active')
+      .map((m) => m.duo_id),
+  )
 
   const { data: duos, error } = await supabase
     .from('duos')
@@ -209,5 +218,5 @@ export async function getDiscoveryDuos(userId) {
     return []
   }
 
-  return duos.filter((d) => d.id !== myDuoId)
+  return duos.filter((d) => !myDuoIds.has(d.id))
 }
