@@ -253,6 +253,55 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
           )}
         </div>
 
+        <motion.button
+          type="button"
+          onClick={() => go('my_duos')}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.1 }}
+          style={{
+            width: '100%',
+            minHeight: 54,
+            borderRadius: 14,
+            background: 'rgba(245,158,11,0.1)',
+            border: '0.5px solid rgba(245,158,11,0.28)',
+            color: C.white,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '13px 15px',
+            marginBottom: 16,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 10,
+                background: 'rgba(245,158,11,0.14)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Users size={16} color={C.amber} strokeWidth={2.2} />
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 900, color: C.white }}>
+                My Duos
+              </span>
+              <span style={{ display: 'block', fontSize: 12, color: C.muted, marginTop: 2 }}>
+                View every duo profile you belong to
+              </span>
+            </span>
+          </span>
+          <span style={{ color: C.amber, fontSize: 18, fontWeight: 900 }}>→</span>
+        </motion.button>
+
         {/* Bio */}
         {profile?.bio ? (
           <div
