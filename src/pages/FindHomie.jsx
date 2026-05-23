@@ -113,7 +113,7 @@ export default function FindHomie({ currentUser, go, goBack }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={goBack} title="Find a Homie" />
+      <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
 
       <div style={{ paddingBottom: 40 }}>
         {/* Banner */}

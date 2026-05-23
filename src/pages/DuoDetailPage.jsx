@@ -189,7 +189,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
         <motion.button
           type="button"
           aria-label="Back"
-          onClick={goBack}
+          onClick={() => go('home')}
           whileTap={{ scale: 0.88 }}
           transition={{ duration: 0.1 }}
           style={{
@@ -209,6 +209,31 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
           }}
         >
           <ChevronLeft size={20} color="#fff" strokeWidth={2.2} />
+        </motion.button>
+
+        {/* Logo — clickable to home */}
+        <motion.button
+          type="button"
+          aria-label="Home"
+          onClick={() => go('home')}
+          whileTap={{ scale: 0.94 }}
+          transition={{ duration: 0.1 }}
+          style={{
+            position:       'absolute',
+            top:            14,
+            left:           '50%',
+            transform:      'translateX(-50%)',
+            background:     'rgba(0,0,0,0.35)',
+            border:         '0.5px solid rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(8px)',
+            borderRadius:   10,
+            padding:        '6px 14px',
+            cursor:         'pointer',
+          }}
+        >
+          <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.5px' }}>
+            <span className="gradient-text">duo oc.</span>
+          </span>
         </motion.button>
 
         {/* More button */}

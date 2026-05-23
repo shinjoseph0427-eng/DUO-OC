@@ -106,7 +106,7 @@ export default function HangoutsPage({ currentUser, go, onLogout, showToast }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
-      <TopBar title="Hangouts" onLogout={onLogout} />
+      <TopBar onLogout={onLogout} onLogoClick={() => go('home')} />
 
       <div style={{ flex: 1, padding: '20px 16px', paddingBottom: 80, overflowY: 'auto' }}>
 

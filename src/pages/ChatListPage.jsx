@@ -139,7 +139,7 @@ export default function ChatListPage({ go, onLogout, currentUser }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
-      <TopBar title="Chat" onLogout={onLogout} />
+      <TopBar onLogout={onLogout} onLogoClick={() => go('home')} />
 
       {loading ? (
         <div style={{ paddingTop: 8 }}>

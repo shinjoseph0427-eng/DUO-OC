@@ -10,25 +10,27 @@ function Wordmark() {
   );
 }
 
-export default function TopBar({ showBack = false, onBack, title, rightContent, onLogout }) {
+// 3-column layout: [back | spacer] [logo] [actions]
+// title prop kept for backward compat but not rendered — logo always in center
+export default function TopBar({ showBack = false, onBack, rightContent, onLogout, onLogoClick }) {
   return (
     <header
       className="glass"
       style={{
-        position:       'sticky',
-        top:            0,
-        zIndex:         100,
-        height:         56,
-        borderBottom:   '0.5px solid rgba(255,255,255,0.07)',
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'space-between',
-        padding:        '0 16px',
-        boxSizing:      'border-box',
+        position:     'sticky',
+        top:          0,
+        zIndex:       100,
+        height:       56,
+        borderBottom: '0.5px solid rgba(255,255,255,0.07)',
+        display:      'flex',
+        alignItems:   'center',
+        padding:      '0 12px',
+        boxSizing:    'border-box',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        {showBack ? (
+      {/* Left — back button or spacer */}
+      <div style={{ width: 44, display: 'flex', alignItems: 'center' }}>
+        {showBack && (
           <motion.button
             type="button"
             onClick={onBack}
@@ -45,33 +47,34 @@ export default function TopBar({ showBack = false, onBack, title, rightContent, 
               background:     'rgba(255,255,255,0.06)',
               border:         '0.5px solid rgba(255,255,255,0.08)',
               color:          C.white,
-              marginLeft:     -4,
               cursor:         'pointer',
             }}
           >
             <ChevronLeft size={20} strokeWidth={2.2} />
           </motion.button>
-        ) : (
-          <Wordmark />
-        )}
-        {title && (
-          <span
-            style={{
-              fontSize:     15,
-              fontWeight:   700,
-              color:        C.white,
-              marginLeft:   showBack ? 6 : 12,
-              overflow:     'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace:   'nowrap',
-            }}
-          >
-            {title}
-          </span>
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Center — logo, always shown */}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        {onLogoClick ? (
+          <motion.button
+            type="button"
+            onClick={onLogoClick}
+            aria-label="Home"
+            whileTap={{ scale: 0.94 }}
+            transition={{ duration: 0.1 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}
+          >
+            <Wordmark />
+          </motion.button>
+        ) : (
+          <Wordmark />
+        )}
+      </div>
+
+      {/* Right — actions */}
+      <div style={{ width: 44, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
         {rightContent}
         {onLogout && (
           <motion.button

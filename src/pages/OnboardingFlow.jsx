@@ -230,6 +230,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
   };
 
   const back = () => {
+    if (step === 1) { go('landing'); return; }
     if (step === 2) { setStep(1); return; }
     if (step === 3) { setStep(2); return; }
   };
@@ -245,7 +246,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
     ? 'Step 3 of 3 — Duo profile'
     : null;
 
-  const showBackBtn = step === 2 || step === 3;
+  const showBackBtn = step <= 3;
   const showFooterCTA = step === 1 || step === 3;
 
   return (
@@ -294,8 +295,10 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
             <div style={{ width: 36 }} />
           )}
 
-          <div style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 700, color: C.white }}>
-            Create profile
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px' }}>
+              <span className="gradient-text">duo oc.</span>
+            </span>
           </div>
 
           <div style={{ width: 36 }} />

@@ -150,7 +150,7 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
           height:       56,
           display:      'flex',
           alignItems:   'center',
-          gap:          12,
+          gap:          8,
           padding:      '0 16px',
           position:     'sticky',
           top:          0,
@@ -158,39 +158,48 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
           flexShrink:   0,
         }}
       >
+        {/* Back */}
         <motion.button
           type="button"
-          aria-label="Back to chat list"
-          onClick={goBack}
+          aria-label="Back"
+          onClick={() => go('hangouts')}
           whileTap={{ scale: 0.88 }}
           transition={{ duration: 0.1 }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-        >
-          <ArrowLeft size={20} color={C.white} strokeWidth={2} />
-        </motion.button>
-
-        <div
           style={{
-            width:          32,
-            height:         32,
-            borderRadius:   10,
-            background:     AVATAR_GRADIENTS[0],
-            display:        'flex',
+            width:          36,
+            height:         36,
+            display:        'inline-flex',
             alignItems:     'center',
             justifyContent: 'center',
-            fontSize:       12,
-            fontWeight:     800,
-            color:          '#fff',
+            borderRadius:   10,
+            background:     'rgba(255,255,255,0.06)',
+            border:         '0.5px solid rgba(255,255,255,0.08)',
+            cursor:         'pointer',
             flexShrink:     0,
           }}
         >
-          {(otherDuo.name ?? '?')[0].toUpperCase()}
+          <ArrowLeft size={18} color={C.white} strokeWidth={2} />
+        </motion.button>
+
+        {/* Center: logo + duo name */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <motion.button
+            type="button"
+            aria-label="Home"
+            onClick={() => go('home')}
+            whileTap={{ scale: 0.94 }}
+            transition={{ duration: 0.1 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+          >
+            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.5px' }}>
+              <span className="gradient-text">duo oc.</span>
+            </span>
+          </motion.button>
+          <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{headerNames}</p>
         </div>
 
-        <div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: C.white, margin: 0 }}>{headerNames}</p>
-          <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Matched duo</p>
-        </div>
+        {/* Right spacer to balance layout */}
+        <div style={{ width: 36, flexShrink: 0 }} />
       </header>
 
       {/* Messages */}

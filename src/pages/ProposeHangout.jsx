@@ -87,7 +87,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
   if (sent) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={goBack} title="Propose Hangout" />
+        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
         <div
           style={{
             display:        'flex',
@@ -133,7 +133,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={goBack} title="Propose Hangout" />
+      <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
 
       <div style={{ padding: '20px 16px 100px' }}>
 

@@ -68,7 +68,7 @@ export default function CounterHangout({ currentUser, hangout, go, goBack }) {
   if (sent) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={goBack} title="Suggest New Time" />
+        <TopBar showBack onBack={() => go('hangouts')} onLogoClick={() => go('home')} />
         <div
           style={{
             display:        'flex',

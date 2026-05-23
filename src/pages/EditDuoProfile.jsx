@@ -204,7 +204,7 @@ export default function EditDuoProfile({ currentUser, myDuo: myDuoProp, go, goBa
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={goBack} title="Edit Duo Profile" />
+      <TopBar showBack onBack={() => go('me')} onLogoClick={() => go('home')} />
 
       <div style={{ padding: '24px 16px 100px' }}>
 

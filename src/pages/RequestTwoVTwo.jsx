@@ -22,7 +22,7 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
   if (!duo) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <TopBar showBack onBack={goBack} title="Plan 2v2" />
+        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
         <div style={{ padding: '72px 16px 0', textAlign: 'center' }}>
           <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
         </div>
@@ -33,7 +33,7 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
   if (sent) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <TopBar title="Request sent" />
+        <TopBar onLogoClick={() => go('home')} />
         <div style={{ padding: '32px 16px', textAlign: 'center' }}>
           <div
             style={{
@@ -89,7 +89,7 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <TopBar showBack onBack={goBack} title="Plan 2v2" />
+      <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
 
       <motion.div
         variants={staggerContainer}
