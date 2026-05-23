@@ -460,7 +460,7 @@ export default function LandingPage({ go }) {
               boxShadow:     '0 4px 20px rgba(245,158,11,0.3)',
             }}
           >
-            Create your duo →
+            I'm new — Get Started
           </motion.button>
 
           <motion.button
@@ -481,7 +481,7 @@ export default function LandingPage({ go }) {
               marginBottom: 24,
             }}
           >
-            Log in
+            I already have an account — Log In
           </motion.button>
 
           <p
