@@ -153,15 +153,16 @@ export async function counterHangout(hangoutId, newData) {
 }
 
 // Returns pending proposals where duoId is the receiving duo (duo_b).
+// Throws on Supabase error so callers can surface it instead of silently showing nothing.
 export async function getPendingHangoutsForDuo(duoId) {
   if (!duoId) return []
   const { data, error } = await supabase
     .from('hangouts')
-    .select('id, status, vibe, date, time_slot, duo_a:duos!hangouts_duo_a_id_fkey(id, name)')
+    .select('id, status, vibe, date, time_slot, place, duo_a:duos!hangouts_duo_a_id_fkey(id, name)')
     .eq('duo_b_id', duoId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
 
-  if (error) return []
+  if (error) throw new Error(`Could not load hangout proposals: ${error.message}`)
   return data ?? []
 }

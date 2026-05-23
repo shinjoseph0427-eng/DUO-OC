@@ -10,14 +10,28 @@ function memberName(member) {
   return member?.profiles?.name ?? 'Member';
 }
 
+const DATE_LABELS = {
+  today: 'Today', tomorrow: 'Tomorrow', friday: 'This Friday',
+  saturday: 'Saturday', sunday: 'This Sunday', next_week: 'Next week',
+};
+const TIME_LABELS = {
+  morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night',
+};
+
 function DuoCard({ duo, go }) {
-  const [pendingCount, setPendingCount] = useState(0);
+  const [proposals,     setProposals]     = useState([]);
+  const [proposalError, setProposalError] = useState('');
 
   useEffect(() => {
     if (!duo?.id) return;
+    console.log('[DuoCard] fetching pending proposals for duo', duo.id);
     getPendingHangoutsForDuo(duo.id).then((items) => {
-      setPendingCount(items.length);
-    }).catch(() => {});
+      console.log('[DuoCard] pending proposals result', items);
+      setProposals(items);
+    }).catch((err) => {
+      console.error('[DuoCard] pending proposals failed', err);
+      setProposalError('Could not load hangout proposals');
+    });
   }, [duo?.id]);
 
   const members = duo?.duo_members ?? [];
@@ -103,45 +117,71 @@ function DuoCard({ duo, go }) {
           </div>
         )}
 
-        {pendingCount > 0 && (
-          <div
-            style={{
-              background:   'rgba(245,158,11,0.08)',
-              border:       '0.5px solid rgba(245,158,11,0.28)',
-              borderRadius: 12,
-              padding:      '10px 13px',
-              marginBottom: 10,
-              display:      'flex',
-              alignItems:   'center',
-              justifyContent: 'space-between',
-              gap:          10,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <Calendar size={14} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-              <p style={{ fontSize: 12, fontWeight: 700, color: C.amber, margin: 0 }}>
-                {pendingCount === 1 ? 'New hangout proposal' : `${pendingCount} hangout proposals`}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => go('hangouts')}
+        {proposalError && (
+          <p style={{ fontSize: 11, color: 'rgba(239,68,68,0.75)', margin: '0 0 10px', lineHeight: 1.4 }}>
+            {proposalError}
+          </p>
+        )}
+
+        {proposals.length > 0 && (() => {
+          const first = proposals[0];
+          const fromName = first?.duo_a?.name ?? 'another duo';
+          const metaParts = [
+            DATE_LABELS[first?.date] ?? first?.date,
+            TIME_LABELS[first?.time_slot] ?? first?.time_slot,
+            first?.place,
+          ].filter(Boolean);
+          return (
+            <div
               style={{
-                background:   'rgba(245,158,11,0.14)',
-                border:       '0.5px solid rgba(245,158,11,0.3)',
-                borderRadius: 8,
-                padding:      '4px 10px',
-                fontSize:     11,
-                fontWeight:   700,
-                color:        C.amber,
-                cursor:       'pointer',
-                flexShrink:   0,
+                background:     'rgba(245,158,11,0.08)',
+                border:         '0.5px solid rgba(245,158,11,0.28)',
+                borderRadius:   12,
+                padding:        '11px 13px',
+                marginBottom:   10,
+                display:        'flex',
+                alignItems:     'flex-start',
+                justifyContent: 'space-between',
+                gap:            10,
               }}
             >
-              View
-            </button>
-          </div>
-        )}
+              <div style={{ display: 'flex', gap: 8, minWidth: 0, flex: 1 }}>
+                <Calendar size={14} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: C.amber, margin: '0 0 2px' }}>
+                    {proposals.length === 1 ? 'New hangout proposal' : `${proposals.length} hangout proposals`}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'rgba(245,245,248,0.65)', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    From {fromName}
+                  </p>
+                  {metaParts.length > 0 && (
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {metaParts.join(' · ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => go('hangouts')}
+                style={{
+                  background:   'rgba(245,158,11,0.14)',
+                  border:       '0.5px solid rgba(245,158,11,0.3)',
+                  borderRadius: 8,
+                  padding:      '5px 11px',
+                  fontSize:     11,
+                  fontWeight:   700,
+                  color:        C.amber,
+                  cursor:       'pointer',
+                  flexShrink:   0,
+                  marginTop:    1,
+                }}
+              >
+                View
+              </button>
+            </div>
+          );
+        })()}
 
         <div style={{ display: 'grid', gap: 8 }}>
           <PremiumButton fullWidth variant="ghost" onClick={() => go('duo_detail', duo)} style={{ gap: 8 }}>
