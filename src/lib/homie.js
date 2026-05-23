@@ -1,15 +1,18 @@
 import { supabase } from './supabaseClient.js'
 
 export async function findHomies(currentUser, myProfile) {
-  const { data, error } = await supabase
+  let query = supabase
     .from('profiles')
     .select('*')
     .neq('id', currentUser.id)
-    .eq('gender', myProfile.gender)
-    .gte('age', (myProfile.age || 20) - 3)
-    .lte('age', (myProfile.age || 20) + 3)
-    .limit(20)
 
+  if (myProfile.age) {
+    query = query
+      .gte('age', myProfile.age - 3)
+      .lte('age', myProfile.age + 3)
+  }
+
+  const { data, error } = await query.limit(20)
   if (error) return []
   return data
 }
