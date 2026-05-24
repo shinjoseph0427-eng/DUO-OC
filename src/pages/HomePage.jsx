@@ -402,7 +402,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
         }
       />
 
-      <div style={{ padding: '0 0 102px', overflow: 'hidden' }}>
+      <div style={{ padding: '0 0 80px', overflowY: 'auto' }}>
 
         {/* ── Greeting ──────────────────────────────────────────────── */}
         <motion.div
@@ -576,65 +576,49 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
 
             {/* ── Requests section ──────────────────────────────────── */}
             {incoming.length > 0 && nextIncoming && (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, delay: 0.1 }}
-                style={{ padding: '20px 16px 0' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <p style={{ fontSize: 13, fontWeight: 800, color: C.white, margin: 0 }}>
+              <div style={{ padding: '16px 16px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: C.white }}>
                     Requests · {incoming.length}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => go('hangouts')}
-                    style={{
-                      background: 'none',
-                      border:     'none',
-                      color:      C.amber,
-                      fontSize:   13,
-                      fontWeight: 700,
-                      cursor:     'pointer',
-                      padding:    0,
-                    }}
-                  >
+                  </span>
+                  <span onClick={() => go('hangouts')} style={{ fontSize: 13, color: C.amber, cursor: 'pointer' }}>
                     See all →
-                  </button>
+                  </span>
                 </div>
 
                 <div style={{
-                  background:   C.cardElevated,
-                  border:       `0.5px solid ${C.border}`,
-                  borderRadius: 16,
-                  padding:      14,
                   display:      'flex',
                   alignItems:   'center',
                   gap:          12,
+                  padding:      '12px 14px',
+                  borderRadius: 14,
+                  border:       `0.5px solid ${C.border}`,
+                  background:   C.bg2,
                 }}>
                   <div style={{
-                    width:          32,
-                    height:         32,
+                    width:          40,
+                    height:         40,
                     borderRadius:   '50%',
-                    background:     C.amber,
+                    background:     C.amberT08,
+                    border:         `1px solid ${C.brownBorder}`,
                     display:        'flex',
                     alignItems:     'center',
                     justifyContent: 'center',
-                    flexShrink:     0,
-                    fontSize:       13,
+                    fontSize:       14,
                     fontWeight:     700,
-                    color:          '#FFFFFF',
+                    color:          C.amber,
+                    flexShrink:     0,
                   }}>
                     {(nextIncoming.duo_a?.name ?? '?')[0].toUpperCase()}
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {nextIncoming.duo_a?.name ?? 'A duo'}
-                    </p>
-                    <p style={{ fontSize: 12, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {[nextIncoming.duo_a?.city, DATE_LABELS[nextIncoming.date] ?? nextIncoming.date].filter(Boolean).join(' · ') || 'Wants to hang'}
-                    </p>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.white, marginBottom: 2 }}>
+                      {nextIncoming.duo_a?.name ?? 'A duo'} wants to hang
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {nextIncoming.duo_a?.city || 'OC'}{nextIncoming.date ? ` · ${DATE_LABELS[nextIncoming.date] ?? nextIncoming.date}` : ''}
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -642,14 +626,12 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                       type="button"
                       onClick={() => go('hangouts')}
                       style={{
-                        height:       32,
-                        padding:      '0 12px',
+                        padding:      '7px 12px',
                         borderRadius: 8,
                         border:       `0.5px solid ${C.border}`,
                         background:   'transparent',
-                        color:        C.muted,
                         fontSize:     12,
-                        fontWeight:   600,
+                        color:        C.muted,
                         cursor:       'pointer',
                       }}
                     >
@@ -659,14 +641,13 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                       type="button"
                       onClick={() => go('hangouts')}
                       style={{
-                        height:       32,
-                        padding:      '0 12px',
+                        padding:      '7px 12px',
                         borderRadius: 8,
                         border:       'none',
                         background:   C.amber,
-                        color:        '#FFFFFF',
                         fontSize:     12,
-                        fontWeight:   700,
+                        fontWeight:   600,
+                        color:        '#fff',
                         cursor:       'pointer',
                       }}
                     >
@@ -676,12 +657,72 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                 </div>
 
                 {incoming.length > 1 && (
-                  <p style={{ fontSize: 12, color: C.muted, margin: '8px 0 0', paddingLeft: 2 }}>
-                    · and {incoming.length - 1} more
-                  </p>
+                  <div
+                    onClick={() => go('hangouts')}
+                    style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 8, cursor: 'pointer' }}
+                  >
+                    + {incoming.length - 1} more waiting
+                  </div>
                 )}
-              </motion.div>
+              </div>
             )}
+
+            {/* ── Quick actions ─────────────────────────────────────── */}
+            <div style={{ padding: '16px 16px 0' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => go('explore')}
+                  style={{
+                    flex:         1,
+                    padding:      '14px 0',
+                    borderRadius: 12,
+                    border:       `0.5px solid ${C.border}`,
+                    background:   C.bg2,
+                    fontSize:     13,
+                    fontWeight:   600,
+                    color:        C.white,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Find duos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go('hangouts')}
+                  style={{
+                    flex:         1,
+                    padding:      '14px 0',
+                    borderRadius: 12,
+                    border:       `0.5px solid ${C.border}`,
+                    background:   C.bg2,
+                    fontSize:     13,
+                    fontWeight:   600,
+                    color:        C.white,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Hangouts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go('chat')}
+                  style={{
+                    flex:         1,
+                    padding:      '14px 0',
+                    borderRadius: 12,
+                    border:       `0.5px solid ${C.border}`,
+                    background:   C.bg2,
+                    fontSize:     13,
+                    fontWeight:   600,
+                    color:        C.white,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Chats
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>
