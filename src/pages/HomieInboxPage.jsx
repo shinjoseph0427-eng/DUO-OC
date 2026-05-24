@@ -32,8 +32,8 @@ function AcceptedCard({ profile, duoId }) {
   return (
     <div
       style={{
-        background: 'rgba(16,185,129,0.09)',
-        border: '0.5px solid rgba(16,185,129,0.28)',
+        background: 'rgba(79,119,45,0.09)',
+        border: '0.5px solid rgba(79,119,45,0.28)',
         borderRadius: 16,
         padding: 14,
         display: 'flex',
@@ -46,7 +46,7 @@ function AcceptedCard({ profile, duoId }) {
           width: 42,
           height: 42,
           borderRadius: 12,
-          background: 'rgba(16,185,129,0.16)',
+          background: 'rgba(255,107,0,0.12)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -151,7 +151,7 @@ function RequestCard({ request, accepting, accepted, onAccept }) {
       transition={{ duration: 0.22 }}
       style={{
         background: C.cardElevated,
-        border: `0.5px solid ${accepted ? 'rgba(16,185,129,0.35)' : C.border}`,
+        border: `0.5px solid ${accepted ? 'rgba(79,119,45,0.35)' : C.border}`,
         borderRadius: 16,
         padding: 14,
       }}
@@ -301,8 +301,8 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
                 width: 64,
                 height: 64,
                 borderRadius: 18,
-                background: 'rgba(16,185,129,0.12)',
-                border: '0.5px solid rgba(16,185,129,0.28)',
+                background: C.greenT12,
+                border: '0.5px solid rgba(79,119,45,0.28)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -360,8 +360,8 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
         {successMessage && (
           <div
             style={{
-              background: 'rgba(16,185,129,0.09)',
-              border: '0.5px solid rgba(16,185,129,0.28)',
+              background: 'rgba(79,119,45,0.09)',
+              border: '0.5px solid rgba(79,119,45,0.28)',
               borderRadius: 16,
               padding: 14,
               marginBottom: 16,
@@ -400,10 +400,10 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
         ) : requests.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title="No homie requests yet."
+            title="No requests yet."
             subtitle="When someone sends you a request, it will show up here."
             action={() => go('find_homie')}
-            actionLabel="Find Homies"
+            actionLabel="Find a homie"
           />
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>

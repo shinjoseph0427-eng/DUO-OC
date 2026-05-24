@@ -85,7 +85,7 @@ export default function HomieProfilePage({ homie, currentUser, go }) {
   if (!homie) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, padding: '72px 16px 0' }}>
-        <PremiumButton fullWidth onClick={() => go('find_homie')}>Back to Find Homie</PremiumButton>
+        <PremiumButton fullWidth onClick={() => go('find_homie')}>Back to Find a homie</PremiumButton>
       </div>
     );
   }
@@ -93,8 +93,8 @@ export default function HomieProfilePage({ homie, currentUser, go }) {
   const buttonCopy = requestStatus === 'accepted'
     ? 'Already Homies'
     : requestStatus === 'pending'
-      ? 'Request Sent'
-      : 'Send Homie Request';
+      ? 'Request sent'
+      : 'Send homie request';
 
   const buttonDisabled = loadingStatus || sending || !!requestStatus;
 
@@ -135,7 +135,7 @@ export default function HomieProfilePage({ homie, currentUser, go }) {
             cursor: 'pointer',
           }}
         >
-          <ChevronLeft size={20} color="#fff" strokeWidth={2.2} />
+          <ChevronLeft size={20} color={C.cream} strokeWidth={2.2} />
         </motion.button>
 
         <motion.button
@@ -157,12 +157,12 @@ export default function HomieProfilePage({ homie, currentUser, go }) {
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 800 }}>
-            <span className="gradient-text">duo oc.</span>
+            <span className="gradient-text">DUO OC</span>
           </span>
         </motion.button>
 
         <div style={{ position: 'absolute', left: 20, right: 20, bottom: 20 }}>
-          <p style={{ ...F.h1, letterSpacing: 0, color: '#fff', margin: '0 0 6px', textShadow: '0 1px 8px rgba(0,0,0,0.45)' }}>
+          <p style={{ ...F.h1, letterSpacing: 0, color: C.cream, margin: '0 0 6px', textShadow: '0 1px 8px rgba(0,0,0,0.45)' }}>
             {name}{homie.age ? <span style={{ fontWeight: 500, fontSize: 23, marginLeft: 8 }}>{homie.age}</span> : null}
           </p>
           {details && (

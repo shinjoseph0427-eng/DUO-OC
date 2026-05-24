@@ -10,14 +10,14 @@ export default function EmptyState({ icon: Icon, title, subtitle, action, action
       style={{
         padding:      '48px 20px',
         textAlign:    'center',
-        background:   'rgba(255,255,255,0.02)',
-        border:       '1px dashed rgba(255,255,255,0.08)',
+        background:   C.bg2,
+        border:       `1px dashed ${C.border}`,
         borderRadius: 20,
       }}
     >
       {Icon && (
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-          <Icon size={44} color="rgba(255,255,255,0.2)" strokeWidth={1.5} />
+          <Icon size={44} color={C.muted} strokeWidth={1.5} />
         </div>
       )}
       <p style={{ fontSize: 18, fontWeight: 700, color: C.white, margin: '0 0 6px' }}>{title}</p>
@@ -29,8 +29,8 @@ export default function EmptyState({ icon: Icon, title, subtitle, action, action
           type="button"
           onClick={action}
           style={{
-            background:   'rgba(255,255,255,0.06)',
-            border:       '0.5px solid rgba(255,255,255,0.1)',
+            background:   C.amberT08,
+            border:       `0.5px solid ${C.brownBorder}`,
             borderRadius: 10,
             padding:      '10px 20px',
             color:        C.white,

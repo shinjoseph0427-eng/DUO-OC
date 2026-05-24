@@ -39,7 +39,7 @@ export async function getMyChats(userId) {
   const { data: hangouts, error } = await supabase
     .from('hangouts')
     .select(`
-      id, duo_a_id, duo_b_id, created_at,
+      id, duo_a_id, duo_b_id, vibe, date, time_slot, place, created_at,
       duo_a:duos!hangouts_duo_a_id_fkey(
         id, name,
         duo_members(user_id, profiles(name))
@@ -55,9 +55,17 @@ export async function getMyChats(userId) {
 
   if (error || !hangouts) return []
 
+  const mapMembers = (duo) =>
+    (duo?.duo_members ?? []).map((m) => ({
+      userId:    m.user_id   ?? null,
+      name:      m.profiles?.name ?? 'Member',
+      avatarUrl: null,
+    }))
+
   const results = await Promise.all(
     hangouts.map(async (h) => {
-      const otherDuo = duoIds.includes(h.duo_a_id) ? h.duo_b : h.duo_a
+      const myDuoId  = duoIds.find((id) => id === h.duo_a_id || id === h.duo_b_id) ?? duoIds[0]
+      const otherDuo = myDuoId === h.duo_a_id ? h.duo_b : h.duo_a
 
       const { data: lastMsg } = await supabase
         .from('messages')
@@ -67,14 +75,16 @@ export async function getMyChats(userId) {
         .limit(1)
         .maybeSingle()
 
-      const members = (otherDuo?.duo_members ?? []).map((m) => ({
-        name:      m.profiles?.name ?? 'Member',
-        avatarUrl: null,
-      }))
-
       return {
         hangoutId:   h.id,
-        otherDuo:    { name: otherDuo?.name ?? 'Duo', members },
+        myDuoId,
+        duoA:        { id: h.duo_a?.id, name: h.duo_a?.name ?? 'Duo', members: mapMembers(h.duo_a) },
+        duoB:        { id: h.duo_b?.id, name: h.duo_b?.name ?? 'Duo', members: mapMembers(h.duo_b) },
+        otherDuo:    { name: otherDuo?.name ?? 'Duo', members: mapMembers(otherDuo) },
+        vibe:        h.vibe ?? null,
+        date:        h.date ?? null,
+        timeSlot:    h.time_slot ?? null,
+        place:       h.place ?? null,
         lastMessage: lastMsg?.content ?? null,
         updatedAt:   lastMsg?.created_at ?? h.created_at,
       }
@@ -120,6 +130,24 @@ export async function sendMessage({ hangoutId, senderDuoId, senderUserId, conten
 }
 
 // Returns a Promise<unsubscribe fn>. Resolves null if membership check fails.
+// Lightweight count of confirmed hangout chats for the nav badge.
+export async function getConfirmedChatCount(userId) {
+  if (!userId) return 0
+  const { data: memberships } = await supabase
+    .from('duo_members')
+    .select('duo_id')
+    .eq('user_id', userId)
+  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  if (duoIds.length === 0) return 0
+  const orFilter = duoIds.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
+  const { count } = await supabase
+    .from('hangouts')
+    .select('id', { count: 'exact', head: true })
+    .or(orFilter)
+    .eq('status', 'confirmed')
+  return count ?? 0
+}
+
 export async function subscribeMessages(hangoutId, currentUserId, callback) {
   try {
     await assertHangoutMember(hangoutId, currentUserId)

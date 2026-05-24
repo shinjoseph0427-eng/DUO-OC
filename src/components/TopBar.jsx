@@ -4,14 +4,18 @@ import { C } from '../tokens';
 
 function Wordmark() {
   return (
-    <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 }}>
-      <span className="gradient-text">duo oc.</span>
+    <span style={{
+      fontSize:      20,
+      fontWeight:    900,
+      letterSpacing: '-0.5px',
+      lineHeight:    1,
+      fontFamily:    "'Satoshi', 'Inter', system-ui, sans-serif",
+    }}>
+      <span className="gradient-text">DUO OC</span>
     </span>
   );
 }
 
-// 3-column layout: [back | spacer] [logo] [actions]
-// title prop kept for backward compat but not rendered — logo always in center
 export default function TopBar({ showBack = false, onBack, rightContent, onLogout, onLogoClick }) {
   return (
     <header
@@ -21,41 +25,37 @@ export default function TopBar({ showBack = false, onBack, rightContent, onLogou
         top:          0,
         zIndex:       100,
         height:       56,
-        borderBottom: '0.5px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid rgba(17,17,17,0.08)',
         display:      'flex',
         alignItems:   'center',
         padding:      '0 12px',
         boxSizing:    'border-box',
       }}
     >
-      {/* Left — back button or spacer */}
+      {/* Left */}
       <div style={{ width: 44, display: 'flex', alignItems: 'center' }}>
         {showBack && (
           <motion.button
             type="button"
             onClick={onBack}
             aria-label="Back"
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.90 }}
             transition={{ duration: 0.1 }}
             style={{
-              width:          36,
-              height:         36,
-              display:        'inline-flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              borderRadius:   10,
-              background:     'rgba(255,255,255,0.06)',
-              border:         '0.5px solid rgba(255,255,255,0.08)',
-              color:          C.white,
-              cursor:         'pointer',
+              width: 36, height: 36,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 10,
+              background: 'rgba(17,17,17,0.05)',
+              border: '1px solid rgba(17,17,17,0.08)',
+              cursor: 'pointer',
             }}
           >
-            <ChevronLeft size={20} strokeWidth={2.2} />
+            <ChevronLeft size={20} color="#111111" strokeWidth={2.2} />
           </motion.button>
         )}
       </div>
 
-      {/* Center — logo, always shown */}
+      {/* Center */}
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
         {onLogoClick ? (
           <motion.button
@@ -68,12 +68,10 @@ export default function TopBar({ showBack = false, onBack, rightContent, onLogou
           >
             <Wordmark />
           </motion.button>
-        ) : (
-          <Wordmark />
-        )}
+        ) : <Wordmark />}
       </div>
 
-      {/* Right — actions */}
+      {/* Right */}
       <div style={{ width: 44, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
         {rightContent}
         {onLogout && (
@@ -84,18 +82,15 @@ export default function TopBar({ showBack = false, onBack, rightContent, onLogou
             whileTap={{ scale: 0.88 }}
             transition={{ duration: 0.1 }}
             style={{
-              width:          36,
-              height:         36,
-              display:        'inline-flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              borderRadius:   10,
-              background:     'rgba(255,255,255,0.04)',
-              border:         '0.5px solid rgba(255,255,255,0.07)',
-              cursor:         'pointer',
+              width: 36, height: 36,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 10,
+              background: 'rgba(17,17,17,0.05)',
+              border: '1px solid rgba(17,17,17,0.08)',
+              cursor: 'pointer',
             }}
           >
-            <LogOut size={16} color={C.muted} strokeWidth={2} />
+            <LogOut size={16} color="rgba(17,17,17,0.55)" strokeWidth={2} />
           </motion.button>
         )}
       </div>

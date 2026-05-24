@@ -41,7 +41,7 @@ function MessageBubble({ msg, isMine, senderLabel }) {
             ...(isMine
               ? {
                   background: C.gradientCTA,
-                  color: '#fff',
+                  color: C.cream,
                   borderRadius: '18px 18px 4px 18px',
                   fontWeight: 500,
                 }
@@ -392,7 +392,7 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
           }}
         >
           {sending ? (
-            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Sending...</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: C.cream }}>Sending...</span>
           ) : (
             <SendHorizonal
               size={16}

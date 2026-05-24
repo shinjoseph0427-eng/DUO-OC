@@ -93,7 +93,7 @@ function PhotoSlot({ url, uploading, onAdd, onRemove }) {
             cursor:         'pointer',
           }}
         >
-          <X size={13} color="#fff" strokeWidth={2.5} />
+          <X size={13} color={C.cream} strokeWidth={2.5} />
         </button>
       </div>
     );

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldAlert } from 'lucide-react';
 import { C } from '../tokens';
-import { reportDuo, blockDuo } from '../lib/safety.js';
+import { reportDuo, blockDuo, SAFETY_MESSAGES } from '../lib/safety.js';
 
 const REASONS = [
   { key: 'inappropriate_photos', label: 'Inappropriate photos',   emoji: '📸' },
@@ -49,10 +49,10 @@ export default function ReportModal({
     setReporting(true);
     try {
       await reportDuo({ reporterUserId, reportedDuoId, reason, detail: detail.trim() || null });
-      showToast?.("Report submitted. We'll review it shortly.", 'success');
+      showToast?.('Report submitted.', 'success');
       onClose();
-    } catch {
-      showToast?.('Failed to submit report', 'error');
+    } catch (err) {
+      showToast?.(err?.message === SAFETY_MESSAGES.duplicateReport ? SAFETY_MESSAGES.duplicateReport : 'Failed to submit report', 'error');
     } finally {
       setReporting(false);
     }
@@ -177,7 +177,7 @@ export default function ReportModal({
                     onClick={handleBlock}
                     disabled={blocking}
                     whileTap={{ scale: 0.97 }}
-                    style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: blocking ? 'default' : 'pointer' }}
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#EF4444', color: C.cream, fontSize: 13, fontWeight: 700, cursor: blocking ? 'default' : 'pointer' }}
                   >
                     {blocking ? 'Blocking…' : 'Yes, block'}
                   </motion.button>
@@ -225,7 +225,7 @@ export default function ReportModal({
               </span>
               {reason === r.key && (
                 <div style={{ width: 18, height: 18, borderRadius: '50%', background: C.amber, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 10, color: '#fff', fontWeight: 800 }}>✓</span>
+                  <span style={{ fontSize: 10, color: C.cream, fontWeight: 800 }}>✓</span>
                 </div>
               )}
             </motion.button>

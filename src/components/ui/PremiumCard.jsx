@@ -1,8 +1,6 @@
 import { motion } from 'framer-motion';
-import { C } from '../../tokens';
 
-// Dark layered card with soft border and subtle top highlight.
-// Set interactive=true to enable hover lift + tap press feedback.
+// Clean white card with soft shadow.
 export default function PremiumCard({
   children,
   interactive = false,
@@ -11,11 +9,11 @@ export default function PremiumCard({
   ...props
 }) {
   const base = {
-    background:  '#1C1C1F',
-    border:      '0.5px solid rgba(255,255,255,0.08)',
-    borderRadius: 16,
-    boxShadow:   'inset 0 1px 0 rgba(255,255,255,0.07), 0 2px 16px rgba(0,0,0,0.35)',
-    overflow:    'hidden',
+    background:   '#FFFFFF',
+    border:       '1px solid rgba(17,17,17,0.08)',
+    borderRadius: 20,
+    boxShadow:    '0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)',
+    overflow:     'hidden',
     ...styleOverride,
   };
 
@@ -23,9 +21,9 @@ export default function PremiumCard({
     return (
       <motion.div
         onClick={onClick}
-        whileHover={{ y: -2, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 24px rgba(0,0,0,0.5)' }}
+        whileHover={{ y: -2, boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}
         whileTap={{ scale: 0.985 }}
-        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
         style={{ cursor: onClick ? 'pointer' : 'default', ...base }}
         {...props}
       >

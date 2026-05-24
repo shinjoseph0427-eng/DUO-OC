@@ -10,7 +10,7 @@ const TABS = [
   { key: 'me',       label: 'Me',       Icon: User           },
 ];
 
-export default function BottomNav({ activePage, onNavigate }) {
+export default function BottomNav({ activePage, onNavigate, badges = {} }) {
   return (
     <nav
       className="glass"
@@ -20,7 +20,7 @@ export default function BottomNav({ activePage, onNavigate }) {
         left:          0,
         right:         0,
         zIndex:        100,
-        borderTop:     '0.5px solid rgba(255,255,255,0.07)',
+        borderTop:     '1px solid rgba(17,17,17,0.08)',
         display:       'flex',
         alignItems:    'stretch',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -29,7 +29,6 @@ export default function BottomNav({ activePage, onNavigate }) {
     >
       {TABS.map((tab) => {
         const active = tab.key === activePage;
-
         return (
           <motion.button
             key={tab.key}
@@ -46,11 +45,12 @@ export default function BottomNav({ activePage, onNavigate }) {
               alignItems:     'center',
               justifyContent: 'center',
               gap:            3,
-              paddingTop:     8,
+              paddingTop:     6,
               cursor:         'pointer',
               position:       'relative',
             }}
           >
+            {/* Active indicator dot */}
             {active && (
               <motion.div
                 layoutId="nav-indicator"
@@ -60,29 +60,38 @@ export default function BottomNav({ activePage, onNavigate }) {
                   left:         '50%',
                   transform:    'translateX(-50%)',
                   width:        20,
-                  height:       2,
+                  height:       2.5,
                   borderRadius: 999,
-                  background:   C.gradientCTA,
+                  background:   C.amber,
                 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
 
-            <tab.Icon
-              size={22}
-              strokeWidth={active ? 2.4 : 1.8}
-              color={active ? C.amber : C.muted}
-              style={{ transition: 'color 0.15s' }}
-            />
-            <span
-              style={{
-                fontSize:      10,
-                fontWeight:    active ? 700 : 500,
-                color:         active ? C.amber : C.muted,
-                transition:    'color 0.15s',
-                letterSpacing: '0.2px',
-              }}
-            >
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <tab.Icon
+                size={22}
+                strokeWidth={active ? 2.3 : 1.7}
+                color={active ? C.amber : 'rgba(17,17,17,0.40)'}
+                style={{ transition: 'color 0.15s' }}
+              />
+              {badges[tab.key] && (
+                <div style={{
+                  position: 'absolute', top: -2, right: -3,
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: C.amber,
+                  border: '1.5px solid #FAFAFA',
+                }} />
+              )}
+            </div>
+
+            <span style={{
+              fontSize:      10,
+              fontWeight:    active ? 700 : 500,
+              color:         active ? C.amber : 'rgba(17,17,17,0.40)',
+              transition:    'color 0.15s',
+              letterSpacing: '0.1px',
+            }}>
               {tab.label}
             </span>
           </motion.button>

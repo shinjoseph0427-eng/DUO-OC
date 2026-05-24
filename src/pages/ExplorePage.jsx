@@ -4,8 +4,9 @@ import { Search, SlidersHorizontal, MapPin, X, Check } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import { getExploreDuos } from '../lib/duos.js';
 import { getMyProfile } from '../lib/profile.js';
-import { getBlockedDuoIds } from '../lib/safety.js';
-import { getMyDuo } from '../lib/duos.js';
+import { getBlockedDuoIds, getRestrictedDuoIds } from '../lib/safety.js';
+import { getMyDuos } from '../lib/duos.js';
+import { getOpenPlans } from '../lib/hangouts.js';
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -53,6 +54,39 @@ const DISTANCE_OPTIONS = [
 
 const DEFAULT_FILTERS = { vibes: [], ageRange: null, instagramOnly: false, distanceKm: null };
 
+const DATE_SHORT = {
+  today:     'Today',
+  tomorrow:  'Tomorrow',
+  friday:    'This Fri',
+  saturday:  'Sat',
+  sunday:    'This Sun',
+  next_week: 'Next week',
+};
+
+const TIME_SHORT = {
+  morning:   'Morning',
+  afternoon: 'Afternoon',
+  evening:   'Evening',
+  night:     'Night',
+};
+
+const ACTIVITY_SIGNALS = [
+  { label: 'Open to plans',     color: C.brown, bg: 'rgba(255,107,0,0.15)' },
+  { label: 'Active recently',   color: C.success, bg: C.greenT08 },
+  { label: 'Open to plans',     color: C.amber,   bg: C.amberT08 },
+  { label: 'Free this weekend', color: C.moss,    bg: C.greenT12 },
+  { label: 'Looking for plans', color: C.brown, bg: 'rgba(255,107,0,0.15)' },
+];
+
+function getActivitySignal(duo) {
+  if (duo.created_at) {
+    const daysOld = (Date.now() - new Date(duo.created_at).getTime()) / 86400000;
+    if (daysOld < 14) return { label: 'New duo', color: C.olive, bg: 'rgba(168,191,163,0.24)' };
+  }
+  const hash = (duo.id ?? '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return ACTIVITY_SIGNALS[hash % ACTIVITY_SIGNALS.length];
+}
+
 function Pill({ selected, onClick, children }) {
   return (
     <motion.button
@@ -61,13 +95,13 @@ function Pill({ selected, onClick, children }) {
       whileTap={{ scale: 0.92 }}
       transition={{ duration: 0.1 }}
       style={{
-        background:   selected ? 'rgba(245,158,11,0.14)' : 'rgba(255,255,255,0.04)',
-        border:       `0.5px solid ${selected ? 'rgba(245,158,11,0.45)' : 'rgba(255,255,255,0.1)'}`,
+        background:   selected ? 'rgba(255,107,0,0.15)' : C.cardElevated,
+        border:       `0.5px solid ${selected ? 'rgba(242,242,240,0.22)' : C.border}`,
         borderRadius: 9999,
         padding:      '7px 14px',
         fontSize:     13,
         fontWeight:   600,
-        color:        selected ? C.amber : C.muted,
+        color:        selected ? C.brown : C.muted,
         cursor:       'pointer',
         userSelect:   'none',
       }}
@@ -86,7 +120,7 @@ function Toggle({ on, onToggle }) {
         width:         44,
         height:        26,
         borderRadius:  13,
-        background:    on ? C.amber : 'rgba(255,255,255,0.1)',
+        background:    on ? C.olive : C.sand,
         border:        'none',
         cursor:        'pointer',
         position:      'relative',
@@ -103,7 +137,7 @@ function Toggle({ on, onToggle }) {
           width:        20,
           height:       20,
           borderRadius: '50%',
-          background:   '#fff',
+          background:   C.cream,
           boxShadow:    '0 1px 4px rgba(0,0,0,0.3)',
         }}
       />
@@ -143,7 +177,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
-      transition={{ type: 'spring', stiffness: 340, damping: 36 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
       style={{
         position:      'fixed',
         bottom:        0,
@@ -152,7 +186,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
         zIndex:        200,
         background:    C.cardElevated,
         borderRadius:  '20px 20px 0 0',
-        border:        '0.5px solid rgba(255,255,255,0.08)',
+        border:        `0.5px solid ${C.border}`,
         padding:       '0 16px 40px',
         maxHeight:     '82vh',
         overflowY:     'auto',
@@ -160,7 +194,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
     >
       {/* handle */}
       <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: C.cardDeep }} />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0 20px' }}>
@@ -237,7 +271,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
             flex:         1,
             height:       48,
             borderRadius: 14,
-            border:       '0.5px solid rgba(255,255,255,0.1)',
+            border:       `0.5px solid ${C.border}`,
             background:   'transparent',
             color:        C.muted,
             fontSize:     14,
@@ -271,7 +305,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
   );
 }
 
-function ExploreCard({ duo, myLat, myLng, go }) {
+function ExploreCard({ duo, myLat, myLng, go, openPlan }) {
   const members   = duo.duo_members ?? [];
   const primary   = members[0];
   const heroPhoto = primary?.profiles?.photos?.[0] ?? primary?.profiles?.avatar_url ?? null;
@@ -282,6 +316,17 @@ function ExploreCard({ duo, myLat, myLng, go }) {
   const names     = members.map((m) => m.profiles?.name ?? '?').slice(0, 2).join(' & ');
   const username  = primary?.profiles?.username;
   const city      = duo.city ?? primary?.profiles?.city ?? null;
+  const signal    = openPlan
+    ? { label: 'Open plan', color: C.moss, bg: C.greenT12 }
+    : getActivitySignal(duo);
+
+  const planPreview = openPlan
+    ? [
+        openPlan.vibe,
+        DATE_SHORT[openPlan.date] ?? openPlan.date,
+        TIME_SHORT[openPlan.time_slot] ?? openPlan.time_slot,
+      ].filter(Boolean).join(' · ')
+    : null;
 
   return (
     <motion.div
@@ -292,7 +337,7 @@ function ExploreCard({ duo, myLat, myLng, go }) {
         borderRadius: 16,
         overflow:     'hidden',
         background:   C.cardElevated,
-        border:       '0.5px solid rgba(255,255,255,0.07)',
+        border:       `0.5px solid ${C.border}`,
         cursor:       'pointer',
         position:     'relative',
         aspectRatio:  '3/4',
@@ -362,13 +407,13 @@ function ExploreCard({ duo, myLat, myLng, go }) {
             position:     'absolute',
             top:          8,
             left:         8,
-            background:   'rgba(245,158,11,0.18)',
-            border:       '0.5px solid rgba(245,158,11,0.35)',
+            background:   'rgba(255,107,0,0.15)',
+            border:       '0.5px solid rgba(242,242,240,0.18)',
             borderRadius: 9999,
             padding:      '3px 9px',
             fontSize:     10,
             fontWeight:   700,
-            color:        C.amber,
+            color:        C.brown,
           }}
         >
           {vibe}
@@ -377,7 +422,7 @@ function ExploreCard({ duo, myLat, myLng, go }) {
 
       {/* Bottom info */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 10px 12px' }}>
-        <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '0 0 2px', lineHeight: 1.2 }}>
+        <p style={{ fontSize: 13, fontWeight: 800, color: C.cream, margin: '0 0 2px', lineHeight: 1.2 }}>
           {names || duo.name}
         </p>
         {username && (
@@ -386,8 +431,37 @@ function ExploreCard({ duo, myLat, myLng, go }) {
           </p>
         )}
         {city && (
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: '0 0 5px', display: 'flex', alignItems: 'center', gap: 3 }}>
             <MapPin size={9} strokeWidth={2} />{city}
+          </p>
+        )}
+        <span
+          style={{
+            display:      'inline-block',
+            background:   signal.bg,
+            color:        signal.color,
+            borderRadius: 9999,
+            padding:      '2px 8px',
+            fontSize:     10,
+            fontWeight:   700,
+          }}
+        >
+          {signal.label}
+        </span>
+        {planPreview && (
+          <p
+            style={{
+              fontSize:     10,
+              color:        'rgba(255,255,255,0.5)',
+              margin:       '4px 0 0',
+              lineHeight:   1.3,
+              whiteSpace:   'nowrap',
+              overflow:     'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {planPreview}
+            {openPlan?.place && ` · ${openPlan.place}`}
           </p>
         )}
       </div>
@@ -400,14 +474,17 @@ function activeFilterCount(f) {
 }
 
 export default function ExplorePage({ currentUser, go }) {
-  const [duos,       setDuos]       = useState([]);
-  const [myProfile,  setMyProfile]  = useState(null);
-  const [blockedSet, setBlockedSet] = useState(new Set());
-  const [loading,    setLoading]    = useState(true);
-  const [query,     setQuery]     = useState('');
-  const [debQ,      setDebQ]      = useState('');
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filters,   setFilters]   = useState({ ...DEFAULT_FILTERS });
+  const [duos,         setDuos]         = useState([]);
+  const [myProfile,    setMyProfile]    = useState(null);
+  const [blockedSet,   setBlockedSet]   = useState(new Set());
+  const [restrictedSet,setRestrictedSet]= useState(new Set());
+  const [openPlanMap,  setOpenPlanMap]  = useState(new Map()); // duo_id → plan
+  const [loading,      setLoading]      = useState(true);
+  const [query,        setQuery]        = useState('');
+  const [debQ,         setDebQ]         = useState('');
+  const [filterOpen,   setFilterOpen]   = useState(false);
+  const [filters,      setFilters]      = useState({ ...DEFAULT_FILTERS });
+  const [planFilter,   setPlanFilter]   = useState('all'); // 'all' | 'open_plans'
   const debTimer = useRef(null);
 
   useEffect(() => {
@@ -415,12 +492,16 @@ export default function ExplorePage({ currentUser, go }) {
     Promise.all([
       getExploreDuos(currentUser.id),
       getMyProfile(currentUser.id),
-      getMyDuo(currentUser.id).then((duo) => duo?.id ? getBlockedDuoIds(duo.id) : []),
+      getMyDuos(currentUser.id).then((duos) => getBlockedDuoIds((duos ?? []).map((duo) => duo.id))).catch(() => []),
+      getRestrictedDuoIds(),
+      getOpenPlans().catch(() => []),
     ])
-      .then(([d, p, blocked]) => {
+      .then(([d, p, blocked, restricted, plans]) => {
         setDuos(d ?? []);
         setMyProfile(p);
         setBlockedSet(new Set(blocked));
+        setRestrictedSet(new Set(restricted));
+        setOpenPlanMap(new Map((plans ?? []).filter((pl) => !restricted?.includes(pl.creator_duo_id)).map((pl) => [pl.creator_duo_id, pl])));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -437,7 +518,7 @@ export default function ExplorePage({ currentUser, go }) {
   const myLng = myProfile?.lng ?? null;
 
   const filtered = useMemo(() => {
-    let r = blockedSet.size > 0 ? duos.filter((d) => !blockedSet.has(d.id)) : duos;
+    let r = duos.filter((d) => !blockedSet.has(d.id) && !restrictedSet.has(d.id));
 
     if (debQ.trim()) {
       const q = debQ.replace(/^@/, '').toLowerCase();
@@ -476,8 +557,12 @@ export default function ExplorePage({ currentUser, go }) {
       });
     }
 
+    if (planFilter === 'open_plans') {
+      r = r.filter((d) => openPlanMap.has(d.id));
+    }
+
     return r;
-  }, [duos, blockedSet, debQ, filters, myLat, myLng, currentYear]);
+  }, [duos, blockedSet, restrictedSet, debQ, filters, myLat, myLng, currentYear, planFilter, openPlanMap]);
 
   const numFilters = activeFilterCount(filters);
 
@@ -491,7 +576,7 @@ export default function ExplorePage({ currentUser, go }) {
           zIndex:      50,
           background:  C.bg,
           padding:     '12px 16px 10px',
-          borderBottom:'0.5px solid rgba(255,255,255,0.06)',
+          borderBottom:`0.5px solid ${C.border}`,
           display:     'flex',
           gap:         10,
           alignItems:  'center',
@@ -510,7 +595,7 @@ export default function ExplorePage({ currentUser, go }) {
             style={{
               width:        '100%',
               background:   C.cardElevated,
-              border:       '0.5px solid rgba(255,255,255,0.08)',
+              border:       `0.5px solid ${C.border}`,
               borderRadius: 12,
               padding:      '10px 14px 10px 36px',
               fontSize:     14,
@@ -548,8 +633,8 @@ export default function ExplorePage({ currentUser, go }) {
             width:          40,
             height:         40,
             borderRadius:   12,
-            background:     numFilters > 0 ? 'rgba(245,158,11,0.12)' : C.cardElevated,
-            border:         `0.5px solid ${numFilters > 0 ? 'rgba(245,158,11,0.35)' : 'rgba(255,255,255,0.08)'}`,
+            background:     numFilters > 0 ? 'rgba(255,107,0,0.15)' : C.cardElevated,
+            border:         `0.5px solid ${numFilters > 0 ? 'rgba(242,242,240,0.22)' : C.border}`,
             display:        'flex',
             alignItems:     'center',
             justifyContent: 'center',
@@ -558,7 +643,7 @@ export default function ExplorePage({ currentUser, go }) {
             flexShrink:     0,
           }}
         >
-          <SlidersHorizontal size={17} color={numFilters > 0 ? C.amber : C.muted} strokeWidth={2} />
+          <SlidersHorizontal size={17} color={numFilters > 0 ? C.brown : C.muted} strokeWidth={2} />
           {numFilters > 0 && (
             <div
               style={{
@@ -568,7 +653,7 @@ export default function ExplorePage({ currentUser, go }) {
                 width:        16,
                 height:       16,
                 borderRadius: '50%',
-                background:   C.amber,
+                background:   C.brown,
                 display:      'flex',
                 alignItems:   'center',
                 justifyContent: 'center',
@@ -585,6 +670,35 @@ export default function ExplorePage({ currentUser, go }) {
 
       {/* Results */}
       <div style={{ padding: '14px 16px 0' }}>
+
+        {/* Plan filter chips */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {[
+            { value: 'all',        label: 'All' },
+            { value: 'open_plans', label: 'Open plans' },
+          ].map(({ value, label }) => (
+            <motion.button
+              key={value}
+              type="button"
+              onClick={() => setPlanFilter(value)}
+              whileTap={{ scale: 0.92 }}
+              transition={{ duration: 0.1 }}
+              style={{
+                background:   planFilter === value ? C.amberT08 : C.cardElevated,
+                border:       `0.5px solid ${planFilter === value ? C.brownBorder : C.border}`,
+                borderRadius: 9999,
+                padding:      '6px 14px',
+                fontSize:     13,
+                fontWeight:   600,
+                color:        planFilter === value ? C.amber : C.muted,
+                cursor:       'pointer',
+              }}
+            >
+              {label}
+            </motion.button>
+          ))}
+        </div>
+
         {loading ? (
           <div
             style={{
@@ -607,17 +721,49 @@ export default function ExplorePage({ currentUser, go }) {
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
-              {duos.length === 0 ? 'No duos yet.' : 'No results.'}
-            </p>
-            <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
-              {duos.length === 0 ? 'Check back soon.' : 'Try adjusting your filters.'}
-            </p>
+            {planFilter === 'open_plans' ? (
+              <>
+                <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+                  Nothing open right now.
+                </p>
+                <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.6 }}>
+                  Check back later or send a hangout request to a duo you like.
+                </p>
+                <motion.button
+                  type="button"
+                  onClick={() => setPlanFilter('all')}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ duration: 0.1 }}
+                  style={{
+                    background:   C.cardElevated,
+                    border:       `0.5px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding:      '9px 20px',
+                    fontSize:     13,
+                    fontWeight:   600,
+                    color:        C.white,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Show all duos
+                </motion.button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+                  {duos.length === 0 ? 'You\'ve seen them all. Check back soon.' : 'No results.'}
+                </p>
+                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                  {duos.length === 0 ? 'Check back soon or update your vibe.' : 'Try adjusting your filters.'}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
             <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px' }}>
               {filtered.length} duo{filtered.length !== 1 ? 's' : ''}
+              {planFilter === 'open_plans' && ' with open plans'}
             </p>
             <div
               style={{
@@ -633,6 +779,7 @@ export default function ExplorePage({ currentUser, go }) {
                   myLat={myLat}
                   myLng={myLng}
                   go={go}
+                  openPlan={openPlanMap.get(duo.id) ?? null}
                 />
               ))}
             </div>

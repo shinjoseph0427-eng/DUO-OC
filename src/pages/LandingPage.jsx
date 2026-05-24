@@ -9,8 +9,8 @@ const PREVIEW_DUOS = [
     cities:  'Irvine · Newport',
     vibes:   ['Boba', 'Gym', 'Night out'],
     members: [
-      { name: 'Ari',  bg: ['#2A1A1A', '#341E1E'] },
-      { name: 'Lena', bg: ['#1A1A2A', '#1E1E34'] },
+      { name: 'Ari',  bg: '#FFF7ED' },
+      { name: 'Lena', bg: '#F0FDF4' },
     ],
   },
   {
@@ -18,8 +18,8 @@ const PREVIEW_DUOS = [
     cities:  'Fullerton',
     vibes:   ['Gym', 'Cars', 'Late night'],
     members: [
-      { name: 'Jae',   bg: ['#1A2020', '#1E2A2A'] },
-      { name: 'Miles', bg: ['#181A24', '#1A1C2E'] },
+      { name: 'Jae',   bg: '#F0FDF4' },
+      { name: 'Miles', bg: '#FFF7ED' },
     ],
   },
   {
@@ -27,8 +27,8 @@ const PREVIEW_DUOS = [
     cities:  'Costa Mesa · Newport',
     vibes:   ['Coffee', 'Beach', 'Pilates'],
     members: [
-      { name: 'Sophie', bg: ['#1E1E2A', '#22223A'] },
-      { name: 'Mina',   bg: ['#1A2028', '#1C2430'] },
+      { name: 'Sophie', bg: '#FFF3E0' },
+      { name: 'Mina',   bg: '#E8F5E9' },
     ],
   },
   {
@@ -36,8 +36,8 @@ const PREVIEW_DUOS = [
     cities:  'Irvine',
     vibes:   ['UCI', 'Boba', 'Music'],
     members: [
-      { name: 'Ryan', bg: ['#1A2018', '#1E2820'] },
-      { name: 'Kai',  bg: ['#1C1A20', '#201824'] },
+      { name: 'Ryan', bg: '#F0FDF4' },
+      { name: 'Kai',  bg: '#FFF7ED' },
     ],
   },
   {
@@ -45,8 +45,8 @@ const PREVIEW_DUOS = [
     cities:  'Newport · Costa Mesa',
     vibes:   ['Beach', 'Coffee', 'Social'],
     members: [
-      { name: 'Mia',   bg: ['#22181E', '#2A1A22'] },
-      { name: 'Chloe', bg: ['#1E1822', '#241A28'] },
+      { name: 'Mia',   bg: '#FFF7ED' },
+      { name: 'Chloe', bg: '#E8F5E9' },
     ],
   },
   {
@@ -54,8 +54,8 @@ const PREVIEW_DUOS = [
     cities:  'Anaheim · Fullerton',
     vibes:   ['Gym', 'KBBQ', 'Cars'],
     members: [
-      { name: 'Daniel', bg: ['#1A2018', '#1E2820'] },
-      { name: 'Chris',  bg: ['#18201A', '#1A241E'] },
+      { name: 'Daniel', bg: '#F0FDF4' },
+      { name: 'Chris',  bg: '#FFF3E0' },
     ],
   },
 ];
@@ -91,7 +91,7 @@ function LandingDeckCard({ duo }) {
             key={i}
             style={{
               flex:           1,
-              background:     `linear-gradient(160deg, ${m.bg[0]} 0%, ${m.bg[1]} 100%)`,
+              background:     m.bg,
               display:        'flex',
               alignItems:     'center',
               justifyContent: 'center',
@@ -232,7 +232,7 @@ function StackShell({ duo }) {
             key={i}
             style={{
               flex:        1,
-              background:  `linear-gradient(160deg, ${m.bg[0]} 0%, ${m.bg[1]} 100%)`,
+              background:  m.bg,
               borderRight: i === 0 ? '0.5px solid rgba(0,0,0,0.5)' : 'none',
             }}
           />
@@ -276,7 +276,7 @@ export default function LandingPage({ go }) {
           transform:     'translateX(-50%)',
           width:         560,
           height:        400,
-          background:    'radial-gradient(circle, rgba(245,158,11,0.05) 0%, transparent 65%)',
+          background:    'none',
           pointerEvents: 'none',
           zIndex:        0,
         }}
@@ -289,7 +289,7 @@ export default function LandingPage({ go }) {
           right:         -80,
           width:         360,
           height:        360,
-          background:    'radial-gradient(circle, rgba(244,114,182,0.03) 0%, transparent 65%)',
+          background:    'none',
           pointerEvents: 'none',
           zIndex:        0,
         }}
@@ -301,7 +301,7 @@ export default function LandingPage({ go }) {
           {...item(0)}
           style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 36 }}
         >
-          <span className="gradient-text">duo oc.</span>
+          <span className="gradient-text">DUO OC</span>
         </motion.div>
 
         <motion.span

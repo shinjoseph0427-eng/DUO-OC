@@ -90,7 +90,7 @@ function PhotoSlot({ url, uploading, onAdd, onRemove }) {
             cursor:         'pointer',
           }}
         >
-          <X size={13} color="#fff" strokeWidth={2.5} />
+          <X size={13} color={C.cream} strokeWidth={2.5} />
         </button>
       </div>
     );
@@ -250,8 +250,8 @@ export default function EditDuoProfile({ currentUser, duo: selectedDuoProp = nul
         {successMessage && (
           <div
             style={{
-              background: 'rgba(16,185,129,0.09)',
-              border: '0.5px solid rgba(16,185,129,0.28)',
+              background: 'rgba(79,119,45,0.09)',
+              border: '0.5px solid rgba(79,119,45,0.28)',
               borderRadius: 16,
               padding: 14,
               marginBottom: 16,

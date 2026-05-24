@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, MapPin, MoreHorizontal } from 'lucide-react';
 import { C, AVATAR_GRADIENTS, F } from '../tokens';
@@ -6,6 +6,24 @@ import PremiumButton from '../components/ui/PremiumButton.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import ReportModal from '../components/ReportModal.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
+import { getMyActivePlan, requestToJoinPlan } from '../lib/hangouts.js';
+import { isDuoRestricted, SAFETY_MESSAGES } from '../lib/safety.js';
+
+const DATE_LABELS = {
+  today:     'Today',
+  tomorrow:  'Tomorrow',
+  friday:    'This Friday',
+  saturday:  'Saturday',
+  sunday:    'This Sunday',
+  next_week: 'Next week',
+};
+
+const TIME_LABELS = {
+  morning:   'Morning (10am–12pm)',
+  afternoon: 'Afternoon (12pm–4pm)',
+  evening:   'Evening (4pm–7pm)',
+  night:     'Night (7pm–10pm)',
+};
 
 function calcAge(profile) {
   if (profile?.birth_year) return new Date().getFullYear() - profile.birth_year;
@@ -70,8 +88,8 @@ function PromptCard({ q, a, accent }) {
   return (
     <div
       style={{
-        background:   accent ? 'rgba(245,158,11,0.06)' : 'rgba(255,255,255,0.03)',
-        border:       `0.5px solid ${accent ? 'rgba(245,158,11,0.2)' : C.border}`,
+        background:   accent ? 'rgba(140,94,42,0.06)' : C.cardElevated,
+        border:       `0.5px solid ${accent ? 'rgba(255,107,0,0.15)' : C.border}`,
         borderRadius: 14,
         padding:      '14px 16px',
         marginTop:    12,
@@ -114,7 +132,7 @@ function MemberCard({ member, index }) {
         <MemberPhoto member={member} index={index} height={160} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.65) 100%)' }} />
         <div style={{ position: 'absolute', bottom: 12, left: 14 }}>
-          <p style={{ fontSize: 17, fontWeight: 800, color: '#fff', margin: 0 }}>
+          <p style={{ fontSize: 17, fontWeight: 800, color: C.cream, margin: 0 }}>
             {member.name}{age ? <span style={{ fontWeight: 400, fontSize: 15, marginLeft: 6 }}>{age}</span> : null}
           </p>
           {member.city && (
@@ -129,7 +147,7 @@ function MemberCard({ member, index }) {
       {(member.bio || member.promptA) && (
         <div style={{ padding: '14px 16px 16px' }}>
           {member.bio && (
-            <p style={{ fontSize: 14, color: 'rgba(245,245,248,0.8)', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: 14, color: C.white, lineHeight: 1.6, margin: 0 }}>
               {member.bio}
             </p>
           )}
@@ -140,8 +158,59 @@ function MemberCard({ member, index }) {
   );
 }
 
-export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, myDuo, showToast }) {
-  const [reportOpen, setReportOpen] = useState(false);
+export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, myDuo, myDuos: myDuosProp, showToast }) {
+  const allMyDuos = myDuosProp?.length > 0 ? myDuosProp : (myDuo ? [myDuo] : []);
+
+  const [reportOpen,             setReportOpen]             = useState(false);
+  const [openPlan,               setOpenPlan]               = useState(null);
+  const [planLoading,            setPlanLoading]            = useState(false);
+  const [joinState,              setJoinState]              = useState(null); // null | 'loading' | 'sent' | 'duplicate' | 'error'
+  const [joinError,              setJoinError]              = useState('');
+  const [selectedRequesterDuoId, setSelectedRequesterDuoId] = useState(null);
+  const [duoRestricted,          setDuoRestricted]          = useState(false);
+
+  useEffect(() => {
+    if (!duo?.id) return;
+    setPlanLoading(true);
+    Promise.all([
+      getMyActivePlan(duo.id).catch(() => null),
+      isDuoRestricted(duo.id).catch(() => false),
+    ])
+      .then(([plan, restricted]) => {
+        setOpenPlan(plan);
+        setDuoRestricted(restricted);
+      })
+      .catch(() => {
+        setOpenPlan(null);
+        setDuoRestricted(false);
+      })
+      .finally(() => setPlanLoading(false));
+  }, [duo?.id]);
+
+  // Duos that can send a join request: user's duos excluding the viewed duo
+  const eligibleRequesters = allMyDuos.filter((d) => d?.id && d.id !== duo?.id);
+  const requesterDuoId = selectedRequesterDuoId ?? eligibleRequesters[0]?.id ?? null;
+
+  const handleJoinRequest = async () => {
+    if (!requesterDuoId || !openPlan?.id || joinState === 'loading') return;
+    setJoinState('loading');
+    setJoinError('');
+    try {
+      await requestToJoinPlan({
+        planId:          openPlan.id,
+        requesterDuoId:  requesterDuoId,
+        message:         "We'd like to join your plan.",
+      });
+      setJoinState('sent');
+    } catch (err) {
+      if (err?.code === '23505' || err?.message?.toLowerCase().includes('duplicate')) {
+        setJoinState('duplicate');
+      } else {
+        setJoinState('error');
+        setJoinError(err?.message === SAFETY_MESSAGES.restrictedDuo ? SAFETY_MESSAGES.restrictedDuo : 'Something went wrong. Please try again.');
+      }
+    }
+  };
 
   if (!duo) {
     return (
@@ -153,11 +222,11 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
     );
   }
 
-  // True when the current user is already a member of this duo.
-  // Checks duo_members.user_id (Supabase format) and falls back to myDuo.id equality.
+  // True when the viewed duo is one of the current user's own duos.
+  const myDuoIdSet = new Set(allMyDuos.map((d) => d?.id).filter(Boolean));
   const isOwnDuo =
-    (duo.duo_members ?? []).some((m) => m.user_id === currentUser?.id) ||
-    (myDuo?.id != null && duo.id === myDuo.id);
+    myDuoIdSet.has(duo.id) ||
+    (duo.duo_members ?? []).some((m) => m.user_id === currentUser?.id);
 
   const members   = normalizeMembers(duo);
   const heroPhoto = duo.duo_photos?.[0] ?? null;
@@ -214,7 +283,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
             cursor:         'pointer',
           }}
         >
-          <ChevronLeft size={20} color="#fff" strokeWidth={2.2} />
+          <ChevronLeft size={20} color={C.cream} strokeWidth={2.2} />
         </motion.button>
 
         {/* Logo — clickable to home */}
@@ -238,7 +307,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.5px' }}>
-            <span className="gradient-text">duo oc.</span>
+            <span className="gradient-text">DUO OC</span>
           </span>
         </motion.button>
 
@@ -265,12 +334,12 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
             cursor:         'pointer',
           }}
         >
-          <MoreHorizontal size={18} color="#fff" strokeWidth={2} />
+          <MoreHorizontal size={18} color={C.cream} strokeWidth={2} />
         </motion.button>
 
         {/* Duo name + members */}
         <div style={{ position: 'absolute', bottom: 20, left: 20, right: 20 }}>
-          <p style={{ ...F.h2, color: '#fff', margin: '0 0 4px', textShadow: '0 1px 8px rgba(0,0,0,0.5)' }}>
+          <p style={{ ...F.h2, color: C.cream, margin: '0 0 4px', textShadow: '0 1px 8px rgba(0,0,0,0.5)' }}>
             {duo.name}
           </p>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: 0 }}>
@@ -293,9 +362,9 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
               <span
                 key={v}
                 style={{
-                  background:   'rgba(245,158,11,0.10)',
+                  background:   'rgba(255,107,0,0.10)',
                   color:        C.amber,
-                  border:       '0.5px solid rgba(245,158,11,0.22)',
+                  border:       '0.5px solid rgba(255,107,0,0.15)',
                   borderRadius: 9999,
                   padding:      '5px 12px',
                   fontSize:     12,
@@ -311,7 +380,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
                   display:      'inline-flex',
                   alignItems:   'center',
                   gap:          4,
-                  background:   'rgba(255,255,255,0.05)',
+                  background:   C.cardElevated,
                   border:       `0.5px solid ${C.border}`,
                   borderRadius: 9999,
                   padding:      '5px 12px',
@@ -364,7 +433,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
               </>
             )}
             {duo.duo_bio && (
-              <p style={{ fontSize: 15, color: 'rgba(245,245,248,0.85)', lineHeight: 1.6, margin: 0 }}>
+              <p style={{ fontSize: 15, color: C.white, lineHeight: 1.6, margin: 0 }}>
                 {duo.duo_bio}
               </p>
             )}
@@ -391,9 +460,164 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
         {/* CTA — hidden when viewing an own duo */}
         {!isOwnDuo && (
           <motion.div variants={staggerItem}>
-            <PremiumButton fullWidth onClick={() => go('propose_hangout', duo)}>
-              Propose 2v2 Hangout →
-            </PremiumButton>
+            {planLoading ? (
+              <div className="shimmer" style={{ height: 52, borderRadius: 14, background: C.cardDeep }} />
+            ) : duoRestricted ? (
+              <div
+                style={{
+                  background:   C.cardElevated,
+                  border:       `0.5px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding:      '14px 16px',
+                  textAlign:    'center',
+                }}
+              >
+                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                  {SAFETY_MESSAGES.restrictedDuo}
+                </p>
+              </div>
+            ) : openPlan ? (
+              <>
+                {/* Plan detail card */}
+                <div
+                  style={{
+                    background:   'rgba(255,107,0,0.08)',
+                    border:       '0.5px solid rgba(79,119,45,0.22)',
+                    borderRadius: 14,
+                    padding:      '14px 16px',
+                    marginBottom: 14,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize:      10,
+                      fontWeight:    700,
+                      color:         C.moss,
+                      letterSpacing: '0.9px',
+                      textTransform: 'uppercase',
+                      margin:        '0 0 8px',
+                    }}
+                  >
+                    Open plan
+                  </p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: C.white, margin: '0 0 4px', lineHeight: 1.4 }}>
+                    {[openPlan.vibe, DATE_LABELS[openPlan.date], TIME_LABELS[openPlan.time_slot]].filter(Boolean).join(' · ')}
+                  </p>
+                  {openPlan.place && (
+                    <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>
+                      📍 {openPlan.place}
+                    </p>
+                  )}
+                  {openPlan.message && (
+                    <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '8px 0 0', lineHeight: 1.5 }}>
+                      "{openPlan.message}"
+                    </p>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', margin: '0 0 12px', lineHeight: 1.6 }}>
+                  They already posted a plan. Request to join instead of sending a new hangout request.
+                </p>
+                {/* Request as selector — only when user has multiple eligible duos */}
+                {eligibleRequesters.length > 1 && joinState !== 'sent' && joinState !== 'duplicate' && (
+                  <div style={{ marginBottom: 12 }}>
+                    <p
+                      style={{
+                        fontSize:      10,
+                        fontWeight:    700,
+                        letterSpacing: '1px',
+                        textTransform: 'uppercase',
+                        color:         C.muted,
+                        margin:        '0 0 8px',
+                      }}
+                    >
+                      Request as
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {eligibleRequesters.map((d) => (
+                        <motion.button
+                          key={d.id}
+                          type="button"
+                          onClick={() => setSelectedRequesterDuoId(d.id)}
+                          whileTap={{ scale: 0.93 }}
+                          transition={{ duration: 0.1 }}
+                          style={{
+                            background:   requesterDuoId === d.id ? C.gradientCTA : C.cardElevated,
+                            border:       '0.5px solid ' + (requesterDuoId === d.id ? 'transparent' : C.border),
+                            borderRadius: 9999,
+                            padding:      '8px 14px',
+                            fontSize:     13,
+                            fontWeight:   600,
+                            color:        requesterDuoId === d.id ? C.cream : C.muted,
+                            cursor:       'pointer',
+                          }}
+                        >
+                          {d.name}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {joinState === 'sent' ? (
+                  <div
+                    style={{
+                      background:   C.greenT08,
+                      border:       '0.5px solid rgba(79,119,45,0.2)',
+                      borderRadius: 14,
+                      padding:      '14px 16px',
+                      textAlign:    'center',
+                    }}
+                  >
+                    <p style={{ fontSize: 14, fontWeight: 700, color: C.success, margin: 0 }}>
+                      Request sent.
+                    </p>
+                  </div>
+                ) : joinState === 'duplicate' ? (
+                  <div
+                    style={{
+                      background:   C.cardElevated,
+                      border:       `0.5px solid ${C.border}`,
+                      borderRadius: 14,
+                      padding:      '14px 16px',
+                      textAlign:    'center',
+                    }}
+                  >
+                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                      You already requested to join this plan.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {eligibleRequesters.length === 0 ? (
+                      <>
+                        <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', margin: '0 0 10px' }}>
+                          You need a duo before making plans.
+                        </p>
+                        <PremiumButton fullWidth variant="ghost" onClick={() => go('find_homie')}>
+                          Find a homie
+                        </PremiumButton>
+                      </>
+                    ) : (
+                      <PremiumButton
+                        fullWidth
+                        disabled={joinState === 'loading' || !requesterDuoId}
+                        onClick={handleJoinRequest}
+                      >
+                        {joinState === 'loading' ? 'Sending…' : 'Request to join plan →'}
+                      </PremiumButton>
+                    )}
+                    {joinState === 'error' && joinError && (
+                      <p style={{ fontSize: 13, color: C.danger, textAlign: 'center', marginTop: 10 }}>
+                        {joinError}
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <PremiumButton fullWidth onClick={() => go('propose_hangout', duo)}>
+                Send hangout request →
+              </PremiumButton>
+            )}
           </motion.div>
         )}
       </motion.div>

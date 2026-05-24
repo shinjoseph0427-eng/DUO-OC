@@ -106,8 +106,8 @@ export default function CounterHangout({ currentUser, hangout, go, goBack }) {
         {/* Counter banner */}
         <div
           style={{
-            background:   'rgba(255,255,255,0.04)',
-            border:       '0.5px solid rgba(255,255,255,0.1)',
+            background:   C.cardElevated,
+            border:       `0.5px solid ${C.border}`,
             borderRadius: 12,
             padding:      '12px 14px',
             marginBottom: 20,
@@ -136,8 +136,8 @@ export default function CounterHangout({ currentUser, hangout, go, goBack }) {
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   date === d.value ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.04)',
-                border:       '0.5px solid ' + (date === d.value ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.08)'),
+                background:   date === d.value ? 'rgba(255,107,0,0.12)' : C.cardElevated,
+                border:       '0.5px solid ' + (date === d.value ? 'rgba(255,107,0,0.45)' : C.border),
                 borderRadius: 12,
                 padding:      '12px 8px',
                 textAlign:    'center',
@@ -170,8 +170,8 @@ export default function CounterHangout({ currentUser, hangout, go, goBack }) {
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   timeSlot === t.value ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.04)',
-                border:       '0.5px solid ' + (timeSlot === t.value ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.08)'),
+                background:   timeSlot === t.value ? 'rgba(255,107,0,0.12)' : C.cardElevated,
+                border:       '0.5px solid ' + (timeSlot === t.value ? 'rgba(255,107,0,0.45)' : C.border),
                 borderRadius: 12,
                 padding:      '14px 12px',
                 textAlign:    'left',
@@ -200,13 +200,13 @@ export default function CounterHangout({ currentUser, hangout, go, goBack }) {
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   place === p ? C.gradientCTA : 'rgba(255,255,255,0.04)',
-                border:       '0.5px solid ' + (place === p ? 'transparent' : 'rgba(255,255,255,0.08)'),
+                background:   place === p ? C.gradientCTA : C.cardElevated,
+                border:       '0.5px solid ' + (place === p ? 'transparent' : C.border),
                 borderRadius: 9999,
                 padding:      '8px 16px',
                 fontSize:     13,
                 fontWeight:   500,
-                color:        place === p ? '#0A0A0F' : C.muted,
+                color:        place === p ? C.cream : C.muted,
                 cursor:       'pointer',
                 flexShrink:   0,
                 whiteSpace:   'nowrap',

@@ -38,8 +38,8 @@ function InfoPill({ icon: Icon, children }) {
         display:      'inline-flex',
         alignItems:   'center',
         gap:          5,
-        background:   'rgba(255,255,255,0.06)',
-        border:       '0.5px solid rgba(255,255,255,0.1)',
+        background:   'rgba(17,17,17,0.05)',
+        border:       `0.5px solid ${C.border}`,
         borderRadius: 9999,
         padding:      '5px 12px',
         fontSize:     13,
@@ -184,7 +184,7 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
               cursor:         'pointer',
             }}
           >
-            <Pencil size={15} color="#fff" strokeWidth={2} />
+            <Pencil size={15} color={C.cream} strokeWidth={2} />
           </motion.button>
           <motion.button
             type="button"
@@ -205,13 +205,13 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
               cursor:         'pointer',
             }}
           >
-            <LogOut size={15} color="#fff" strokeWidth={2} />
+            <LogOut size={15} color={C.cream} strokeWidth={2} />
           </motion.button>
         </div>
 
         {/* Name + age overlay */}
         <div style={{ position: 'absolute', bottom: 20, left: 20 }}>
-          <p style={{ ...F.h1, color: '#fff', margin: '0 0 2px', textShadow: '0 1px 8px rgba(0,0,0,0.5)' }}>
+          <p style={{ ...F.h1, color: C.cream, margin: '0 0 2px', textShadow: '0 1px 8px rgba(0,0,0,0.5)' }}>
             {profile?.name ?? '—'}
             {age ? <span style={{ fontWeight: 400, fontSize: 22, marginLeft: 8 }}>{age}</span> : null}
           </p>
@@ -299,7 +299,7 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
         <p style={SECTION_LABEL}>Matches</p>
         {matches.length === 0 ? (
           <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>
-            No confirmed hangouts yet. Start browsing duos!
+            Nothing locked in yet.
           </p>
         ) : (
           matches.map((h) => {
@@ -311,9 +311,9 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
               <div
                 key={h.id}
                 style={{
-                  background:      'linear-gradient(145deg, #1C1C22, #151519)',
+                  background:      C.gradientCafe,
                   borderLeft:      `3px solid ${C.success}`,
-                  border:          '0.5px solid rgba(255,255,255,0.06)',
+                  border:          `0.5px solid ${C.border}`,
                   borderLeftWidth: 3,
                   borderLeftColor: C.success,
                   borderRadius:    16,
@@ -324,7 +324,7 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
                 <span
                   style={{
                     display:      'inline-block',
-                    background:   'rgba(16,185,129,0.12)',
+                    background:   C.greenT12,
                     color:        C.success,
                     borderRadius: 9999,
                     padding:      '4px 12px',
@@ -342,7 +342,7 @@ export default function MePage({ go, currentUser, myDuo: myDuoProp }) {
                   {[h.vibe, dateLabel, timeLabel].filter(Boolean).join(' · ')}
                 </p>
                 {members.length > 0 && (
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14 }}>
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 10 }}>
                       Connect on Instagram
                     </p>

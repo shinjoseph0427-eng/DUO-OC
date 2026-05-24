@@ -1,559 +1,505 @@
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { X, Users, Heart, Inbox } from 'lucide-react';
-import { C, AVATAR_GRADIENTS } from '../tokens';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Calendar, Compass, MessageCircle, Plus, Users } from 'lucide-react';
+import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
-import SkeletonCard from '../components/SkeletonCard.jsx';
-import EmptyState from '../components/EmptyState.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
-import { getDiscoveryDuos } from '../lib/duos.js';
-import { recordSwipe, getSwipedDuoIds } from '../lib/swipes.js';
-import { getBlockedDuoIds } from '../lib/safety.js';
 import { getMyHomieRequests } from '../lib/homie.js';
+import {
+  getIncomingPlanRequests,
+  getMyActivePlan,
+  getMyHangouts,
+  getOpenPlans,
+  isPastHangoutTime,
+} from '../lib/hangouts.js';
+import { getConfirmedChatCount } from '../lib/messages.js';
+import { isDuoRestricted } from '../lib/safety.js';
 
-const PORTRAIT_H = 210;
-const AVATAR_GRADS = ['#1a1a2e', '#16213e', '#0f3460', '#533483'];
+const DATE_LABELS = {
+  today:     'Today',
+  tomorrow:  'Tomorrow',
+  friday:    'This Friday',
+  saturday:  'Saturday',
+  sunday:    'This Sunday',
+  next_week: 'Next week',
+};
 
-// ─── helpers ───────────────────────────────────────────────────────────────
+const TIME_LABELS = {
+  morning:   'Morning',
+  afternoon: 'Afternoon',
+  evening:   'Evening',
+  night:     'Night',
+};
 
-function normalizeDuo(d) {
-  const members = (d.duo_members ?? []).map((m) => ({
-    name:   m.profiles?.name ?? 'Member',
-    age:    '',
-    city:   d.city ?? '',
-    photos: [
-      ...(m.profiles?.photos ?? []),
-      ...(m.profiles?.avatar_url ? [m.profiles.avatar_url] : []),
-    ],
-  }));
-  return {
-    id:          d.id,
-    name:        d.name,
-    vibes:       Array.isArray(d.vibes) ? d.vibes : [],
-    spots:       Array.isArray(d.spots) ? d.spots : [],
-    lookingFor:  d.looking_for ?? '',
-    cities:      d.city ?? '',
-    ages:        '',
-    members:     members.length > 0 ? members : [{ name: d.name, age: '', city: '', photos: [] }],
-    cardBg:      null,
-    duo_members: d.duo_members,
-  };
+function formatPlanMeta(item) {
+  if (!item) return '';
+  return [
+    item.vibe,
+    DATE_LABELS[item.date] ?? item.date,
+    TIME_LABELS[item.time_slot] ?? item.time_slot,
+    item.place,
+  ].filter(Boolean).join(' · ');
 }
 
-// ─── MemberCell ───────────────────────────────────────────────────────────
+function pickOtherDuo(hangout, myDuoIds) {
+  if (!hangout) return null;
+  return myDuoIds.includes(hangout.duo_a_id) ? hangout.duo_b : hangout.duo_a;
+}
 
-function MemberCell({ member, index, borderRight }) {
-  const [photoIdx, setPhotoIdx] = useState(0);
-  const photos = member.photos ?? [];
-
+function GlassCard({ children, glow = 'rgba(255,107,0,0.15)', style = {}, onClick }) {
+  const Component = onClick ? motion.button : motion.div;
   return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-        if (photos.length > 1) setPhotoIdx((i) => (i + 1) % photos.length);
-      }}
+    <Component
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      transition={{ duration: 0.12 }}
       style={{
-        flex:        1,
-        position:    'relative',
-        overflow:    'hidden',
-        borderRight: borderRight ? '0.5px solid rgba(0,0,0,0.35)' : 'none',
-        cursor:      photos.length > 1 ? 'pointer' : 'default',
+        width:        '100%',
+        position:     'relative',
+        overflow:     'hidden',
+        borderRadius: 22,
+        border:       `0.5px solid ${C.border}`,
+        background:   C.gradientCafe,
+        boxShadow:    `0 1px 4px rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.07), 0 0 28px ${glow}`,
+        color:        C.white,
+        textAlign:    'left',
+        cursor:       onClick ? 'pointer' : 'default',
+        ...style,
       }}
     >
-      {photos.length > 0 ? (
-        <img
-          src={photos[photoIdx]}
-          alt={member.name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          draggable={false}
-        />
-      ) : (
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {children}
+      </div>
+    </Component>
+  );
+}
+
+function StatPill({ value, label }) {
+  return (
+    <div
+      style={{
+        minWidth:     0,
+        flex:         1,
+        borderRadius: 16,
+        border:       `0.5px solid ${C.brownBorder}`,
+        background:   C.amberT08,
+        padding:      '12px 10px',
+      }}
+    >
+      <p style={{ fontSize: 20, fontWeight: 950, color: C.white, margin: '0 0 4px', lineHeight: 1 }}>
+        {value}
+      </p>
+      <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, margin: 0, lineHeight: 1.25 }}>
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function ActionButton({ children, onClick, variant = 'primary', Icon }) {
+  const primary = variant === 'primary';
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileTap={{ scale: 0.97 }}
+      transition={{ duration: 0.1 }}
+      style={{
+        height:       46,
+        borderRadius: 15,
+        border:       primary ? 'none' : `0.5px solid ${C.border}`,
+        background:   primary ? C.gradientCTA : 'rgba(17,17,17,0.05)',
+        color:        primary ? C.cream : C.brown,
+        fontSize:     14,
+        fontWeight:   850,
+        cursor:       'pointer',
+        display:      'inline-flex',
+        alignItems:   'center',
+        justifyContent: 'center',
+        gap:          8,
+        padding:      '0 14px',
+        boxShadow:    primary ? '0 12px 26px rgba(255,107,0,0.22)' : '0 8px 18px rgba(17,17,17,0.06)',
+      }}
+    >
+      {Icon && <Icon size={16} strokeWidth={2.3} />}
+      {children}
+    </motion.button>
+  );
+}
+
+function SectionTitle({ children, action, onAction }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '22px 2px 10px' }}>
+      <p style={{ fontSize: 11, fontWeight: 850, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', margin: 0 }}>
+        {children}
+      </p>
+      {action && (
+        <button
+          type="button"
+          onClick={onAction}
+          style={{ background: 'none', border: 'none', color: C.brown, fontSize: 12, fontWeight: 800, cursor: 'pointer', padding: 0, fontFamily: "'Archivo', 'Inter', system-ui, sans-serif", letterSpacing: '0.2px' }}
+        >
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DuoMiniCard({ duo, plan, restricted }) {
+  return (
+    <div
+      style={{
+        borderRadius: 16,
+        border:       `0.5px solid ${C.border}`,
+        background:   C.bg2,
+        padding:      13,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div
           style={{
-            width: '100%', height: '100%',
-            background: AVATAR_GRADS[index % AVATAR_GRADS.length],
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 38,
+            height: 38,
+            borderRadius: 13,
+            background: restricted ? 'rgba(17,17,17,0.06)' : C.amberT08,
+            border: `0.5px solid ${restricted ? C.border : C.brownBorder}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 60, fontWeight: 800, color: 'rgba(255,255,255,0.18)', userSelect: 'none', lineHeight: 1 }}>
-            {(member.name || '?')[0].toUpperCase()}
-          </span>
+          <Users size={18} color={restricted ? C.muted : C.amber} strokeWidth={2.2} />
         </div>
-      )}
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.65) 100%)', pointerEvents: 'none' }} />
-      <span style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)', zIndex: 1, pointerEvents: 'none' }}>
-        {member.name}
-      </span>
-      {photos.length > 1 && (
-        <div style={{ position: 'absolute', top: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4, zIndex: 2, pointerEvents: 'none' }}>
-          {photos.map((_, di) => (
-            <div key={di} style={{ width: di === photoIdx ? 14 : 5, height: 3, borderRadius: 9999, background: di === photoIdx ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'width 0.2s ease' }} />
-          ))}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p style={{ fontSize: 14, fontWeight: 850, color: C.white, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {duo.name ?? 'Your Duo'}
+          </p>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {restricted ? 'Not available right now' : plan ? 'Open plan live' : duo.city ?? 'Ready when you are'}
+          </p>
         </div>
-      )}
-    </div>
-  );
-}
-
-// ─── DeckCard ─────────────────────────────────────────────────────────────
-
-function DeckCard({ duo }) {
-  const tags    = duo.vibes.slice(0, 2);
-  const members = duo.members?.slice(0, 2) ?? [];
-
-  return (
-    <div style={{ background: C.cardElevated, border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 16px 52px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07)', userSelect: 'none' }}>
-      <div style={{ height: 3, background: C.gradientCTA }} />
-      <div style={{ display: 'flex', height: PORTRAIT_H }}>
-        {members.length > 0 ? members.map((m, i) => (
-          <MemberCell key={i} member={m} index={i} borderRight={i === 0} />
-        )) : (
-          <div style={{ flex: 1, background: C.cardDeep, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 36, fontWeight: 800, color: 'rgba(255,255,255,0.12)' }}>DUO</span>
-          </div>
-        )}
-      </div>
-      <div style={{ padding: '14px 16px 18px' }}>
-        <p style={{ fontSize: 20, fontWeight: 900, color: C.white, marginBottom: 3, letterSpacing: '-0.4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {duo.name}
-        </p>
-        <p style={{ fontSize: 11, fontWeight: 400, color: C.muted, marginBottom: tags.length > 0 ? 12 : 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {[duo.ages, duo.cities].filter(Boolean).join(' · ')}
-        </p>
-        {tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {tags.map((tag) => (
-              <span key={tag} style={{ background: 'rgba(245,158,11,0.1)', color: C.amber, borderRadius: 9999, padding: '4px 10px', fontSize: 12, fontWeight: 600 }}>
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        <span
+          style={{
+            borderRadius: 9999,
+            padding: '4px 9px',
+            fontSize: 11,
+            fontWeight: 800,
+            color: plan ? C.success : C.muted,
+            background: plan ? 'rgba(79,119,45,0.13)' : 'rgba(17,17,17,0.05)',
+          }}
+        >
+          {plan ? 'Open' : 'Ready'}
+        </span>
       </div>
     </div>
   );
 }
 
-// ─── PeekSliver ───────────────────────────────────────────────────────────
-
-function PeekSliver({ duo }) {
-  if (!duo) return null;
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: 'absolute', top: '100%', left: 14, right: 14, height: 28,
-        marginTop: -5, borderRadius: '0 0 16px 16px',
-        background: 'linear-gradient(to bottom, rgba(30,30,40,0.85), rgba(20,20,30,0.4))',
-        border: '0.5px solid rgba(255,255,255,0.05)', borderTop: 'none', zIndex: -1,
-      }}
-    />
+export default function HomePage({ go, onLogout, currentUser, profile, myDuo, myDuos = [] }) {
+  const ownedDuos = useMemo(
+    () => (myDuos.length > 0 ? myDuos : (myDuo ? [myDuo] : [])).filter(Boolean).slice(0, 3),
+    [myDuo, myDuos],
   );
-}
+  const duoIds = useMemo(() => ownedDuos.map((duo) => duo.id).filter(Boolean), [ownedDuos]);
 
-// ─── DeckActions ──────────────────────────────────────────────────────────
-
-function DeckActions({ onPass, onView, onRequest }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, marginTop: 36 }}>
-      <motion.button type="button" onClick={onPass} whileTap={{ scale: 0.92 }} transition={{ duration: 0.1 }}
-        aria-label="Pass" style={{ flexShrink: 0, width: 52, height: 52, borderRadius: 14, border: '0.5px solid rgba(255,255,255,0.1)', background: 'transparent', color: C.muted, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-        <X size={16} strokeWidth={2.2} />
-        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.3px' }}>PASS</span>
-      </motion.button>
-      <motion.button type="button" onClick={onView} whileTap={{ scale: 0.97 }} transition={{ duration: 0.1 }}
-        style={{ flex: 1, height: 52, borderRadius: 14, border: '0.5px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: C.white, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-        View Duo
-      </motion.button>
-      <motion.button type="button" onClick={onRequest} whileTap={{ scale: 0.97 }} transition={{ duration: 0.1 }}
-        style={{ flex: 1.3, height: 52, borderRadius: 14, border: 'none', background: C.gradientCTA, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(245,158,11,0.25)' }}>
-        Plan 2v2
-      </motion.button>
-    </div>
-  );
-}
-
-// ─── MatchModal ───────────────────────────────────────────────────────────
-
-function AvatarCluster({ members, offset }) {
-  return (
-    <div style={{ display: 'flex', gap: -8, position: 'relative' }}>
-      {members.slice(0, 2).map((m, i) => {
-        const photo = m.photos?.[0] ?? m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null;
-        return (
-          <motion.div
-            key={i}
-            initial={{ scale: 0, x: offset * (i === 0 ? -1 : 1) * 20 }}
-            animate={{ scale: 1, x: 0 }}
-            transition={{ delay: 0.15 + i * 0.1, type: 'spring', stiffness: 380, damping: 22 }}
-            style={{
-              width:         52,
-              height:        52,
-              borderRadius:  '50%',
-              overflow:      'hidden',
-              border:        '2.5px solid #0A0A0F',
-              marginLeft:    i === 0 ? 0 : -12,
-              background:    AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length],
-              flexShrink:    0,
-              display:       'flex',
-              alignItems:    'center',
-              justifyContent:'center',
-            }}
-          >
-            {photo ? (
-              <img src={photo} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <span style={{ fontSize: 20, fontWeight: 800, color: 'rgba(255,255,255,0.6)' }}>
-                {(m.name || '?')[0].toUpperCase()}
-              </span>
-            )}
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-}
-
-function MatchModal({ myDuo, matchedDuo, onPropose, onClose }) {
-  const myMembers      = myDuo?.members      ?? myDuo?.duo_members      ?? [];
-  const matchedMembers = matchedDuo?.members ?? matchedDuo?.duo_members ?? [];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position:       'fixed',
-        inset:          0,
-        zIndex:         1000,
-        background:     'rgba(0,0,0,0.88)',
-        display:        'flex',
-        flexDirection:  'column',
-        alignItems:     'center',
-        justifyContent: 'center',
-        padding:        32,
-        backdropFilter: 'blur(12px)',
-      }}
-    >
-      {/* Glow */}
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, rgba(245,158,11,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
-
-      <motion.div
-        initial={{ scale: 0.85, y: 20, opacity: 0 }}
-        animate={{ scale: 1,    y: 0,  opacity: 1 }}
-        transition={{ delay: 0.05, type: 'spring', stiffness: 320, damping: 26 }}
-        style={{ position: 'relative', width: '100%', maxWidth: 340, textAlign: 'center' }}
-      >
-        {/* Avatar row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 28 }}>
-          <AvatarCluster members={myMembers} offset={-1} />
-
-          {/* Heart */}
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: [0, 1.4, 1] }}
-            transition={{ delay: 0.4, duration: 0.5, times: [0, 0.6, 1] }}
-          >
-            <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #F59E0B, #F472B6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(245,158,11,0.5)' }}>
-              <Heart size={20} fill="#fff" color="#fff" />
-            </div>
-          </motion.div>
-
-          <AvatarCluster members={matchedMembers} offset={1} />
-        </div>
-
-        {/* Text */}
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55 }}
-          style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: '-1px', margin: '0 0 8px', lineHeight: 1.1 }}
-        >
-          It's a Match!
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.65 }}
-          style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', margin: '0 0 36px', lineHeight: 1.5 }}
-        >
-          You and <strong style={{ color: '#fff' }}>{matchedDuo?.name ?? 'this duo'}</strong> both liked each other.
-        </motion.p>
-
-        {/* Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.75 }}
-          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-        >
-          <motion.button
-            type="button"
-            onClick={onPropose}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.1 }}
-            style={{ width: '100%', height: 52, borderRadius: 16, border: 'none', background: C.gradientCTA, color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 20px rgba(245,158,11,0.35)' }}
-          >
-            Propose Hangout →
-          </motion.button>
-          <motion.button
-            type="button"
-            onClick={onClose}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.1 }}
-            style={{ width: '100%', height: 44, borderRadius: 14, border: '0.5px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.55)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-          >
-            Keep Swiping
-          </motion.button>
-        </motion.div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ─── HomePage ─────────────────────────────────────────────────────────────
-
-export default function HomePage({ go, onLogout, currentUser, myDuo }) {
-  const [deckDuos,     setDeckDuos]     = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading,      setLoading]      = useState(true);
-  const [homieRequestCount, setHomieRequestCount] = useState(0);
-  const [homieRequestsLoading, setHomieRequestsLoading] = useState(false);
-  const [direction,    setDirection]    = useState(0);
-  const [swiping,      setSwiping]      = useState(false);
-  const [matchState,   setMatchState]   = useState(null); // { matchedDuo }
-
-  const x       = useMotionValue(0);
-  const rotate  = useTransform(x, [-200, 200], [-20, 20]);
-  const passOpa = useTransform(x, [-120, -20], [1, 0]);
-  const likeOpa = useTransform(x, [20,  120],  [0, 1]);
-
-  useEffect(() => {
-    if (!currentUser) { setLoading(false); return; }
-
-    const fetchDeck = async () => {
-      try {
-        const [rawDuos, swipedIds, blockedIds] = await Promise.all([
-          getDiscoveryDuos(currentUser.id),
-          myDuo?.id ? getSwipedDuoIds(myDuo.id)   : Promise.resolve([]),
-          myDuo?.id ? getBlockedDuoIds(myDuo.id)  : Promise.resolve([]),
-        ]);
-        const excludeSet = new Set([...swipedIds, ...blockedIds]);
-        const filtered   = (rawDuos ?? [])
-          .filter((d) => !excludeSet.has(d.id))
-          .map(normalizeDuo);
-        setDeckDuos(filtered);
-      } catch (err) {
-        console.error('fetchDeck error:', err)
-      }
-      setLoading(false);
-    };
-
-    fetchDeck();
-  }, [currentUser, myDuo?.id]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [hangouts, setHangouts] = useState([]);
+  const [planItems, setPlanItems] = useState([]);
+  const [homieRequests, setHomieRequests] = useState([]);
+  const [openPlans, setOpenPlans] = useState([]);
+  const [chatCount, setChatCount] = useState(0);
+  const [restrictedMap, setRestrictedMap] = useState(new Map());
 
   useEffect(() => {
     let cancelled = false;
     if (!currentUser?.id) {
-      setHomieRequestCount(0);
-      setHomieRequestsLoading(false);
+      setLoading(false);
       return () => { cancelled = true; };
     }
 
-    setHomieRequestsLoading(true);
-    getMyHomieRequests(currentUser.id)
-      .then((requests) => {
+    setLoading(true);
+    setError('');
+
+    const planFetch = duoIds.length > 0
+      ? Promise.all(
+          ownedDuos.map((duo) =>
+            Promise.all([
+              getMyActivePlan(duo.id).catch(() => null),
+              getIncomingPlanRequests(duo.id).catch(() => []),
+              isDuoRestricted(duo.id).catch(() => false),
+            ]).then(([plan, requests, restricted]) => ({ duo, plan, requests, restricted })),
+          ),
+        )
+      : Promise.resolve([]);
+
+    Promise.all([
+      duoIds.length > 0 ? getMyHangouts(duoIds).catch(() => []) : Promise.resolve([]),
+      planFetch,
+      getMyHomieRequests(currentUser.id).catch(() => []),
+      getOpenPlans().catch(() => []),
+      getConfirmedChatCount(currentUser.id).catch(() => 0),
+    ])
+      .then(([nextHangouts, nextPlanItems, nextHomieRequests, nextOpenPlans, nextChatCount]) => {
         if (cancelled) return;
-        setHomieRequestCount(requests.length);
+        setHangouts(nextHangouts ?? []);
+        setPlanItems(nextPlanItems ?? []);
+        setHomieRequests(nextHomieRequests ?? []);
+        setOpenPlans(nextOpenPlans ?? []);
+        setChatCount(nextChatCount ?? 0);
+        setRestrictedMap(new Map((nextPlanItems ?? []).map((item) => [item.duo.id, item.restricted])));
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message ?? 'Could not load Home.');
       })
       .finally(() => {
-        if (!cancelled) setHomieRequestsLoading(false);
+        if (!cancelled) setLoading(false);
       });
 
     return () => { cancelled = true; };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, duoIds.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isDeckDone  = currentIndex >= deckDuos.length;
-  const currentDuo  = isDeckDone ? null : deckDuos[currentIndex];
-  const nextDuo     = deckDuos[currentIndex + 1] ?? null;
+  const myDuoIds = new Set(duoIds);
+  const activeHangouts = hangouts.filter((h) => !isPastHangoutTime(h.date, h.time_slot, h.created_at));
+  const confirmed = activeHangouts.filter((h) => h.status === 'confirmed');
+  const incoming = activeHangouts.filter((h) => h.status === 'pending' && myDuoIds.has(h.duo_b_id));
+  const outgoing = activeHangouts.filter((h) => h.status === 'pending' && myDuoIds.has(h.duo_a_id));
+  const countered = activeHangouts.filter((h) => h.status === 'countered');
+  const activeOwnPlans = planItems.filter((item) => item.plan);
+  const planRequestCount = planItems.reduce((sum, item) => sum + (item.requests?.length ?? 0), 0);
+  const pendingRequestCount = incoming.length + outgoing.length + countered.length + planRequestCount;
+  const availableOpenPlans = openPlans.filter((plan) => !myDuoIds.has(plan.creator_duo_id));
+  const canCreatePlan = ownedDuos.some((duo) => (duo.status ?? 'active') === 'active' && !restrictedMap.get(duo.id));
 
-  const advance = useCallback((dir) => {
-    setDirection(dir);
-    setCurrentIndex((i) => Math.min(i + 1, deckDuos.length));
-    x.set(0);
-  }, [deckDuos.length, x]);
+  const nextConfirmed = confirmed[0] ?? null;
+  const nextIncoming = incoming[0] ?? null;
+  const nextOutgoing = outgoing[0] ?? null;
+  const nextOpenOwnPlan = activeOwnPlans[0]?.plan ?? null;
 
-  const handlePass = async () => {
-    if (!currentDuo || swiping) return;
-    if (myDuo?.id) {
-      setSwiping(true);
-      try { await recordSwipe({ fromDuoId: myDuo.id, toDuoId: currentDuo.id, direction: 'pass' }); }
-      catch (_) {}
-      setSwiping(false);
+  const primary = (() => {
+    if (ownedDuos.length === 0) {
+      return {
+        eyebrow: 'Next up',
+        title: 'Start your duo',
+        body: 'Find a homie first, then create a duo together.',
+        cta: 'Find a homie',
+        Icon: Users,
+        action: () => go('find_homie'),
+        glow: 'rgba(255,107,0,0.12)',
+      };
     }
-    advance(-1);
-  };
-
-  const handleLike = async () => {
-    if (!currentDuo || swiping) return;
-    if (myDuo?.id) {
-      setSwiping(true);
-      try {
-        const result = await recordSwipe({ fromDuoId: myDuo.id, toDuoId: currentDuo.id, direction: 'like' });
-        if (result.matched) {
-          setMatchState({ matchedDuo: { ...currentDuo, ...result.matchedDuo } });
-          setSwiping(false);
-          advance(1);
-          return;
-        }
-      } catch (_) {}
-      setSwiping(false);
+    if (homieRequests.length > 0) {
+      return {
+        eyebrow: 'Waiting',
+        title: 'Homie request waiting',
+        body: homieRequests.length === 1 ? 'Someone wants to duo up with you.' : `${homieRequests.length} homie requests are waiting.`,
+        cta: 'Review request',
+        Icon: Users,
+        action: () => go('homie_inbox'),
+        glow: 'rgba(255,107,0,0.15)',
+      };
     }
-    advance(1);
-  };
+    if (incoming.length > 0 || planRequestCount > 0) {
+      return {
+        eyebrow: 'Requests',
+        title: 'Requests waiting',
+        body: nextIncoming
+          ? `${nextIncoming.duo_a?.name ?? 'A duo'} wants to hang.`
+          : `${planRequestCount} request${planRequestCount === 1 ? '' : 's'} to join your plan.`,
+        cta: 'Review requests',
+        Icon: Calendar,
+        action: () => go('hangouts'),
+        glow: 'rgba(255,107,0,0.15)',
+      };
+    }
+    if (nextConfirmed) {
+      return {
+        eyebrow: 'Locked',
+        title: 'You have a confirmed hangout',
+        body: `${pickOtherDuo(nextConfirmed, duoIds)?.name ?? 'A duo'} · ${formatPlanMeta(nextConfirmed)}`,
+        cta: 'View hangout',
+        Icon: MessageCircle,
+        action: () => go('hangouts'),
+        glow: 'rgba(255,107,0,0.15)',
+      };
+    }
+    if (nextOpenOwnPlan) {
+      return {
+        eyebrow: 'Live',
+        title: 'Your plan is open',
+        body: formatPlanMeta(nextOpenOwnPlan) || 'Another duo can request to join.',
+        cta: 'View requests',
+        Icon: Calendar,
+        action: () => go('hangouts'),
+        glow: 'rgba(255,107,0,0.12)',
+      };
+    }
+    if (nextOutgoing) {
+      return {
+        eyebrow: 'Pending',
+        title: 'Waiting on their duo',
+        body: `${nextOutgoing.duo_b?.name ?? 'A duo'} has your hangout request.`,
+        cta: 'View hangouts',
+        Icon: Calendar,
+        action: () => go('hangouts'),
+        glow: 'rgba(255,107,0,0.10)',
+      };
+    }
+    return {
+      eyebrow: 'Open night',
+      title: 'Find a duo to meet',
+      body: 'Browse duos nearby and keep it low-pressure.',
+      cta: 'Explore duos',
+      Icon: Compass,
+      action: () => go('explore'),
+      glow: 'rgba(255,107,0,0.12)',
+    };
+  })();
 
-  const handleView    = () => currentDuo && go('duo_detail', currentDuo);
-  const handleRequest = () => currentDuo && go('propose_hangout', currentDuo);
-  const handleRestart = () => { setCurrentIndex(0); setDirection(0); };
+  const todayLine = [
+    `${confirmed.length} confirmed`,
+    `${pendingRequestCount} request${pendingRequestCount === 1 ? '' : 's'}`,
+  ].join(' · ');
+  const planLine = activeOwnPlans.length > 0
+    ? activeOwnPlans.length === 1 ? 'Your plan is open' : `${activeOwnPlans.length} plans are open`
+    : 'No plans yet';
+
+  const greetingName = profile?.name?.split(' ')?.[0] ?? null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
       <TopBar
         onLogout={onLogout}
         rightContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <NotificationBell currentUser={currentUser} go={go} />
-            <div style={{ width: 30, height: 30, borderRadius: '50%', background: C.gradientCTA, flexShrink: 0 }} />
           </div>
         }
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
-        <div style={{ padding: '24px 16px 0' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.2px', color: C.muted, textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>
-            Discover duos
-          </span>
-          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.8px', color: C.white, margin: '0 0 20px' }}>
-            Who's next.
-          </h1>
-        </div>
+      <div style={{ padding: '20px 16px 102px', overflow: 'hidden' }}>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}>
+          <GlassCard glow="rgba(255,107,0,0.15)" style={{ padding: 20, minHeight: 156 }}>
+            <span style={{
+              display: 'inline-block',
+              fontSize: 11, fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase',
+              color: C.amber, background: C.amberT08, border: `1px solid ${C.brownBorder}`,
+              borderRadius: 999, padding: '4px 10px', margin: '0 0 14px',
+            }}>
+              2v2 · No pressure
+            </span>
+            <h1 style={{ fontSize: 34, fontWeight: 950, color: C.white, letterSpacing: '-1px', lineHeight: 1.02, margin: '0 0 10px' }}>
+              Make plans feel easy.
+            </h1>
+            <p style={{ fontSize: 15, color: C.muted, margin: 0, lineHeight: 1.55 }}>
+              Find a duo, send a hangout, keep it light.
+            </p>
+          </GlassCard>
+        </motion.div>
 
-        {(homieRequestCount > 0 || homieRequestsLoading) && (
-          <div style={{ background: 'linear-gradient(145deg, rgba(245,158,11,0.11), rgba(244,114,182,0.08))', border: '1px solid rgba(245,158,11,0.22)', borderRadius: 16, padding: '14px 16px', margin: '0 16px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 12, background: 'rgba(245,158,11,0.13)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Inbox size={18} color={C.amber} strokeWidth={2.1} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 2px' }}>
-                  {homieRequestsLoading
-                    ? 'Checking Homie requests'
-                    : homieRequestCount === 1
-                      ? 'You have a new Homie request'
-                      : `You have ${homieRequestCount} Homie requests`}
-                </p>
-                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-                  Review who wants to duo up.
-                </p>
-              </div>
+        {loading ? (
+          <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
+            <div className="shimmer" style={{ height: 120, borderRadius: 22, background: C.cardElevated }} />
+            <div className="shimmer" style={{ height: 178, borderRadius: 22, background: C.cardElevated }} />
+            <div className="shimmer" style={{ height: 92, borderRadius: 18, background: C.cardElevated }} />
+          </div>
+        ) : error ? (
+          <GlassCard glow="rgba(239,68,68,0.16)" style={{ padding: 18, marginTop: 14 }}>
+            <p style={{ fontSize: 16, fontWeight: 850, color: C.white, margin: '0 0 5px' }}>Could not load Home</p>
+            <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>{error}</p>
+          </GlassCard>
+        ) : (
+          <>
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, delay: 0.04 }}>
+              <GlassCard glow="rgba(255,107,0,0.10)" style={{ padding: 16, marginTop: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 850, color: C.muted, textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 5px' }}>
+                      {pendingRequestCount > 0 ? `Hangout requests · ${pendingRequestCount}` : 'Hangout requests'}
+                    </p>
+                    <p style={{ fontSize: 18, fontWeight: 900, color: C.white, margin: '0 0 4px' }}>{todayLine}</p>
+                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{planLine}</p>
+                  </div>
+                  <div style={{ width: 42, height: 42, borderRadius: 15, background: C.amberT08, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Calendar size={19} color={C.amber} strokeWidth={2.2} />
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            <SectionTitle>Next up</SectionTitle>
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, delay: 0.08 }}>
+              <GlassCard glow={primary.glow} style={{ padding: 18 }} onClick={primary.action}>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 17, background: C.amberT08, border: `0.5px solid ${C.brownBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <primary.Icon size={22} color={C.white} strokeWidth={2.2} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontSize: 11, fontWeight: 850, color: C.amber, textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 6px' }}>{primary.eyebrow}</p>
+                    <p style={{ fontSize: 21, fontWeight: 950, color: C.white, margin: '0 0 6px', lineHeight: 1.12 }}>{primary.title}</p>
+                    <p style={{ fontSize: 14, color: C.muted, margin: '0 0 15px', lineHeight: 1.45 }}>{primary.body}</p>
+                    <ActionButton onClick={(e) => { e.stopPropagation(); primary.action(); }} Icon={primary.Icon}>
+                      {primary.cta}
+                    </ActionButton>
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            <SectionTitle>Quick moves</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: canCreatePlan ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
+              <ActionButton variant="secondary" onClick={() => go('explore')} Icon={Compass}>Explore</ActionButton>
+              {canCreatePlan && <ActionButton variant="secondary" onClick={() => go('create_plan')} Icon={Plus}>Create plan</ActionButton>}
+              <ActionButton variant="secondary" onClick={() => go('hangouts')} Icon={Calendar}>Hangouts</ActionButton>
             </div>
-            <motion.button
-              type="button"
-              onClick={() => go('homie_inbox')}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.1 }}
-              disabled={homieRequestsLoading}
-              style={{ background: C.gradientCTA, border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 800, color: '#0A0A0F', cursor: homieRequestsLoading ? 'default' : 'pointer', flexShrink: 0, opacity: homieRequestsLoading ? 0.65 : 1 }}
-            >
-              View Requests
-            </motion.button>
-          </div>
-        )}
 
-        {/* Find a Homie banner */}
-        <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 16, padding: '14px 16px', margin: '0 16px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0, marginBottom: 2 }}>Flying solo?</p>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Find a Homie to roll with</p>
-          </div>
-          <motion.button
-            type="button"
-            onClick={() => go('find_homie')}
-            whileTap={{ scale: 0.95 }} transition={{ duration: 0.1 }}
-            style={{ background: C.gradientCTA, border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 700, color: '#0A0A0F', cursor: 'pointer', flexShrink: 0 }}
-          >
-            Find someone
-          </motion.button>
-        </div>
-
-        <div style={{ padding: '0 16px' }}>
-          {loading ? (
-            <SkeletonCard />
-          ) : isDeckDone ? (
-            <EmptyState
-              icon={Users}
-              title="All caught up."
-              subtitle="You've seen all duos for now. Check back soon."
-              action={handleRestart}
-              actionLabel="Start over"
-            />
-          ) : (
-            <>
-              <div style={{ position: 'relative', paddingBottom: 36 }}>
-                <PeekSliver duo={nextDuo} />
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={currentIndex}
-                    style={{ x, rotate, position: 'relative' }}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.7}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x < -80) handlePass();
-                      else if (info.offset.x > 80) handleLike();
-                      else x.set(0);
-                    }}
-                    initial={{ scale: 0.96, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 320, damping: 30 } }}
-                    exit={{ x: direction * 320, rotate: direction * 22, opacity: 0, transition: { duration: 0.28, ease: 'easeIn' } }}
-                  >
-                    {/* PASS overlay */}
-                    <motion.div style={{ opacity: passOpa, position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: '#EF4444', border: '2px solid #EF4444', borderRadius: 6, padding: '3px 10px', display: 'block', transform: 'rotate(-12deg)' }}>PASS</span>
-                    </motion.div>
-                    {/* 2v2 overlay */}
-                    <motion.div style={{ opacity: likeOpa, position: 'absolute', top: 20, right: 20, zIndex: 10 }}>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: '#10B981', border: '2px solid #10B981', borderRadius: 6, padding: '3px 10px', display: 'block', transform: 'rotate(12deg)' }}>2v2</span>
-                    </motion.div>
-                    <DeckCard duo={currentDuo} />
-                  </motion.div>
-                </AnimatePresence>
+            <SectionTitle action="Manage duos" onAction={() => go('me')}>My duos</SectionTitle>
+            {ownedDuos.length === 0 ? (
+              <GlassCard glow="rgba(255,107,0,0.12)" style={{ padding: 16 }} onClick={() => go('find_homie')}>
+                <p style={{ fontSize: 16, fontWeight: 900, color: C.white, margin: '0 0 5px' }}>No duo yet.</p>
+                <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px', lineHeight: 1.5 }}>Find a homie first, then create a duo together.</p>
+                <ActionButton onClick={(e) => { e.stopPropagation(); go('find_homie'); }} Icon={Users}>Find a homie</ActionButton>
+              </GlassCard>
+            ) : (
+              <div style={{ display: 'grid', gap: 9 }}>
+                {ownedDuos.slice(0, 2).map((duo) => {
+                  const item = planItems.find((entry) => entry.duo.id === duo.id);
+                  return (
+                    <DuoMiniCard
+                      key={duo.id}
+                      duo={duo}
+                      plan={item?.plan ?? null}
+                      restricted={item?.restricted ?? false}
+                    />
+                  );
+                })}
               </div>
-              <DeckActions
-                onPass={handlePass}
-                onView={handleView}
-                onRequest={handleRequest}
-              />
-            </>
-          )}
-        </div>
-      </div>
+            )}
 
-      {/* Match modal */}
-      <AnimatePresence>
-        {matchState && (
-          <MatchModal
-            myDuo={myDuo}
-            matchedDuo={matchState.matchedDuo}
-            onPropose={() => {
-              setMatchState(null);
-              go('propose_hangout', matchState.matchedDuo);
-            }}
-            onClose={() => setMatchState(null)}
-          />
+            <SectionTitle action="Browse open plans" onAction={() => go('explore')}>Open plans</SectionTitle>
+            <GlassCard glow="rgba(255,107,0,0.10)" style={{ padding: 16 }} onClick={() => go('explore')}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 18, fontWeight: 950, color: C.white, margin: '0 0 5px' }}>
+                    {availableOpenPlans.length > 0 ? 'Open plans near you' : 'No open plans right now'}
+                  </p>
+                  <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.45 }}>
+                    {availableOpenPlans.length > 0
+                      ? `${availableOpenPlans.length} plan${availableOpenPlans.length === 1 ? '' : 's'} waiting for a duo.`
+                      : 'Explore duos or create a plan to get momentum started.'}
+                  </p>
+                </div>
+                <div style={{ minWidth: 48, height: 48, borderRadius: 17, background: C.amberT08, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Compass size={22} color={C.amber} strokeWidth={2.2} />
+                </div>
+              </div>
+            </GlassCard>
+          </>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

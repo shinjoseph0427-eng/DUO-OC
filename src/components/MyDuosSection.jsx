@@ -55,7 +55,7 @@ function DuoCard({ duo, go }) {
         overflow:     'hidden',
       }}
     >
-      <div style={{ height: 3, background: C.gradientCTA }} />
+      <div style={{ height: 2, background: C.gradientCTA, opacity: 0.85 }} />
       <div style={{ padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div
@@ -63,8 +63,8 @@ function DuoCard({ duo, go }) {
               width:          46,
               height:         46,
               borderRadius:   14,
-              background:     'rgba(245,158,11,0.12)',
-              border:         '0.5px solid rgba(245,158,11,0.24)',
+              background:     'rgba(255,107,0,0.10)',
+              border:         '0.5px solid rgba(255,107,0,0.15)',
               display:        'flex',
               alignItems:     'center',
               justifyContent: 'center',
@@ -84,7 +84,7 @@ function DuoCard({ duo, go }) {
         </div>
 
         {duo?.duo_bio && (
-          <p style={{ fontSize: 14, color: 'rgba(245,245,248,0.78)', lineHeight: 1.55, margin: '0 0 12px' }}>
+          <p style={{ fontSize: 14, color: C.white, lineHeight: 1.55, margin: '0 0 12px' }}>
             {duo.duo_bio}
           </p>
         )}
@@ -102,9 +102,9 @@ function DuoCard({ duo, go }) {
               <span
                 key={tag}
                 style={{
-                  background:   'rgba(245,158,11,0.1)',
+                  background:   'rgba(255,107,0,0.10)',
                   color:        C.amber,
-                  border:       '0.5px solid rgba(245,158,11,0.22)',
+                  border:       '0.5px solid rgba(255,107,0,0.15)',
                   borderRadius: 9999,
                   padding:      '4px 10px',
                   fontSize:     12,
@@ -118,7 +118,7 @@ function DuoCard({ duo, go }) {
         )}
 
         {proposalError && (
-          <p style={{ fontSize: 11, color: 'rgba(239,68,68,0.75)', margin: '0 0 10px', lineHeight: 1.4 }}>
+          <p style={{ fontSize: 11, color: 'rgba(162,59,42,0.75)', margin: '0 0 10px', lineHeight: 1.4 }}>
             {proposalError}
           </p>
         )}
@@ -134,8 +134,8 @@ function DuoCard({ duo, go }) {
           return (
             <div
               style={{
-                background:     'rgba(245,158,11,0.08)',
-                border:         '0.5px solid rgba(245,158,11,0.28)',
+                background:     'rgba(255,107,0,0.08)',
+                border:         '0.5px solid rgba(255,107,0,0.22)',
                 borderRadius:   12,
                 padding:        '11px 13px',
                 marginBottom:   10,
@@ -151,7 +151,7 @@ function DuoCard({ duo, go }) {
                   <p style={{ fontSize: 12, fontWeight: 700, color: C.amber, margin: '0 0 2px' }}>
                     {proposals.length === 1 ? 'New hangout proposal' : `${proposals.length} hangout proposals`}
                   </p>
-                  <p style={{ fontSize: 11, color: 'rgba(245,245,248,0.65)', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     From {fromName}
                   </p>
                   {metaParts.length > 0 && (
@@ -165,8 +165,8 @@ function DuoCard({ duo, go }) {
                 type="button"
                 onClick={() => go('hangouts')}
                 style={{
-                  background:   'rgba(245,158,11,0.14)',
-                  border:       '0.5px solid rgba(245,158,11,0.3)',
+                  background:   'rgba(255,107,0,0.12)',
+                  border:       '0.5px solid rgba(255,107,0,0.22)',
                   borderRadius: 8,
                   padding:      '5px 11px',
                   fontSize:     11,
@@ -250,7 +250,7 @@ export default function MyDuosSection({ currentUser, go }) {
         </p>
         <span
           style={{
-            background:   'rgba(255,255,255,0.06)',
+            background:   C.cardElevated,
             border:       `0.5px solid ${C.border}`,
             borderRadius: 9999,
             color:        C.amber,
@@ -273,10 +273,10 @@ export default function MyDuosSection({ currentUser, go }) {
             marginBottom: 12,
           }}
         >
-          <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', margin: '0 0 3px' }}>
+          <p style={{ fontSize: 14, fontWeight: 800, color: C.danger, margin: '0 0 3px' }}>
             Could not load Duos
           </p>
-          <p style={{ fontSize: 12, color: 'rgba(245,245,248,0.72)', margin: 0, lineHeight: 1.45 }}>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.45 }}>
             {error}
           </p>
         </div>
@@ -303,10 +303,10 @@ export default function MyDuosSection({ currentUser, go }) {
             You don't have a duo yet.
           </p>
           <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>
-            Find a homie and build your first 2-person team.
+            Find a homie first, then create a duo together.
           </p>
           <PremiumButton fullWidth onClick={() => go('find_homie')}>
-            Find Homie
+            Find a homie
           </PremiumButton>
         </div>
       ) : (
@@ -319,7 +319,7 @@ export default function MyDuosSection({ currentUser, go }) {
           <div style={{ marginTop: 12 }}>
             {duos.length < 3 ? (
               <PremiumButton fullWidth variant="ghost" onClick={() => go('find_homie')}>
-                Find another Homie
+                Create another duo
               </PremiumButton>
             ) : (
               <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', lineHeight: 1.5, margin: 0 }}>

@@ -20,13 +20,13 @@ export default function DuoBoxCard({ duo, size = 'regular', onPress }) {
       tabIndex={0}
       onClick={() => onPress?.(duo)}
       onKeyDown={(e) => e.key === 'Enter' && onPress?.(duo)}
-      whileHover={{ y: -2, boxShadow: '0 12px 32px rgba(0,0,0,0.5)' }}
+      whileHover={{ y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}
       whileTap={{ scale: 0.975 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
       className="card-glow"
       style={{
         background:   C.cardElevated,
-        border:       '0.5px solid rgba(255,255,255,0.08)',
+        border:       `0.5px solid ${C.border}`,
         borderRadius: 20,
         overflow:     'hidden',
         cursor:       'pointer',

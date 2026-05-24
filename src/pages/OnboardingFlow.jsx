@@ -297,7 +297,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
 
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
             <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px' }}>
-              <span className="gradient-text">duo oc.</span>
+              <span className="gradient-text">DUO OC</span>
             </span>
           </div>
 
@@ -400,7 +400,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                 Got a friend?
               </h1>
               <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 24px' }}>
-                duo oc. is built around pairs. You and a friend make a team, then you meet another team for a 2v2 hangout.
+                DUO OC is built around pairs. You and a friend make a team, then you meet another team for a 2v2 hangout.
               </p>
 
               {/* Explainer box */}
@@ -539,7 +539,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   boxShadow:      '0 8px 32px rgba(245,158,11,0.32)',
                 }}
               >
-                <Check size={34} color="#fff" strokeWidth={2.5} />
+                <Check size={34} color={C.cream} strokeWidth={2.5} />
               </div>
 
               <h1

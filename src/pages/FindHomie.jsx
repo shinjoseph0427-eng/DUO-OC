@@ -83,10 +83,10 @@ export default function FindHomie({ currentUser, go }) {
           }}
         >
           <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 6px' }}>
-            Find your Homie
+            Find a homie to create a duo
           </p>
           <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-            No duo? No problem. Find someone with the same vibe to roll with.
+            A duo starts with two people. Find a homie, then set up your duo profile together.
           </p>
         </div>
 

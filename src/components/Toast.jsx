@@ -3,9 +3,9 @@ import { Check, X, Info } from 'lucide-react';
 import { C } from '../tokens';
 
 const STYLES = {
-  success: { bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.25)', icon: Check, color: '#10B981' },
+  success: { bg: 'rgba(79,119,45,0.12)',  border: 'rgba(79,119,45,0.25)', icon: Check, color: C.moss },
   error:   { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)',  icon: X,     color: '#EF4444' },
-  info:    { bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)', icon: Info,  color: C.muted  },
+  info:    { bg: C.cardElevated,           border: C.border,                icon: Info,  color: C.muted  },
 };
 
 export default function Toast({ message, type = 'info', visible }) {
@@ -32,6 +32,7 @@ export default function Toast({ message, type = 'info', visible }) {
             display:      'flex',
             alignItems:   'center',
             gap:          10,
+            boxShadow:    C.shadow,
           }}
         >
           <Icon size={16} color={s.color} strokeWidth={2} />

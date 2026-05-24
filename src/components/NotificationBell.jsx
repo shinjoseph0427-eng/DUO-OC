@@ -10,12 +10,16 @@ import {
 } from '../lib/notifications.js';
 
 const TYPE_META = {
-  match:             { emoji: '🎉', label: (p) => `${p.matched_duo_name}과 매칭됐어요!`,      page: 'hangouts' },
-  hangout_request:   { emoji: '📅', label: (p) => `${p.duo_name}이 행아웃을 제안했어요`,     page: 'hangouts' },
-  hangout_accepted:  { emoji: '✅', label: (p) => `${p.duo_name}이 수락했어요`,               page: 'hangouts' },
-  hangout_declined:  { emoji: '❌', label: (p) => `${p.duo_name}이 거절했어요`,               page: 'hangouts' },
-  homie_request:     { label: (p) => 'Someone wants to be your homie',                        page: 'find_homie' },
+  match:             { label: (p) => `${p.matched_duo_name ?? 'A duo'} matched with you.`, page: 'hangouts' },
+  hangout_request:   { label: (p) => `${p.duo_name ?? 'A duo'} sent a hangout request.`, page: 'hangouts' },
+  hangout_accepted:  { label: (p) => `${p.duo_name ?? 'A duo'} accepted your hangout request.`, page: 'hangouts' },
+  hangout_declined:  { label: (p) => `${p.duo_name ?? 'A duo'} declined your hangout request.`, page: 'hangouts' },
+  homie_request:     { label: () => 'Someone wants to be your homie.', page: 'find_homie' },
   homie_accepted:    { label: (p) => `${p.accepted_by_name ?? 'Your homie'} accepted. You are now a duo.`, page: 'edit_duo_profile' },
+  plan_request:      { label: (p) => `${p.duo_name ?? 'A duo'} sent a request to join your open plan.`, page: 'hangouts' },
+  plan_accepted:     { label: (p) => `${p.duo_name ?? 'A duo'} accepted your request to join their open plan.`, page: 'hangouts' },
+  plan_declined:     { label: () => 'Your request to join an open plan was declined.', page: 'hangouts' },
+  plan_cancelled:    { label: () => 'An open plan you requested to join was cancelled.', page: 'hangouts' },
 };
 
 function timeAgo(isoString) {
@@ -93,8 +97,8 @@ export default function NotificationBell({ currentUser, go }) {
           width:          34,
           height:         34,
           borderRadius:   10,
-          background:     open ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.06)',
-          border:         `0.5px solid ${open ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)'}`,
+          background:     open ? 'rgba(255,107,0,0.10)' : C.cardElevated,
+          border:         `0.5px solid ${open ? 'rgba(255,107,0,0.22)' : C.border}`,
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'center',
@@ -112,7 +116,7 @@ export default function NotificationBell({ currentUser, go }) {
               minWidth:     16,
               height:       16,
               borderRadius: 9999,
-              background:   '#EF4444',
+              background:   C.danger,
               display:      'flex',
               alignItems:   'center',
               justifyContent: 'center',
@@ -120,7 +124,7 @@ export default function NotificationBell({ currentUser, go }) {
               fontWeight:   800,
               color:        '#fff',
               padding:      '0 3px',
-              border:       '1.5px solid #0A0A0F',
+              border:       `1.5px solid ${C.cream}`,
             }}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -144,7 +148,7 @@ export default function NotificationBell({ currentUser, go }) {
               maxHeight:    360,
               overflowY:    'auto',
               background:   C.cardElevated,
-              border:       '0.5px solid rgba(255,255,255,0.1)',
+              border:       `0.5px solid ${C.border}`,
               borderRadius: 16,
               boxShadow:    '0 16px 48px rgba(0,0,0,0.6)',
               zIndex:       500,
@@ -157,7 +161,7 @@ export default function NotificationBell({ currentUser, go }) {
                 alignItems:     'center',
                 justifyContent: 'space-between',
                 padding:        '14px 14px 10px',
-                borderBottom:   '0.5px solid rgba(255,255,255,0.07)',
+                borderBottom:   `0.5px solid ${C.border}`,
               }}
             >
               <p style={{ fontSize: 13, fontWeight: 700, color: C.white, margin: 0 }}>
@@ -166,8 +170,8 @@ export default function NotificationBell({ currentUser, go }) {
                   <span
                     style={{
                       marginLeft:   8,
-                      background:   'rgba(239,68,68,0.15)',
-                      color:        '#EF4444',
+                      background:   'rgba(162,59,42,0.15)',
+                      color:        C.danger,
                       borderRadius: 9999,
                       padding:      '1px 7px',
                       fontSize:     11,
@@ -204,11 +208,11 @@ export default function NotificationBell({ currentUser, go }) {
             {/* Items */}
             {notifs.length === 0 ? (
               <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '28px 16px' }}>
-                No notifications yet
+                You're all caught up.
               </p>
             ) : (
               notifs.map((n) => {
-                const meta  = TYPE_META[n.type] ?? { emoji: '🔔', label: () => n.type };
+                const meta  = TYPE_META[n.type] ?? { label: () => n.type };
                 const label = meta.label(n.payload ?? {});
                 return (
                   <motion.button
@@ -223,16 +227,18 @@ export default function NotificationBell({ currentUser, go }) {
                       alignItems:   'flex-start',
                       gap:          10,
                       padding:      '12px 14px',
-                      background:   n.read ? 'transparent' : 'rgba(245,158,11,0.05)',
+                      background:   n.read ? 'transparent' : 'rgba(140,94,42,0.05)',
                       border:       'none',
-                      borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+                      borderBottom: `0.5px solid ${C.border}`,
                       cursor:       'pointer',
                       textAlign:    'left',
                     }}
                   >
-                    <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>
-                      {meta.emoji}
-                    </span>
+                    {meta.emoji && (
+                      <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>
+                        {meta.emoji}
+                      </span>
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{

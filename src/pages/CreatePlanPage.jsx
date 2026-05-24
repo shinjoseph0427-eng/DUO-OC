@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { C } from '../tokens';
 import { popIn } from '../lib/motion.js';
 import TopBar from '../components/TopBar.jsx';
-import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
-import { proposeHangout } from '../lib/hangouts.js';
+import { createPlan, getMyActivePlan } from '../lib/hangouts.js';
 import { logError } from '../lib/logger.js';
+import { isDuoRestricted, SAFETY_MESSAGES } from '../lib/safety.js';
 
 const MAX_PLACE_LENGTH = 100;
 const MAX_MESSAGE_LENGTH = 200;
@@ -46,44 +46,66 @@ const LABEL_STYLE = {
   marginBottom:  10,
 };
 
-export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) {
-  const [date,     setDate]     = useState(null);
-  const [timeSlot, setTimeSlot] = useState(null);
-  const [place,    setPlace]    = useState(null);
-  const [vibe,     setVibe]     = useState(null);
-  const [message,  setMessage]  = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const [sent,     setSent]     = useState(false);
-  const [error,    setError]    = useState('');
+export default function CreatePlanPage({ currentUser, myDuo, myDuos: myDuosProp = [], selectedDuo: selectedDuoProp = null, go, goBack }) {
+  // Eligible duos: prefer the myDuos prop; fall back to [myDuo] for single-duo callers
+  const eligibleDuos = myDuosProp.length > 0 ? myDuosProp : (myDuo ? [myDuo] : []);
 
-  // ── Fix 4: duo null guard ────────────────────────────────────────────────
-  if (!duo) {
+  const [selectedDuoId, setSelectedDuoId] = useState(() => selectedDuoProp?.id ?? eligibleDuos[0]?.id ?? null);
+  const [date,        setDate]        = useState(null);
+  const [timeSlot,    setTimeSlot]    = useState(null);
+  const [place,       setPlace]       = useState(null);
+  const [vibe,        setVibe]        = useState(null);
+  const [message,     setMessage]     = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [checking,    setChecking]    = useState(true);
+  const [hasExisting, setHasExisting] = useState(false);
+  const [isRestricted,setIsRestricted]= useState(false);
+  const [sent,        setSent]        = useState(false);
+  const [error,       setError]       = useState('');
+
+  // Sync selectedDuoId when eligibleDuos arrives (e.g. if props populate late)
+  useEffect(() => {
+    if (selectedDuoProp?.id && eligibleDuos.some((duo) => duo.id === selectedDuoProp.id)) {
+      setSelectedDuoId(selectedDuoProp.id);
+      return;
+    }
+    if (!selectedDuoId && eligibleDuos.length > 0) {
+      setSelectedDuoId(eligibleDuos[0].id);
+    }
+  }, [eligibleDuos, selectedDuoId, selectedDuoProp?.id]);
+
+  const selectedDuo = eligibleDuos.find((d) => d.id === selectedDuoId) ?? eligibleDuos[0] ?? null;
+
+  // Check for existing open plan whenever selected duo changes
+  useEffect(() => {
+    if (!selectedDuo?.id) { setChecking(false); return; }
+    setChecking(true);
+    setHasExisting(false);
+    setIsRestricted(false);
+    Promise.all([
+      getMyActivePlan(selectedDuo.id).catch(() => null),
+      isDuoRestricted(selectedDuo.id).catch(() => false),
+    ])
+      .then(([plan, restricted]) => {
+        setHasExisting(!!plan);
+        setIsRestricted(restricted);
+      })
+      .catch(() => {
+        setHasExisting(false);
+        setIsRestricted(false);
+      })
+      .finally(() => setChecking(false));
+  }, [selectedDuo?.id]);
+
+  if (eligibleDuos.length === 0) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
-        <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
-            Something went wrong.
-          </p>
-          <p style={{ fontSize: 14, color: C.muted, margin: '0 0 32px', lineHeight: 1.6 }}>
-            Please go back and try again.
-          </p>
-          <PremiumButton fullWidth onClick={() => go('home')}>Go Back</PremiumButton>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Fix 1: myDuo null guard ──────────────────────────────────────────────
-  if (!myDuo) {
-    return (
-      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
+        <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
         <div style={{ padding: '60px 24px', textAlign: 'center' }}>
           <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
             You need a duo before making plans.
           </p>
-          <p style={{ fontSize: 14, color: C.muted, margin: '0 0 32px', lineHeight: 1.6 }}>
+          <p style={{ fontSize: 14, color: C.muted, margin: '0 0 32px' }}>
             Find a homie first, then create a duo together.
           </p>
           <PremiumButton fullWidth onClick={() => go('find_homie')}>Find a homie</PremiumButton>
@@ -92,10 +114,47 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
     );
   }
 
-  const cleanMessage = message.trim();
+  // Single-duo: show full-page gate while checking or when plan exists
+  if (eligibleDuos.length === 1) {
+    if (checking) {
+      return <div style={{ minHeight: '100vh', background: C.bg }} />;
+    }
+    if (isRestricted) {
+      return (
+        <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+          <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
+          <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+              {SAFETY_MESSAGES.restrictedOwnDuo}
+            </p>
+            <PremiumButton fullWidth onClick={() => go('hangouts')}>Back to Hangouts</PremiumButton>
+          </div>
+        </div>
+      );
+    }
+    if (hasExisting) {
+      return (
+        <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+          <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
+          <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+              This duo already has an open plan.
+            </p>
+            <p style={{ fontSize: 14, color: C.muted, margin: '0 0 32px', lineHeight: 1.6 }}>
+              Each duo can have one open plan at a time.
+            </p>
+            <PremiumButton fullWidth onClick={() => go('hangouts')}>View in Hangouts</PremiumButton>
+          </div>
+        </div>
+      );
+    }
+  }
 
-  // ── Fix 2: place is optional — removed from canSubmit ───────────────────
+  const cleanMessage = message.trim();
   const canSubmit =
+    selectedDuo?.id &&
+    !hasExisting &&
+    !isRestricted &&
     vibe &&
     date &&
     timeSlot &&
@@ -103,24 +162,24 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
     cleanMessage.length <= MAX_MESSAGE_LENGTH &&
     !loading;
 
-  const handlePropose = async () => {
+  const handleCreate = async () => {
     if (!canSubmit) return;
     setError('');
     try {
       setLoading(true);
-      await proposeHangout({
-        fromDuoId:  myDuo.id,
-        toDuoId:    duo.id,
-        proposedBy: currentUser.id,
-        date, timeSlot, place, vibe,
+      await createPlan({
+        creatorDuoId: selectedDuo.id,
+        vibe,
+        date,
+        timeSlot,
+        place,
         message: cleanMessage,
       });
       setSent(true);
     } catch (err) {
-      // ── Fix 3: visible error instead of silent catch ─────────────────────
-      console.error('propose hangout failed:', err);
-      logError('propose hangout failed', err);
-      setError('Something went wrong. Please try again.');
+      console.error('create plan failed:', err);
+      logError('create plan failed', err);
+      setError(err?.message === SAFETY_MESSAGES.restrictedDuo ? 'This duo cannot create new plans right now.' : 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -129,7 +188,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
   if (sent) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
+        <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
         <div
           style={{
             display:        'flex',
@@ -160,12 +219,14 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           </div>
           <motion.p variants={popIn} initial="initial" animate="animate"
             style={{ fontSize: 36, fontWeight: 900, color: C.white, letterSpacing: -1, margin: '0 0 8px' }}>
-            Request sent.
+            Plan posted.
           </motion.p>
-          <p style={{ fontSize: 14, color: C.muted }}>Waiting for {duo.name} to respond.</p>
+          <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6 }}>
+            Other duos can now request to join your plan.
+          </p>
           <div style={{ marginTop: 16, width: '100%', maxWidth: 280 }}>
-            <PremiumButton fullWidth onClick={() => go('home')}>
-              Back to Home
+            <PremiumButton fullWidth onClick={() => go('hangouts')}>
+              View in Hangouts
             </PremiumButton>
           </div>
         </div>
@@ -175,41 +236,98 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
+      <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
 
       <div style={{ padding: '20px 16px 100px' }}>
 
-        {/* Page title */}
         <h1 style={{ fontSize: 24, fontWeight: 800, color: C.white, margin: '0 0 6px', letterSpacing: '-0.5px' }}>
-          Send a hangout request
+          Create an open plan
         </h1>
-        <p style={{ fontSize: 14, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
-          Pick the vibe, time, and place for a low-pressure 2v2 hangout.
+        <p style={{ fontSize: 14, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>
+          Post your plan so another duo can request to join.
         </p>
 
-        {/* Opponent duo mini-card */}
-        <div
-          style={{
-            background:   'rgba(140,94,42,0.07)',
-            border:       '1px solid rgba(255,107,0,0.12)',
-            borderRadius: 16,
-            padding:      '14px 16px',
-            marginBottom: 24,
-            display:      'flex',
-            alignItems:   'center',
-            gap:          12,
-          }}
-        >
-          <InitialsAvatar name={duo.name} size={40} />
-          <div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: C.white, margin: 0, marginBottom: 2 }}>
-              {duo.name}
-            </p>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-              {duo.cities ?? duo.city ?? ''}
-            </p>
+        {/* CREATE PLAN AS — only shown when user has multiple duos */}
+        {eligibleDuos.length > 1 && (
+          <div style={{ marginBottom: 28 }}>
+            <span style={LABEL_STYLE}>Create plan as</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {eligibleDuos.map((d) => (
+                <motion.button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setSelectedDuoId(d.id)}
+                  whileTap={{ scale: 0.93 }}
+                  transition={{ duration: 0.1 }}
+                  style={{
+                    background:   selectedDuo?.id === d.id ? C.gradientCTA : C.cardElevated,
+                    border:       '0.5px solid ' + (selectedDuo?.id === d.id ? 'transparent' : C.border),
+                    borderRadius: 9999,
+                    padding:      '9px 16px',
+                    fontSize:     13,
+                    fontWeight:   600,
+                    color:        selectedDuo?.id === d.id ? C.cream : C.muted,
+                    cursor:       'pointer',
+                  }}
+                >
+                  {d.name}
+                </motion.button>
+              ))}
+            </div>
+            {/* Inline existing-plan gate for multi-duo */}
+            {!checking && isRestricted && (
+              <div
+                style={{
+                  marginTop:    12,
+                  background:   'rgba(162,59,42,0.08)',
+                  border:       '0.5px solid rgba(162,59,42,0.2)',
+                  borderRadius: 12,
+                  padding:      '12px 14px',
+                }}
+              >
+                <p style={{ fontSize: 13, color: C.danger, fontWeight: 600, margin: 0 }}>
+                  This duo cannot create new plans right now.
+                </p>
+              </div>
+            )}
+            {!checking && !isRestricted && hasExisting && (
+              <div
+                style={{
+                  marginTop:    12,
+                  background:   'rgba(162,59,42,0.08)',
+                  border:       '0.5px solid rgba(162,59,42,0.2)',
+                  borderRadius: 12,
+                  padding:      '12px 14px',
+                }}
+              >
+                <p style={{ fontSize: 13, color: C.danger, fontWeight: 600, margin: '0 0 2px' }}>
+                  This duo already has an open plan.
+                </p>
+                <p style={{ fontSize: 12, color: C.muted, margin: '0 0 10px' }}>
+                  Each duo can have one open plan at a time.
+                </p>
+                <motion.button
+                  type="button"
+                  onClick={() => go('hangouts')}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ duration: 0.1 }}
+                  style={{
+                    background:   C.cardElevated,
+                    border:       `0.5px solid ${C.border}`,
+                    borderRadius: 8,
+                    padding:      '7px 14px',
+                    fontSize:     12,
+                    fontWeight:   600,
+                    color:        C.white,
+                    cursor:       'pointer',
+                  }}
+                >
+                  View in Hangouts
+                </motion.button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* VIBE */}
         <span style={LABEL_STYLE}>What's the plan</span>
@@ -222,13 +340,13 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
               whileTap={{ scale: 0.93 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   vibe === v ? C.gradientCTA : 'rgba(17,17,17,0.05)',
+                background:   vibe === v ? C.gradientCTA : C.cardElevated,
                 border:       '0.5px solid ' + (vibe === v ? 'transparent' : C.border),
                 borderRadius: 9999,
                 padding:      '9px 16px',
                 fontSize:     13,
                 fontWeight:   600,
-                color:        vibe === v ? C.cream : C.brown,
+                color:        vibe === v ? C.cream : C.muted,
                 cursor:       'pointer',
               }}
             >
@@ -255,14 +373,14 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   date === d.value ? C.amberT08 : 'rgba(17,17,17,0.05)',
-                border:       '0.5px solid ' + (date === d.value ? C.greenBorder : C.border),
+                background:   date === d.value ? 'rgba(255,107,0,0.12)' : C.cardElevated,
+                border:       '0.5px solid ' + (date === d.value ? 'rgba(255,107,0,0.45)' : C.border),
                 borderRadius: 12,
                 padding:      '12px 8px',
                 textAlign:    'center',
                 fontSize:     14,
                 fontWeight:   600,
-                color:        date === d.value ? C.greenDeep : C.muted,
+                color:        date === d.value ? C.amber : C.muted,
                 cursor:       'pointer',
               }}
             >
@@ -289,8 +407,8 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   timeSlot === t.value ? C.amberT08 : 'rgba(17,17,17,0.05)',
-                border:       '0.5px solid ' + (timeSlot === t.value ? C.greenBorder : C.border),
+                background:   timeSlot === t.value ? 'rgba(255,107,0,0.12)' : C.cardElevated,
+                border:       '0.5px solid ' + (timeSlot === t.value ? 'rgba(255,107,0,0.45)' : C.border),
                 borderRadius: 12,
                 padding:      '14px 12px',
                 textAlign:    'left',
@@ -301,7 +419,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
                 style={{
                   fontSize:   14,
                   fontWeight: 700,
-                  color:      timeSlot === t.value ? C.greenDeep : C.white,
+                  color:      timeSlot === t.value ? C.amber : C.white,
                   margin:     '0 0 3px',
                 }}
               >
@@ -335,13 +453,13 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   place === p ? C.gradientCTA : 'rgba(17,17,17,0.05)',
+                background:   place === p ? C.gradientCTA : C.cardElevated,
                 border:       '0.5px solid ' + (place === p ? 'transparent' : C.border),
                 borderRadius: 9999,
                 padding:      '8px 16px',
                 fontSize:     13,
                 fontWeight:   500,
-                color:        place === p ? C.cream : C.brown,
+                color:        place === p ? C.cream : C.muted,
                 cursor:       'pointer',
                 flexShrink:   0,
                 whiteSpace:   'nowrap',
@@ -357,12 +475,12 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
-          placeholder="Down for a chill 2v2 this weekend?"
+          placeholder="Looking for a chill 2v2 this weekend!"
           maxLength={MAX_MESSAGE_LENGTH}
           rows={3}
           style={{
             width:        '100%',
-            background:   'rgba(17,17,17,0.05)',
+            background:   C.cardElevated,
             border:       `0.5px solid ${C.border}`,
             borderRadius: 14,
             padding:      14,
@@ -375,7 +493,6 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           }}
         />
 
-        {/* Error message */}
         {error && (
           <p style={{
             fontSize:     13,
@@ -391,13 +508,8 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           </p>
         )}
 
-        {/* CTA */}
-        <PremiumButton
-          fullWidth
-          onClick={handlePropose}
-          disabled={!canSubmit}
-        >
-          {loading ? 'Sending…' : 'Send request →'}
+        <PremiumButton fullWidth onClick={handleCreate} disabled={!canSubmit}>
+          {loading ? 'Posting…' : 'Post plan →'}
         </PremiumButton>
 
         {(!vibe || !date || !timeSlot) && (
