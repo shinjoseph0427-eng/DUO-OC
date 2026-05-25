@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = new Set([
   "https://duo-oc.com",
@@ -11,11 +12,16 @@ type ServiceAccount = {
   private_key: string;
 };
 
-type PushPayload = {
-  token: string;
-  title: string;
-  body: string;
-  data: Record<string, string>;
+type PushRequest = {
+  notificationId: string;
+};
+
+const PUSH_TITLES: Record<string, string> = {
+  homie_request: "New duo request",
+};
+
+const PUSH_BODIES: Record<string, string> = {
+  homie_request: "Someone wants to be your duo partner.",
 };
 
 function corsHeaders(req: Request): HeadersInit {
@@ -65,31 +71,19 @@ function toFcmData(
 
 function validatePayload(
   value: unknown,
-): { payload?: PushPayload; error?: string } {
+): { payload?: PushRequest; error?: string } {
   if (!isPlainObject(value)) {
     return { error: "Request body must be a JSON object." };
   }
 
-  const { token, title, body, data } = value;
-  if (typeof token !== "string" || token.trim() === "") {
-    return { error: "token must be a non-empty string." };
-  }
-  if (typeof title !== "string" || title.trim() === "") {
-    return { error: "title must be a non-empty string." };
-  }
-  if (typeof body !== "string" || body.trim() === "") {
-    return { error: "body must be a non-empty string." };
-  }
-  if (data !== undefined && !isPlainObject(data)) {
-    return { error: "data must be an object when provided." };
+  const { notificationId } = value;
+  if (typeof notificationId !== "string" || notificationId.trim() === "") {
+    return { error: "notificationId must be a non-empty string." };
   }
 
   return {
     payload: {
-      token: token.trim(),
-      title: title.trim(),
-      body: body.trim(),
-      data: toFcmData(data as Record<string, unknown> | undefined),
+      notificationId: notificationId.trim(),
     },
   };
 }
@@ -215,6 +209,121 @@ serve(async (req) => {
     }, 400);
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    console.error("Missing Supabase Edge Function environment variables.");
+    return jsonResponse(req, {
+      error: "Push notification service is not configured.",
+    }, 500);
+  }
+
+  const authorization = req.headers.get("Authorization");
+  if (!authorization) {
+    return jsonResponse(req, { error: "Authentication required." }, 401);
+  }
+
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { Authorization: authorization } },
+  });
+  const { data: authData, error: authError } = await authClient.auth.getUser();
+  if (authError || !authData.user) {
+    return jsonResponse(req, { error: "Authentication required." }, 401);
+  }
+
+  const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: notification, error: notificationError } = await adminClient
+    .from("notifications")
+    .select("id, user_id, type, payload")
+    .eq("id", validation.payload.notificationId)
+    .maybeSingle();
+  if (notificationError) {
+    console.error("Notification lookup failed:", notificationError.message);
+    return jsonResponse(req, {
+      error: "Unable to load push notification.",
+    }, 500);
+  }
+  if (!notification) {
+    return jsonResponse(req, { error: "Notification not found." }, 404);
+  }
+
+  const notificationPayload = isPlainObject(notification.payload)
+    ? notification.payload
+    : {};
+  if (notification.type !== "homie_request") {
+    return jsonResponse(req, {
+      success: true,
+      skipped: true,
+      reason: "unsupported_notification_type",
+    }, 200);
+  }
+
+  if (notificationPayload.from_user_id !== authData.user.id) {
+    return jsonResponse(req, {
+      error: "Not authorized to send this notification.",
+    }, 403);
+  }
+
+  if (
+    typeof notificationPayload.homie_request_id !== "string" ||
+    !notificationPayload.homie_request_id.trim()
+  ) {
+    return jsonResponse(req, {
+      success: true,
+      skipped: true,
+      reason: "unverified_notification_event",
+    }, 200);
+  }
+
+  const { data: homieRequest, error: homieRequestError } = await adminClient
+    .from("homie_requests")
+    .select("id")
+    .eq("id", notificationPayload.homie_request_id)
+    .eq("from_user_id", authData.user.id)
+    .eq("to_user_id", notification.user_id)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+  if (homieRequestError) {
+    console.error(
+      "Homie request verification failed:",
+      homieRequestError.message,
+    );
+    return jsonResponse(req, {
+      error: "Unable to verify push notification.",
+    }, 500);
+  }
+  if (!homieRequest) {
+    return jsonResponse(req, {
+      success: true,
+      skipped: true,
+      reason: "unverified_notification_event",
+    }, 200);
+  }
+
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select("fcm_token")
+    .eq("id", notification.user_id)
+    .maybeSingle();
+  if (profileError) {
+    console.error("Recipient token lookup failed:", profileError.message);
+    return jsonResponse(req, {
+      error: "Unable to load push recipient.",
+    }, 500);
+  }
+  if (typeof profile?.fcm_token !== "string" || !profile.fcm_token.trim()) {
+    return jsonResponse(req, {
+      success: true,
+      skipped: true,
+      reason: "no_fcm_token",
+    }, 200);
+  }
+
   const firebaseProjectId = Deno.env.get("FIREBASE_PROJECT_ID");
   const rawServiceAccount = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!firebaseProjectId || !rawServiceAccount) {
@@ -240,7 +349,14 @@ serve(async (req) => {
       }, 502);
     }
 
-    const { token, title, body, data } = validation.payload;
+    const title = PUSH_TITLES[notification.type] ?? "DUO OC";
+    const body = PUSH_BODIES[notification.type] ??
+      "You have a new notification.";
+    const data = {
+      ...toFcmData(notificationPayload),
+      type: String(notification.type),
+      notification_id: String(notification.id),
+    };
     const fcmRes = await fetch(
       `https://fcm.googleapis.com/v1/projects/${
         encodeURIComponent(firebaseProjectId)
@@ -253,7 +369,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           message: {
-            token,
+            token: profile.fcm_token.trim(),
             notification: { title, body },
             data,
             webpush: {

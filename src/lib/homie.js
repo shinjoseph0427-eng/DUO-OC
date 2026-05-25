@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient.js'
-import { createNotificationForUser } from './notifications.js'
+import { sendPushForNotification } from './notifications.js'
 
 function throwStep(message, error) {
   const detail = error?.message ?? error?.details ?? error?.hint ?? null
@@ -67,7 +67,6 @@ async function createDuoWithMembers(senderProfile, receiverProfile) {
     .single()
 
   if (duoError) throwStep('duo create failed', duoError)
-  console.log('[acceptHomieRequest] created duo_id', duo.id)
 
   const { error: memberError } = await supabase
     .from('duo_members')
@@ -77,23 +76,8 @@ async function createDuoWithMembers(senderProfile, receiverProfile) {
     ])
 
   if (memberError) throwStep('duo members insert failed', memberError)
-  console.log('[acceptHomieRequest] inserted duo_members for', senderProfile.id, receiverProfile.id)
 
   return duo.id
-}
-
-async function notifyHomieAccepted(fromUserId, payload) {
-  const { error } = await supabase
-    .from('notifications')
-    .insert({
-      user_id: fromUserId,
-      type: 'homie_accepted',
-      payload,
-    })
-
-  if (error) {
-    console.error('acceptHomieRequest notification insert failed:', error)
-  }
 }
 
 export async function findHomies(currentUser, myProfile) {
@@ -116,22 +100,28 @@ export async function findHomies(currentUser, myProfile) {
 export async function sendHomieRequest(fromUserId, toUserId) {
   const { data: existing } = await supabase
     .from('homie_requests')
-    .select('id')
+    .select('id, status')
     .eq('from_user_id', fromUserId)
     .eq('to_user_id', toUserId)
-    .single()
+    .in('status', ['pending', 'accepted'])
+    .maybeSingle()
 
   if (existing) return { alreadySent: true }
 
-  const { error } = await supabase
+  const { data: request, error } = await supabase
     .from('homie_requests')
     .insert({ from_user_id: fromUserId, to_user_id: toUserId })
+    .select('id')
+    .single()
 
   if (error) throw error
 
-  await createNotificationForUser(toUserId, 'homie_request', {
-    from_user_id: fromUserId,
-  })
+  const { data: notification, error: notificationError } = await supabase
+    .rpc('notify_homie_request', { p_request_id: request.id })
+    .single()
+  if (notificationError) throwStep('homie request notification failed', notificationError)
+
+  if (notification?.id) await sendPushForNotification(notification.id)
 
   return { success: true }
 }
@@ -150,8 +140,9 @@ export async function getMyHomieRequests(userId) {
 export async function getSentHomieRequests(userId) {
   const { data, error } = await supabase
     .from('homie_requests')
-    .select('to_user_id, status')
+    .select('to_user_id, status, profiles!homie_requests_to_user_id_fkey(name, city)')
     .eq('from_user_id', userId)
+    .in('status', ['pending', 'accepted'])
 
   if (error) return []
   return data
@@ -192,7 +183,6 @@ export async function acceptHomieRequest(requestId) {
 
   const existingDuoId = await findSharedActiveDuo(senderId, receiverId)
   const finalDuoId = existingDuoId ?? await createDuoWithMembers(senderProfile, receiverProfile)
-  console.log('[acceptHomieRequest] finalDuoId', finalDuoId, existingDuoId ? '(existing)' : '(new)')
 
   const { data: acceptedRequest, error: acceptError } = await supabase
     .from('homie_requests')
@@ -203,14 +193,55 @@ export async function acceptHomieRequest(requestId) {
 
   if (acceptError) throwStep('request update failed', acceptError)
 
-  await notifyHomieAccepted(senderId, {
-    accepted_by_user_id: receiverId,
-    accepted_by_name: receiverProfile.name,
-    duo_id: finalDuoId,
-  })
+  const { error: notificationError } = await supabase.rpc(
+    'notify_homie_request_accepted',
+    {
+      p_request_id: requestId,
+      p_duo_id: finalDuoId,
+    },
+  )
+  if (notificationError) {
+    console.error('acceptHomieRequest notification insert failed:', notificationError)
+  }
 
   return {
     request: acceptedRequest,
     duo_id: finalDuoId,
   }
+}
+
+export async function leaveDuo(duoId) {
+  const { data: members, error: memberError } = await supabase
+    .from('duo_members')
+    .select('user_id')
+    .eq('duo_id', duoId);
+  if (memberError) throw memberError;
+
+  const { error: duoError } = await supabase
+    .from('duos')
+    .update({ status: 'dissolved' })
+    .eq('id', duoId);
+  if (duoError) throw duoError;
+
+  const { error: planError } = await supabase
+    .from('hangout_plans')
+    .update({ status: 'cancelled' })
+    .eq('creator_duo_id', duoId)
+    .eq('status', 'open');
+  if (planError) throw planError;
+
+  if (members?.length === 2) {
+    const [userA, userB] = members.map((member) => member.user_id);
+    const { error: homieError } = await supabase
+      .from('homie_requests')
+      .delete()
+      .eq('status', 'accepted')
+      .or(
+        `and(from_user_id.eq.${userA},to_user_id.eq.${userB}),` +
+        `and(from_user_id.eq.${userB},to_user_id.eq.${userA})`,
+      );
+    if (homieError) throw homieError;
+  }
+
+  return { success: true };
 }
