@@ -1,5 +1,29 @@
 import { supabase } from './supabaseClient.js'
 
+const PUSH_TITLES = {
+  homie_request:    'New duo request',
+  homie_accepted:   'Duo request accepted!',
+  match:            'New hangout match!',
+  hangout_request:  'Hangout request',
+  hangout_accepted: 'Hangout confirmed! 🎉',
+  hangout_declined: 'Hangout declined',
+  plan_request:     'Someone wants to join your plan',
+  plan_accepted:    'Plan request accepted',
+  plan_declined:    'Plan request declined',
+};
+
+const PUSH_BODIES = {
+  homie_request:    'Someone wants to be your duo partner.',
+  homie_accepted:   'You have a new duo! Go explore.',
+  match:            'A new 2v2 hangout is waiting.',
+  hangout_request:  'A duo wants to hang with you.',
+  hangout_accepted: "It's on! Chat is now open.",
+  hangout_declined: 'They passed on this one.',
+  plan_request:     'Tap to review the request.',
+  plan_accepted:    'Your plan is confirmed!',
+  plan_declined:    'They declined your plan request.',
+};
+
 export async function getNotifications(userId) {
   const { data } = await supabase
     .from('notifications')
@@ -46,14 +70,46 @@ export function subscribeNotifications(userId, currentUserId, callback) {
 }
 
 export async function createNotificationForUser(userId, type, payload) {
-  const { error } = await supabase
+  const { data: notif, error } = await supabase
     .from('notifications')
-    .insert({
-      user_id: userId,
-      type,
-      payload,
-    })
-  if (error) console.error('createNotificationForUser error:', error)
+    .insert({ user_id: userId, type, payload })
+    .select()
+    .single();
+  if (error) throw error;
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('fcm_token')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.fcm_token) {
+      const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      await fetch(
+        `${SUPABASE_URL}/functions/v1/send-push-notification`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            token: profile.fcm_token,
+            title: PUSH_TITLES[type] ?? 'DUO OC',
+            body:  PUSH_BODIES[type] ?? 'You have a new notification.',
+            data:  { type, ...payload },
+          }),
+        }
+      );
+    }
+  } catch (e) {
+    console.warn('Push notification error:', e);
+  }
+
+  return notif;
 }
 
 export async function createNotificationsForDuo(duoId, type, payload) {
