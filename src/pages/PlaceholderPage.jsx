@@ -56,7 +56,7 @@ export default function PlaceholderPage({ go, title = 'Coming soon', activePage 
             margin:        '0 0 8px',
           }}
         >
-          Coming soon
+          Almost there
         </h1>
         <p
           style={{
@@ -67,7 +67,7 @@ export default function PlaceholderPage({ go, title = 'Coming soon', activePage 
             maxWidth:   240,
           }}
         >
-          This section is being built. Check back soon.
+          This feature is on its way.
         </p>
         <PremiumButton onClick={() => go('home')} style={{ minWidth: 200 }}>
           Back to Home

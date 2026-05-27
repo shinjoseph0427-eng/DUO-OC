@@ -4,9 +4,11 @@ import { Search, SlidersHorizontal, MapPin, X, Check } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import { getExploreDuos } from '../lib/duos.js';
 import { getMyProfile } from '../lib/profile.js';
-import { getBlockedDuoIds, getRestrictedDuoIds } from '../lib/safety.js';
+import { getBlockedDuoIds, getRestrictedDuoIds, getHiddenUserIds } from '../lib/safety.js';
 import { getMyDuos } from '../lib/duos.js';
 import { getOpenPlans } from '../lib/hangouts.js';
+import { findHomies } from '../lib/homie.js';
+import HomieCard from '../components/HomieCard.jsx';
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -70,21 +72,17 @@ const TIME_SHORT = {
   night:     'Night',
 };
 
-const ACTIVITY_SIGNALS = [
-  { label: 'Open to plans',     color: C.brown, bg: 'rgba(255,107,0,0.15)' },
-  { label: 'Active recently',   color: C.success, bg: C.greenT08 },
-  { label: 'Open to plans',     color: C.amber,   bg: C.amberT08 },
-  { label: 'Free this weekend', color: C.moss,    bg: C.greenT12 },
-  { label: 'Looking for plans', color: C.brown, bg: 'rgba(255,107,0,0.15)' },
-];
-
-function getActivitySignal(duo) {
-  if (duo.created_at) {
-    const daysOld = (Date.now() - new Date(duo.created_at).getTime()) / 86400000;
-    if (daysOld < 14) return { label: 'New duo', color: C.olive, bg: 'rgba(168,191,163,0.24)' };
+function getActivitySignal(duo, openPlanMap) {
+  if (openPlanMap?.has(duo.id)) {
+    return { label: 'Open plan', color: C.amber, bg: C.amberT08 };
   }
-  const hash = (duo.id ?? '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  return ACTIVITY_SIGNALS[hash % ACTIVITY_SIGNALS.length];
+  if (duo.created_at) {
+    const daysOld = (Date.now() - new Date(duo.created_at)) / 86400000;
+    if (daysOld < 14) {
+      return { label: 'New duo', color: C.success, bg: C.greenT08 };
+    }
+  }
+  return null;
 }
 
 function Pill({ selected, onClick, children }) {
@@ -305,7 +303,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
   );
 }
 
-function ExploreCard({ duo, myLat, myLng, go, openPlan }) {
+function ExploreCard({ duo, myLat, myLng, go, openPlan, openPlanMap }) {
   const members   = duo.duo_members ?? [];
   const primary   = members[0];
   const heroPhoto = primary?.profiles?.photos?.[0] ?? primary?.profiles?.avatar_url ?? null;
@@ -316,9 +314,7 @@ function ExploreCard({ duo, myLat, myLng, go, openPlan }) {
   const names     = members.map((m) => m.profiles?.name ?? '?').slice(0, 2).join(' & ');
   const username  = primary?.profiles?.username;
   const city      = duo.city ?? primary?.profiles?.city ?? null;
-  const signal    = openPlan
-    ? { label: 'Open plan', color: C.moss, bg: C.greenT12 }
-    : getActivitySignal(duo);
+  const signal    = getActivitySignal(duo, openPlanMap);
 
   const planPreview = openPlan
     ? [
@@ -396,7 +392,7 @@ function ExploreCard({ duo, myLat, myLng, go, openPlan }) {
           }}
         >
           <MapPin size={9} strokeWidth={2} />
-          {distLabel}
+          {distLabel} away
         </div>
       )}
 
@@ -430,24 +426,26 @@ function ExploreCard({ duo, myLat, myLng, go, openPlan }) {
             @{username}
           </p>
         )}
-        {city && (
+        {!distLabel && city && (
           <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: '0 0 5px', display: 'flex', alignItems: 'center', gap: 3 }}>
             <MapPin size={9} strokeWidth={2} />{city}
           </p>
         )}
-        <span
-          style={{
-            display:      'inline-block',
-            background:   signal.bg,
-            color:        signal.color,
-            borderRadius: 9999,
-            padding:      '2px 8px',
-            fontSize:     10,
-            fontWeight:   700,
-          }}
-        >
-          {signal.label}
-        </span>
+        {signal && (
+          <span
+            style={{
+              display:      'inline-block',
+              background:   signal.bg,
+              color:        signal.color,
+              borderRadius: 9999,
+              padding:      '2px 8px',
+              fontSize:     10,
+              fontWeight:   700,
+            }}
+          >
+            {signal.label}
+          </span>
+        )}
         {planPreview && (
           <p
             style={{
@@ -487,12 +485,21 @@ export default function ExplorePage({ currentUser, go }) {
   const [planFilter,   setPlanFilter]   = useState('all'); // 'all' | 'open_plans'
   const debTimer = useRef(null);
 
+  const [myDuoIds,      setMyDuoIds]      = useState([]);
+  const [activeTab,     setActiveTab]     = useState('duos');
+  const [homies,        setHomies]        = useState([]);
+  const [homiesLoading, setHomiesLoading] = useState(false);
+
   useEffect(() => {
     if (!currentUser) { setLoading(false); return; }
     Promise.all([
       getExploreDuos(currentUser.id),
       getMyProfile(currentUser.id),
-      getMyDuos(currentUser.id).then((duos) => getBlockedDuoIds((duos ?? []).map((duo) => duo.id))).catch(() => []),
+      getMyDuos(currentUser.id).then((duos) => {
+        const ids = (duos ?? []).map((duo) => duo.id);
+        setMyDuoIds(ids);
+        return getBlockedDuoIds(ids);
+      }).catch(() => []),
       getRestrictedDuoIds(),
       getOpenPlans().catch(() => []),
     ])
@@ -506,6 +513,23 @@ export default function ExplorePage({ currentUser, go }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [currentUser]);
+
+  useEffect(() => {
+    if (activeTab !== 'find_homie' || !currentUser) return;
+    let cancelled = false;
+    setHomiesLoading(true);
+    Promise.all([
+      findHomies(currentUser, myProfile || {}),
+      getHiddenUserIds(myDuoIds, currentUser?.id),
+    ])
+      .then(([results, hiddenIds]) => {
+        if (cancelled) return;
+        setHomies((results ?? []).filter((h) => !hiddenIds.has(h.id)));
+      })
+      .catch(() => { if (!cancelled) setHomies([]); })
+      .finally(() => { if (!cancelled) setHomiesLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, currentUser, myDuoIds]);
 
   const handleQueryChange = (v) => {
     setQuery(v);
@@ -568,108 +592,199 @@ export default function ExplorePage({ currentUser, go }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, paddingBottom: 80 }}>
-      {/* Search bar + filter */}
+      {/* Sticky header */}
       <div
         style={{
           position:    'sticky',
           top:         0,
           zIndex:      50,
           background:  C.bg,
-          padding:     '12px 16px 10px',
           borderBottom:`0.5px solid ${C.border}`,
-          display:     'flex',
-          gap:         10,
-          alignItems:  'center',
         }}
       >
-        <div style={{ flex: 1, position: 'relative' }}>
-          <Search
-            size={15}
-            color={C.muted}
-            style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)' }}
-          />
-          <input
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Search @username or duo name"
-            style={{
-              width:        '100%',
-              background:   C.cardElevated,
-              border:       `0.5px solid ${C.border}`,
-              borderRadius: 12,
-              padding:      '10px 14px 10px 36px',
-              fontSize:     14,
-              color:        C.white,
-              outline:      'none',
-              boxSizing:    'border-box',
-            }}
-          />
-          {query && (
-            <button
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 6, padding: '12px 16px 0' }}>
+          {[
+            { key: 'duos',       label: 'Duos' },
+            { key: 'find_homie', label: 'Find Homie' },
+          ].map(({ key, label }) => (
+            <motion.button
+              key={key}
               type="button"
-              onClick={() => { setQuery(''); setDebQ(''); }}
+              onClick={() => setActiveTab(key)}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.1 }}
               style={{
-                position:   'absolute',
-                right:      10,
-                top:        '50%',
-                transform:  'translateY(-50%)',
-                background: 'none',
-                border:     'none',
-                cursor:     'pointer',
-                padding:    2,
+                padding:      '7px 18px',
+                borderRadius: 9999,
+                border:       activeTab === key ? 'none' : `0.5px solid ${C.border}`,
+                background:   activeTab === key ? C.gradientCTA : C.cardElevated,
+                color:        activeTab === key ? '#fff' : C.muted,
+                fontSize:     13,
+                fontWeight:   700,
+                cursor:       'pointer',
+                boxShadow:    activeTab === key ? '0 4px 14px rgba(255,107,0,0.22)' : 'none',
               }}
             >
-              <X size={14} color={C.muted} />
-            </button>
-          )}
+              {label}
+            </motion.button>
+          ))}
         </div>
 
-        <motion.button
-          type="button"
-          onClick={() => setFilterOpen(true)}
-          whileTap={{ scale: 0.9 }}
-          transition={{ duration: 0.1 }}
-          style={{
-            width:          40,
-            height:         40,
-            borderRadius:   12,
-            background:     numFilters > 0 ? 'rgba(255,107,0,0.15)' : C.cardElevated,
-            border:         `0.5px solid ${numFilters > 0 ? 'rgba(242,242,240,0.22)' : C.border}`,
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-            cursor:         'pointer',
-            position:       'relative',
-            flexShrink:     0,
-          }}
-        >
-          <SlidersHorizontal size={17} color={numFilters > 0 ? C.brown : C.muted} strokeWidth={2} />
-          {numFilters > 0 && (
-            <div
+        {/* Search bar + filter — Duos tab only */}
+        {activeTab === 'duos' && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 16px 10px' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search
+                size={15}
+                color={C.muted}
+                style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)' }}
+              />
+              <input
+                value={query}
+                onChange={(e) => handleQueryChange(e.target.value)}
+                placeholder="Search @username or duo name"
+                style={{
+                  width:        '100%',
+                  background:   C.cardElevated,
+                  border:       `0.5px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding:      '10px 14px 10px 36px',
+                  fontSize:     14,
+                  color:        C.white,
+                  outline:      'none',
+                  boxSizing:    'border-box',
+                }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => { setQuery(''); setDebQ(''); }}
+                  style={{
+                    position:   'absolute',
+                    right:      10,
+                    top:        '50%',
+                    transform:  'translateY(-50%)',
+                    background: 'none',
+                    border:     'none',
+                    cursor:     'pointer',
+                    padding:    2,
+                  }}
+                >
+                  <X size={14} color={C.muted} />
+                </button>
+              )}
+            </div>
+
+            <motion.button
+              type="button"
+              onClick={() => setFilterOpen(true)}
+              whileTap={{ scale: 0.9 }}
+              transition={{ duration: 0.1 }}
               style={{
-                position:     'absolute',
-                top:          -4,
-                right:        -4,
-                width:        16,
-                height:       16,
-                borderRadius: '50%',
-                background:   C.brown,
-                display:      'flex',
-                alignItems:   'center',
+                width:          40,
+                height:         40,
+                borderRadius:   12,
+                background:     numFilters > 0 ? 'rgba(255,107,0,0.15)' : C.cardElevated,
+                border:         `0.5px solid ${numFilters > 0 ? 'rgba(242,242,240,0.22)' : C.border}`,
+                display:        'flex',
+                alignItems:     'center',
                 justifyContent: 'center',
-                fontSize:     9,
-                fontWeight:   800,
-                color:        '#fff',
+                cursor:         'pointer',
+                position:       'relative',
+                flexShrink:     0,
               }}
             >
-              {numFilters}
-            </div>
-          )}
-        </motion.button>
+              <SlidersHorizontal size={17} color={numFilters > 0 ? C.brown : C.muted} strokeWidth={2} />
+              {numFilters > 0 && (
+                <div
+                  style={{
+                    position:     'absolute',
+                    top:          -4,
+                    right:        -4,
+                    width:        16,
+                    height:       16,
+                    borderRadius: '50%',
+                    background:   C.brown,
+                    display:      'flex',
+                    alignItems:   'center',
+                    justifyContent: 'center',
+                    fontSize:     9,
+                    fontWeight:   800,
+                    color:        '#fff',
+                  }}
+                >
+                  {numFilters}
+                </div>
+              )}
+            </motion.button>
+          </div>
+        )}
+
+        {/* Find Homie header spacer */}
+        {activeTab === 'find_homie' && <div style={{ height: 10 }} />}
       </div>
 
-      {/* Results */}
-      <div style={{ padding: '14px 16px 0' }}>
+      {/* Find Homie tab content */}
+      {activeTab === 'find_homie' && (
+        <div style={{ padding: '0 16px 24px' }}>
+          <div
+            style={{
+              background:   C.amberT08,
+              border:       `1px solid ${C.amberT22}`,
+              borderRadius: 16,
+              padding:      '14px 16px',
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ fontSize: 15, fontWeight: 700, color: C.white, margin: '0 0 4px' }}>
+              Find a homie to create a duo
+            </p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+              A duo starts with two people. Find a homie, then set up your duo profile together.
+            </p>
+          </div>
+
+          {homiesLoading ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    height:       260,
+                    borderRadius: 16,
+                    background:   C.cardElevated,
+                    animation:    'pulse 1.4s ease-in-out infinite',
+                  }}
+                />
+              ))}
+            </div>
+          ) : homies.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
+                No homies found nearby yet.
+              </p>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.6 }}>
+                Be the first to invite friends and grow the OC community.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px' }}>
+                {homies.length} profile{homies.length !== 1 ? 's' : ''} looking for a duo partner
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {homies.map((homie) => (
+                  <HomieCard key={homie.id} homie={homie} go={go} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Duos tab content */}
+      {activeTab === 'duos' && <div style={{ padding: '14px 16px 0' }}>
 
         {/* Plan filter chips */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -780,12 +895,13 @@ export default function ExplorePage({ currentUser, go }) {
                   myLng={myLng}
                   go={go}
                   openPlan={openPlanMap.get(duo.id) ?? null}
+                  openPlanMap={openPlanMap}
                 />
               ))}
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* Filter panel backdrop */}
       <AnimatePresence>

@@ -6,8 +6,10 @@ import PremiumButton from '../components/ui/PremiumButton.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import ReportModal from '../components/ReportModal.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
-import { getMyActivePlan, requestToJoinPlan } from '../lib/hangouts.js';
+import { getMyActivePlan, isPastHangoutTime, requestToJoinPlan } from '../lib/hangouts.js';
+import { getMyReviewsForHangouts } from '../lib/reviews.js';
 import { isDuoRestricted, SAFETY_MESSAGES } from '../lib/safety.js';
+import { supabase } from '../lib/supabaseClient.js';
 
 const DATE_LABELS = {
   today:     'Today',
@@ -88,7 +90,7 @@ function PromptCard({ q, a, accent }) {
   return (
     <div
       style={{
-        background:   accent ? 'rgba(140,94,42,0.06)' : C.cardElevated,
+        background:   accent ? C.amberT08 : C.cardElevated,
         border:       `0.5px solid ${accent ? 'rgba(255,107,0,0.15)' : C.border}`,
         borderRadius: 14,
         padding:      '14px 16px',
@@ -168,6 +170,8 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
   const [joinError,              setJoinError]              = useState('');
   const [selectedRequesterDuoId, setSelectedRequesterDuoId] = useState(null);
   const [duoRestricted,          setDuoRestricted]          = useState(false);
+  const [hasHungOutBefore,       setHasHungOutBefore]       = useState(false);
+  const [pastVibe,               setPastVibe]               = useState(null);
 
   useEffect(() => {
     if (!duo?.id) return;
@@ -186,6 +190,36 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
       })
       .finally(() => setPlanLoading(false));
   }, [duo?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHasHungOutBefore(false);
+    setPastVibe(null);
+    if (!myDuo?.id || !duo?.id || myDuo.id === duo.id) {
+      return () => { cancelled = true; };
+    }
+
+    supabase
+      .from('hangouts')
+      .select('id, date, time_slot, created_at')
+      .eq('status', 'confirmed')
+      .or(
+        `and(duo_a_id.eq.${myDuo.id},duo_b_id.eq.${duo.id}),` +
+        `and(duo_a_id.eq.${duo.id},duo_b_id.eq.${myDuo.id})`,
+      )
+      .then(async ({ data }) => {
+        if (cancelled) return;
+        const pastHangout = (data ?? []).find((hangout) =>
+          isPastHangoutTime(hangout.date, hangout.time_slot, hangout.created_at));
+        if (!pastHangout) return;
+
+        setHasHungOutBefore(true);
+        const reviews = await getMyReviewsForHangouts([pastHangout.id], [myDuo.id]);
+        if (!cancelled) setPastVibe(reviews?.[0]?.vibe ?? null);
+      });
+
+    return () => { cancelled = true; };
+  }, [myDuo?.id, duo?.id]);
 
   // Duos that can send a join request: user's duos excluding the viewed duo
   const eligibleRequesters = allMyDuos.filter((d) => d?.id && d.id !== duo?.id);
@@ -212,11 +246,48 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
     }
   };
 
-  if (!duo) {
+  if (!duo || duo.status === 'dissolved' || duo.status === 'archived') {
     return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
-        <div style={{ padding: '72px 16px 0', textAlign: 'center' }}>
-          <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex' }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 24px',
+          textAlign: 'center',
+          gap: 12,
+        }}>
+          <div style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: C.white,
+          }}>
+            This duo is no longer active
+          </div>
+          <div style={{
+            fontSize: 13,
+            color: C.muted,
+            marginBottom: 8,
+          }}>
+            The duo has been dissolved.
+          </div>
+          <button
+            onClick={() => go('explore')}
+            style={{
+              padding: '10px 20px',
+              borderRadius: 10,
+              border: 'none',
+              background: C.amber,
+              color: C.white,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Find duos &rarr;
+          </button>
         </div>
       </div>
     );
@@ -355,6 +426,39 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
         animate="animate"
         style={{ padding: '20px 16px 100px' }}
       >
+        {hasHungOutBefore && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            borderRadius: 20,
+            background: C.greenT08,
+            border: `0.5px solid ${C.greenBorder}`,
+            fontSize: 11,
+            fontWeight: 500,
+            color: C.success,
+            marginBottom: 10,
+          }}>
+            ✓ You've hung out before
+            {pastVibe ? ` · ${pastVibe}` : ''}
+          </div>
+        )}
+
+        {duo.city && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 12,
+            color: C.muted,
+            marginBottom: 8,
+          }}>
+            <MapPin size={11} />
+            {duo.city}
+          </div>
+        )}
+
         {/* Vibe pills */}
         {vibes.length > 0 && (
           <motion.div variants={staggerItem} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
@@ -374,23 +478,6 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
                 {v}
               </span>
             ))}
-            {duo.city && (
-              <span
-                style={{
-                  display:      'inline-flex',
-                  alignItems:   'center',
-                  gap:          4,
-                  background:   C.cardElevated,
-                  border:       `0.5px solid ${C.border}`,
-                  borderRadius: 9999,
-                  padding:      '5px 12px',
-                  fontSize:     12,
-                  color:        C.muted,
-                }}
-              >
-                <MapPin size={10} strokeWidth={2} />{duo.city}
-              </span>
-            )}
           </motion.div>
         )}
 
@@ -482,7 +569,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
                 <div
                   style={{
                     background:   'rgba(255,107,0,0.08)',
-                    border:       '0.5px solid rgba(79,119,45,0.22)',
+                    border:       `0.5px solid ${C.greenBorder}`,
                     borderRadius: 14,
                     padding:      '14px 16px',
                     marginBottom: 14,
@@ -561,7 +648,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
                   <div
                     style={{
                       background:   C.greenT08,
-                      border:       '0.5px solid rgba(79,119,45,0.2)',
+                      border:       `0.5px solid ${C.greenBorder}`,
                       borderRadius: 14,
                       padding:      '14px 16px',
                       textAlign:    'center',
@@ -631,7 +718,7 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
             reportedDuoName={duo.name}
             blockerDuoId={myDuo?.id}
             onClose={() => setReportOpen(false)}
-            onBlocked={() => { setReportOpen(false); goBack(); }}
+            onBlocked={() => { setReportOpen(false); go('explore'); }}
             showToast={showToast}
           />
         )}

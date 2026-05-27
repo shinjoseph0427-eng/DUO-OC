@@ -2,6 +2,12 @@ import { supabase } from './supabaseClient.js'
 import { createNotificationsForDuo } from './notifications.js'
 import { assertDuoIsNotRestricted } from './safety.js'
 
+export async function getWeeklyConfirmedCount() {
+  const { data, error } = await supabase.rpc('get_weekly_confirmed_count')
+  if (error) throw error
+  return typeof data === 'number' ? data : 0
+}
+
 // ─── Date/time expiry helpers ─────────────────────────────────────────────────
 
 // The end-of-slot hour (local time) after which a time slot is considered past.
@@ -329,10 +335,33 @@ export async function requestToJoinPlan({ planId, requesterDuoId, message }) {
   // Notify the plan creator duo
   const { data: requesterDuo } = await supabase.from('duos').select('name').eq('id', requesterDuoId).single()
   await createNotificationsForDuo(plan.creator_duo_id, 'plan_request', {
-    plan_id:  planId,
-    duo_name: requesterDuo?.name ?? 'A duo',
+    plan_id:    planId,
+    request_id: data.id,
+    duo_name:   requesterDuo?.name ?? 'A duo',
   }).catch(() => {})
 
+  return data
+}
+
+// Fetches a single hangout_plan_request with full plan + requester duo detail
+// for use in the RequestModal opened from a notification.
+export async function getPlanRequestDetail(requestId) {
+  if (!requestId) return null
+  const { data, error } = await supabase
+    .from('hangout_plan_requests')
+    .select(`
+      id, status, message, created_at,
+      plan:hangout_plans!hangout_plan_requests_plan_id_fkey(
+        id, vibe, date, time_slot, place, status
+      ),
+      requester_duo:duos!hangout_plan_requests_requester_duo_id_fkey(
+        id, name, city,
+        duo_members(user_id, profiles(name, photos, avatar_url))
+      )
+    `)
+    .eq('id', requestId)
+    .maybeSingle()
+  if (error) return null
   return data
 }
 

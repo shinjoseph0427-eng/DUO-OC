@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Check } from 'lucide-react';
 import { C } from '../tokens';
 import {
   getNotifications,
@@ -8,6 +8,12 @@ import {
   markAllAsRead,
   subscribeNotifications,
 } from '../lib/notifications.js';
+import { getMyHomieRequests, acceptHomieRequest } from '../lib/homie.js';
+import { acceptPlanRequest, declinePlanRequest } from '../lib/hangouts.js';
+
+function getSender(request) {
+  return request?.profiles ?? request?.profile ?? request?.from_profile ?? {};
+}
 
 const TYPE_META = {
   match:             { label: (p) => `${p.matched_duo_name ?? 'A duo'} matched with you.`, page: 'hangouts' },
@@ -32,9 +38,12 @@ function timeAgo(isoString) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export default function NotificationBell({ currentUser, go }) {
-  const [notifs, setNotifs] = useState([]);
-  const [open,   setOpen]   = useState(false);
+export default function NotificationBell({ currentUser, go, onOpenPlanRequest, showToast }) {
+  const [notifs,        setNotifs]        = useState([]);
+  const [homieRequests, setHomieRequests] = useState([]);
+  const [acceptingId,   setAcceptingId]   = useState(null);
+  const [planBusyId,    setPlanBusyId]    = useState(null);
+  const [open,          setOpen]          = useState(false);
   const panelRef = useRef(null);
   const btnRef   = useRef(null);
 
@@ -44,8 +53,25 @@ export default function NotificationBell({ currentUser, go }) {
     const unsub = subscribeNotifications(currentUser.id, currentUser.id, (n) => {
       setNotifs((prev) => [n, ...prev]);
     });
+    if (currentUser?.id) {
+      getMyHomieRequests(currentUser.id)
+        .then((data) => setHomieRequests(data || []))
+        .catch(() => {});
+    }
     return unsub;
   }, [currentUser]);
+
+  const handleAcceptHomie = async (requestId) => {
+    setAcceptingId(requestId);
+    try {
+      await acceptHomieRequest(requestId);
+      setHomieRequests((prev) => prev.filter((r) => r.id !== requestId));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAcceptingId(null);
+    }
+  };
 
   // Close on outside click
   useEffect(() => {
@@ -66,16 +92,74 @@ export default function NotificationBell({ currentUser, go }) {
     };
   }, [open]);
 
-  const unreadCount = notifs.filter((n) => !n.read).length;
+  const unreadCount = notifs.filter((n) => !n.read).length + homieRequests.length;
 
   const handleNotifClick = async (n) => {
     if (!n.read) {
       await markAsRead(n.id);
       setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
     }
+    // plan_request → open detail modal instead of navigating away
+    if (n.type === 'plan_request') {
+      const reqId = n.payload?.request_id;
+      if (!reqId || !onOpenPlanRequest) {
+        showToast?.('This request is no longer available.', 'info');
+        setOpen(false);
+        return;
+      }
+      onOpenPlanRequest(reqId);
+      setOpen(false);
+      return;
+    }
     const meta = TYPE_META[n.type];
     if (meta?.page) go(meta.page);
     setOpen(false);
+  };
+
+  const handleAcceptPlan = async (e, n) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const reqId = n.payload?.request_id;
+    if (planBusyId || !currentUser) return;
+    if (!reqId) {
+      showToast?.('This request is no longer available.', 'info');
+      return;
+    }
+    setPlanBusyId(n.id);
+    try {
+      await acceptPlanRequest(reqId, currentUser.id);
+      await markAsRead(n.id);
+      setNotifs((prev) => prev.filter((x) => x.id !== n.id));
+      showToast?.('Accepted! Chat opened.', 'success');
+      setOpen(false);
+      go?.('chat');
+    } catch (err) {
+      showToast?.(err?.message || 'Failed to accept', 'error');
+    } finally {
+      setPlanBusyId(null);
+    }
+  };
+
+  const handleDeclinePlan = async (e, n) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const reqId = n.payload?.request_id;
+    if (planBusyId || !currentUser) return;
+    if (!reqId) {
+      showToast?.('This request is no longer available.', 'info');
+      return;
+    }
+    setPlanBusyId(n.id);
+    try {
+      await declinePlanRequest(reqId, currentUser.id);
+      await markAsRead(n.id);
+      setNotifs((prev) => prev.filter((x) => x.id !== n.id));
+      showToast?.('Request declined', 'info');
+    } catch (err) {
+      showToast?.(err?.message || 'Failed to decline', 'error');
+    } finally {
+      setPlanBusyId(null);
+    }
   };
 
   const handleMarkAll = async () => {
@@ -154,43 +238,23 @@ export default function NotificationBell({ currentUser, go }) {
               zIndex:       500,
             }}
           >
-            {/* Header */}
-            <div
-              style={{
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'space-between',
-                padding:        '14px 14px 10px',
-                borderBottom:   `0.5px solid ${C.border}`,
-              }}
-            >
-              <p style={{ fontSize: 13, fontWeight: 700, color: C.white, margin: 0 }}>
-                Notifications
-                {unreadCount > 0 && (
-                  <span
-                    style={{
-                      marginLeft:   8,
-                      background:   'rgba(162,59,42,0.15)',
-                      color:        C.danger,
-                      borderRadius: 9999,
-                      padding:      '1px 7px',
-                      fontSize:     11,
-                      fontWeight:   700,
-                    }}
-                  >
-                    {unreadCount}
-                  </span>
-                )}
-              </p>
+            {/* ── Panel header ── */}
+            <div style={{
+              padding:        '14px 16px 10px',
+              borderBottom:   `0.5px solid ${C.border}`,
+              display:        'flex',
+              justifyContent: 'space-between',
+              alignItems:     'center',
+            }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: C.white }}>
+                Activity
+              </span>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {unreadCount > 0 && (
+                {notifs.some((n) => !n.read) && (
                   <button
                     type="button"
                     onClick={handleMarkAll}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      fontSize: 11, color: C.muted, fontWeight: 600, padding: '2px 4px',
-                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.muted, fontWeight: 600, padding: '2px 4px' }}
                   >
                     Mark all read
                   </button>
@@ -205,67 +269,168 @@ export default function NotificationBell({ currentUser, go }) {
               </div>
             </div>
 
-            {/* Items */}
-            {notifs.length === 0 ? (
-              <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '28px 16px' }}>
-                You're all caught up.
-              </p>
-            ) : (
-              notifs.map((n) => {
-                const meta  = TYPE_META[n.type] ?? { label: () => n.type };
-                const label = meta.label(n.payload ?? {});
-                return (
-                  <motion.button
-                    key={n.id}
-                    type="button"
-                    onClick={() => handleNotifClick(n)}
-                    whileTap={{ scale: 0.98 }}
-                    transition={{ duration: 0.08 }}
-                    style={{
-                      width:        '100%',
-                      display:      'flex',
-                      alignItems:   'flex-start',
-                      gap:          10,
-                      padding:      '12px 14px',
-                      background:   n.read ? 'transparent' : 'rgba(140,94,42,0.05)',
-                      border:       'none',
-                      borderBottom: `0.5px solid ${C.border}`,
-                      cursor:       'pointer',
-                      textAlign:    'left',
-                    }}
-                  >
-                    {meta.emoji && (
-                      <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>
-                        {meta.emoji}
-                      </span>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
+            {/* ── Homie requests ── */}
+            {homieRequests.length > 0 && (
+              <div>
+                <div style={{ padding: '10px 16px 6px', fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Duo requests · {homieRequests.length}
+                </div>
+                {homieRequests.map((request) => {
+                  const sender  = getSender(request);
+                  const avatar  = sender.photos?.[0] || sender.avatar_url;
+                  const initials = sender.name?.[0]?.toUpperCase() || '?';
+                  return (
+                    <div key={request.id} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `0.5px solid ${C.border}` }}>
+                      <div style={{
+                        width: 38, height: 38, borderRadius: '50%',
+                        background: avatar ? 'transparent' : C.amberT08,
+                        border: `1px solid ${C.brownBorder}`,
+                        overflow: 'hidden', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, fontWeight: 700, color: C.amber,
+                      }}>
+                        {avatar
+                          ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : initials
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white, marginBottom: 1 }}>
+                          {sender.name || 'Someone'}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.muted }}>
+                          {[sender.age, sender.city].filter(Boolean).join(' · ') || 'Wants to be your duo partner'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAcceptHomie(request.id)}
+                        disabled={acceptingId === request.id}
                         style={{
-                          fontSize:   13,
-                          fontWeight: n.read ? 400 : 600,
-                          color:      n.read ? C.muted : C.white,
-                          margin:     0,
-                          lineHeight: 1.4,
+                          padding: '7px 14px', borderRadius: 8, border: 'none',
+                          background: acceptingId === request.id ? C.muted : C.amber,
+                          color: '#fff', fontSize: 12, fontWeight: 600,
+                          cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s',
                         }}
                       >
-                        {label}
-                      </p>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0' }}>
-                        {timeAgo(n.created_at)}
-                      </p>
+                        {acceptingId === request.id ? '...' : 'Accept'}
+                      </button>
                     </div>
-                    {!n.read && (
-                      <div
-                        style={{
-                          width: 7, height: 7, borderRadius: '50%',
-                          background: C.amber, flexShrink: 0, marginTop: 4,
-                        }}
-                      />
-                    )}
-                  </motion.button>
-                );
-              })
+                  );
+                })}
+                <div
+                  onClick={() => { go('homie_inbox'); setOpen(false); }}
+                  style={{
+                    padding:      '10px 16px',
+                    fontSize:     13,
+                    color:        C.amber,
+                    fontWeight:   600,
+                    cursor:       'pointer',
+                    borderBottom: `0.5px solid ${C.border}`,
+                  }}
+                >
+                  See all duo requests →
+                </div>
+              </div>
+            )}
+
+            {/* ── Notifications ── */}
+            {notifs.length > 0 && (
+              <div>
+                {homieRequests.length > 0 && (
+                  <div style={{ padding: '10px 16px 6px', fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Notifications
+                  </div>
+                )}
+                {notifs.map((n) => {
+                  const meta      = TYPE_META[n.type] ?? { label: () => n.type };
+                  const label     = meta.label(n.payload ?? {});
+                  const isPlanReq = n.type === 'plan_request' && n.payload?.request_id;
+                  const busy      = planBusyId === n.id;
+                  return (
+                    <div
+                      key={n.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleNotifClick(n)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleNotifClick(n); }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'flex-start',
+                        gap: 10, padding: '12px 14px',
+                        background: n.read ? 'transparent' : C.amberT08,
+                        borderBottom: `0.5px solid ${C.border}`,
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      {meta.emoji && (
+                        <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>{meta.emoji}</span>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: n.read ? 400 : 600, color: n.read ? C.muted : C.white, margin: 0, lineHeight: 1.4 }}>
+                          {label}
+                        </p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0' }}>
+                          {timeAgo(n.created_at)}
+                        </p>
+                        {isPlanReq && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <button
+                              type="button"
+                              onClick={(e) => handleAcceptPlan(e, n)}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              disabled={busy}
+                              style={{
+                                display:      'inline-flex',
+                                alignItems:   'center',
+                                gap:          4,
+                                padding:      '6px 10px',
+                                borderRadius: 8,
+                                border:       'none',
+                                background:   busy ? C.muted : C.amber,
+                                color:        '#fff',
+                                fontSize:     11,
+                                fontWeight:   700,
+                                cursor:       busy ? 'default' : 'pointer',
+                              }}
+                            >
+                              <Check size={11} strokeWidth={2.5} /> Accept
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeclinePlan(e, n)}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              disabled={busy}
+                              style={{
+                                padding:      '6px 10px',
+                                borderRadius: 8,
+                                border:       `0.5px solid ${C.border}`,
+                                background:   'transparent',
+                                color:        C.muted,
+                                fontSize:     11,
+                                fontWeight:   600,
+                                cursor:       busy ? 'default' : 'pointer',
+                              }}
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {!n.read && (
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.amber, flexShrink: 0, marginTop: 4 }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Empty state ── */}
+            {homieRequests.length === 0 && notifs.length === 0 && (
+              <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>You're all caught up.</div>
+                <div style={{ fontSize: 11, color: C.muted }}>Duo requests and hangout updates show up here.</div>
+              </div>
             )}
           </motion.div>
         )}

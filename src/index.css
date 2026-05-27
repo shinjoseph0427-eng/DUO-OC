@@ -29,7 +29,7 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: url('/bg.jpg') center center / cover no-repeat;
+  background: url('https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/bg.jpg') center center / cover no-repeat;
   filter: brightness(0.45) saturate(0.7);
   opacity: 0.13;
   z-index: 0;
@@ -44,7 +44,30 @@ body::before {
   position: relative;
   overflow-x: hidden;
   z-index: 1;
-  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.08), 0 0 40px rgba(0,0,0,0.06);
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.08),
+              0 0 40px rgba(0,0,0,0.06);
+}
+
+@media (min-width: 768px) {
+  #root {
+    max-width: 100%;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: 100vh;
+    box-shadow: none;
+    overflow: hidden;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-content {
+    grid-column: 1 / -1;
+    padding-bottom: 0 !important;
+    padding-left: 240px;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
 }
 
 /* ─── Loading state ─── */

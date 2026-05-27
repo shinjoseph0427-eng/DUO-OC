@@ -8,6 +8,7 @@ import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { proposeHangout } from '../lib/hangouts.js';
 import { logError } from '../lib/logger.js';
+import { OC_SPOTS } from '../data/duos.js';
 
 const MAX_PLACE_LENGTH = 100;
 const MAX_MESSAGE_LENGTH = 200;
@@ -26,12 +27,6 @@ const TIME_SLOTS = [
   { label: 'Afternoon', sub: '12pm – 4pm',  value: 'afternoon' },
   { label: 'Evening',   sub: '4pm – 7pm',   value: 'evening'   },
   { label: 'Night',     sub: '7pm – 10pm',  value: 'night'     },
-];
-
-const OC_PLACES = [
-  'Irvine Spectrum', 'Diamond Jamboree', 'Anaheim Packing House',
-  'Downtown Fullerton', 'Balboa Island', 'Huntington Beach Pier',
-  'Portola Coffee Lab', 'The CAMP Costa Mesa', 'Fashion Island', 'Pacific City HB',
 ];
 
 const VIBES = ['Boba', 'Coffee', 'Beach', 'Dinner', 'Gym', 'Night out', 'Chill walk'];
@@ -190,7 +185,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
         {/* Opponent duo mini-card */}
         <div
           style={{
-            background:   'rgba(140,94,42,0.07)',
+            background:   C.amberT08,
             border:       '1px solid rgba(255,107,0,0.12)',
             borderRadius: 16,
             padding:      '14px 16px',
@@ -325,29 +320,30 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
             overflowX:     'auto',
             marginBottom:  24,
             paddingBottom: 4,
+            scrollbarWidth: 'none',
           }}
         >
-          {OC_PLACES.map((p) => (
+          {OC_SPOTS.map((spot) => (
             <motion.button
-              key={p}
+              key={spot.id}
               type="button"
-              onClick={() => setPlace(place === p ? null : p)}
+              onClick={() => setPlace(place === spot.name ? null : spot.name)}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               style={{
-                background:   place === p ? C.gradientCTA : 'rgba(17,17,17,0.05)',
-                border:       '0.5px solid ' + (place === p ? 'transparent' : C.border),
+                background:   place === spot.name ? C.amberT08 : 'rgba(17,17,17,0.05)',
+                border:       '0.5px solid ' + (place === spot.name ? C.brownBorder : C.border),
                 borderRadius: 9999,
                 padding:      '8px 16px',
                 fontSize:     13,
                 fontWeight:   500,
-                color:        place === p ? C.cream : C.brown,
+                color:        place === spot.name ? C.amber : C.brown,
                 cursor:       'pointer',
                 flexShrink:   0,
                 whiteSpace:   'nowrap',
               }}
             >
-              {p}
+              {spot.emoji} {spot.name}
             </motion.button>
           ))}
         </div>
@@ -397,7 +393,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           onClick={handlePropose}
           disabled={!canSubmit}
         >
-          {loading ? 'Sending…' : 'Send request →'}
+          {loading ? 'Sending…' : 'Send the invite →'}
         </PremiumButton>
 
         {(!vibe || !date || !timeSlot) && (

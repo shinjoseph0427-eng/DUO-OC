@@ -2,6 +2,16 @@
 // 85-90% white/light surfaces, 10-15% orange accent
 
 export const C = {
+  // ─── THEME NOTE ──────────────────────────────────────────────────────────
+  // This app migrated from dark → light theme.
+  // Token names were NOT renamed during migration.
+  // C.white = '#111111'  ← primary TEXT color (dark)
+  // C.cream = '#FFFFFF'  ← text ON orange buttons
+  // C.bg    = '#FFFFFF'  ← page background (white)
+  // For new tokens, use semantic names:
+  //   C.text, C.textMuted, C.surface
+  // ─────────────────────────────────────────────────────────────────────────
+
   // ── Backgrounds ──────────────────────────────────────────────────────────
   bg:           '#FFFFFF',
   bg2:          '#FAFAFA',
@@ -23,6 +33,10 @@ export const C = {
   orangeSoft:  '#FF8A1F',
   orangeSurface: '#FFF3E8',
   sunlight:    '#FF8A1F',
+  purple:      '#8B5CF6',
+  purpleT08:   'rgba(139,92,246,0.08)',
+  purpleT14:   'rgba(139,92,246,0.14)',
+  purpleBorder:'rgba(139,92,246,0.25)',
 
   // ── Status ────────────────────────────────────────────────────────────────
   success: '#16A34A',
@@ -75,6 +89,12 @@ export const C = {
   orangeT40: 'rgba(255,107,0,0.30)',
   brownMid:  '#FF8A1F',
   brownDeep: '#FF6B00',
+
+  // ── Preferred semantic aliases for new code ──────────────────────────────
+  text:       '#111111',
+  textMuted:  '#6B7280',
+  surface:    '#FFFFFF',
+  surfaceAlt: '#FAFAFA',
 };
 
 export const AVATAR_GRADIENTS = [

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AtSign, ChevronLeft, MapPin } from 'lucide-react';
 import { C, F } from '../tokens';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { getSentHomieRequests, sendHomieRequest } from '../lib/homie.js';
+import { blockUser } from '../lib/safety.js';
 
 function PromptBlock({ question, answer }) {
   if (!answer) return null;
@@ -39,10 +40,12 @@ function PromptBlock({ question, answer }) {
   );
 }
 
-export default function HomieProfilePage({ homie, currentUser, go }) {
-  const [requestStatus, setRequestStatus] = useState(null);
-  const [loadingStatus, setLoadingStatus] = useState(true);
-  const [sending, setSending] = useState(false);
+export default function HomieProfilePage({ homie, currentUser, go, showToast }) {
+  const [requestStatus,  setRequestStatus]  = useState(null);
+  const [loadingStatus,  setLoadingStatus]  = useState(true);
+  const [sending,        setSending]        = useState(false);
+  const [blockConfirm,   setBlockConfirm]   = useState(false);
+  const [blocking,       setBlocking]       = useState(false);
 
   const photo = homie?.photos?.[0] ?? homie?.avatar_url ?? null;
   const name = homie?.name ?? 'Anonymous';
@@ -68,6 +71,22 @@ export default function HomieProfilePage({ homie, currentUser, go }) {
 
     return () => { cancelled = true; };
   }, [currentUser?.id, homie?.id]);
+
+  const handleBlock = async () => {
+    if (!blockConfirm) { setBlockConfirm(true); return; }
+    if (!currentUser?.id) { showToast?.('You need to be logged in', 'error'); return; }
+    setBlocking(true);
+    try {
+      await blockUser(currentUser.id, homie.id);
+      showToast?.('User blocked', 'success');
+      go('explore');
+    } catch {
+      showToast?.('Failed to block', 'error');
+    } finally {
+      setBlocking(false);
+      setBlockConfirm(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!currentUser?.id || !homie?.id || sending || requestStatus) return;
@@ -202,6 +221,62 @@ export default function HomieProfilePage({ homie, currentUser, go }) {
         >
           {buttonCopy}
         </PremiumButton>
+
+        {/* Block section */}
+        <AnimatePresence mode="wait">
+          {!blockConfirm ? (
+            <motion.button
+              key="block-btn"
+              type="button"
+              onClick={handleBlock}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.1 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                width:        '100%',
+                marginTop:    10,
+                padding:      '11px 0',
+                borderRadius: 12,
+                border:       '0.5px solid rgba(239,68,68,0.25)',
+                background:   'rgba(239,68,68,0.06)',
+                color:        '#EF4444',
+                fontSize:     13,
+                fontWeight:   600,
+                cursor:       'pointer',
+              }}
+            >
+              Block {name}
+            </motion.button>
+          ) : (
+            <motion.div
+              key="block-confirm"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              style={{ display: 'flex', gap: 8, marginTop: 10 }}
+            >
+              <motion.button
+                type="button"
+                onClick={() => setBlockConfirm(false)}
+                whileTap={{ scale: 0.97 }}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: `0.5px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                type="button"
+                onClick={handleBlock}
+                disabled={blocking}
+                whileTap={{ scale: 0.97 }}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: blocking ? 'default' : 'pointer', opacity: blocking ? 0.7 : 1 }}
+              >
+                {blocking ? 'Blocking…' : 'Yes, block'}
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

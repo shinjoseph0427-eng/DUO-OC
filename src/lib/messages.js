@@ -41,11 +41,11 @@ export async function getMyChats(userId) {
     .select(`
       id, duo_a_id, duo_b_id, vibe, date, time_slot, place, created_at,
       duo_a:duos!hangouts_duo_a_id_fkey(
-        id, name,
+        id, name, status,
         duo_members(user_id, profiles(name))
       ),
       duo_b:duos!hangouts_duo_b_id_fkey(
-        id, name,
+        id, name, status,
         duo_members(user_id, profiles(name))
       )
     `)
@@ -78,8 +78,8 @@ export async function getMyChats(userId) {
       return {
         hangoutId:   h.id,
         myDuoId,
-        duoA:        { id: h.duo_a?.id, name: h.duo_a?.name ?? 'Duo', members: mapMembers(h.duo_a) },
-        duoB:        { id: h.duo_b?.id, name: h.duo_b?.name ?? 'Duo', members: mapMembers(h.duo_b) },
+        duoA:        { id: h.duo_a?.id, name: h.duo_a?.name ?? 'Duo', status: h.duo_a?.status, members: mapMembers(h.duo_a) },
+        duoB:        { id: h.duo_b?.id, name: h.duo_b?.name ?? 'Duo', status: h.duo_b?.status, members: mapMembers(h.duo_b) },
         otherDuo:    { name: otherDuo?.name ?? 'Duo', members: mapMembers(otherDuo) },
         vibe:        h.vibe ?? null,
         date:        h.date ?? null,
@@ -146,6 +146,51 @@ export async function getConfirmedChatCount(userId) {
     .or(orFilter)
     .eq('status', 'confirmed')
   return count ?? 0
+}
+
+export async function getMyDuoRooms(userId) {
+  const { data: memberships } = await supabase
+    .from('duo_members')
+    .select('duo_id')
+    .eq('user_id', userId)
+
+  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  if (duoIds.length === 0) return []
+
+  const { data: duos } = await supabase
+    .from('duos')
+    .select('id, name, status, duo_members(user_id, profiles(name))')
+    .in('id', duoIds)
+    .eq('status', 'active')
+
+  if (!duos || duos.length === 0) return []
+
+  const results = await Promise.all(
+    duos.map(async (duo) => {
+      const { data: lastMsg } = await supabase
+        .from('duo_messages')
+        .select('content, created_at')
+        .eq('duo_id', duo.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const members = (duo.duo_members ?? []).map((m) => ({
+        userId: m.user_id,
+        name:   m.profiles?.name ?? 'Member',
+      }))
+
+      return {
+        duoId:       duo.id,
+        duoName:     duo.name ?? 'My Duo',
+        members,
+        lastMessage: lastMsg?.content ?? null,
+        updatedAt:   lastMsg?.created_at ?? null,
+      }
+    })
+  )
+
+  return results
 }
 
 export async function subscribeMessages(hangoutId, currentUserId, callback) {

@@ -59,7 +59,7 @@ export default function MatchScreen({ duo, requestData = {}, go }) {
               position:      'absolute',
               inset:         '-40px',
               borderRadius:  '50%',
-              background:    'radial-gradient(circle, rgba(245,158,11,0.2) 0%, transparent 70%)',
+              background:    `radial-gradient(circle, ${C.amberT22} 0%, transparent 70%)`,
               pointerEvents: 'none',
             }}
           />
@@ -77,7 +77,7 @@ export default function MatchScreen({ duo, requestData = {}, go }) {
               justifyContent: 'center',
               position:       'relative',
               zIndex:         1,
-              boxShadow:      '0 8px 32px rgba(245,158,11,0.4)',
+              boxShadow:      `0 8px 32px ${C.amberT35}`,
             }}
           >
             <Check size={34} color={C.cream} strokeWidth={2.5} />

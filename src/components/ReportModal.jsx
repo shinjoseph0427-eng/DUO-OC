@@ -30,7 +30,11 @@ export default function ReportModal({
 
   const handleBlock = async () => {
     if (!blockConfirm) { setBlockConfirm(true); return; }
-    if (!blockerDuoId || !reportedDuoId) return;
+    if (!reportedDuoId) return;
+    if (!blockerDuoId) {
+      showToast?.('You need a duo to block', 'error');
+      return;
+    }
     setBlocking(true);
     try {
       await blockDuo({ blockerDuoId, blockedDuoId: reportedDuoId });
@@ -206,8 +210,8 @@ export default function ReportModal({
                 gap:          12,
                 padding:      '12px 14px',
                 borderRadius: 12,
-                border:       `0.5px solid ${reason === r.key ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.07)'}`,
-                background:   reason === r.key ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.03)',
+                border:       `0.5px solid ${reason === r.key ? C.amberT35 : 'rgba(255,255,255,0.07)'}`,
+                background:   reason === r.key ? C.amberT08 : 'rgba(255,255,255,0.03)',
                 cursor:       'pointer',
                 textAlign:    'left',
               }}

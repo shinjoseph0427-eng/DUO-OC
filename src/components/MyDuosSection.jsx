@@ -24,9 +24,7 @@ function DuoCard({ duo, go }) {
 
   useEffect(() => {
     if (!duo?.id) return;
-    console.log('[DuoCard] fetching pending proposals for duo', duo.id);
     getPendingHangoutsForDuo(duo.id).then((items) => {
-      console.log('[DuoCard] pending proposals result', items);
       setProposals(items);
     }).catch((err) => {
       console.error('[DuoCard] pending proposals failed', err);
@@ -224,10 +222,8 @@ export default function MyDuosSection({ currentUser, go }) {
 
     setLoading(true);
     setError('');
-    console.log('[MyDuosSection] currentUser.id', currentUser?.id);
     getMyDuos(currentUser.id).then((nextDuos) => {
       if (cancelled) return;
-      console.log('[MyDuosSection] getMyDuos result', nextDuos);
       setDuos(nextDuos);
     }).catch((err) => {
       if (cancelled) return;

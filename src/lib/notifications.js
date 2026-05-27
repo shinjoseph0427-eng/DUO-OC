@@ -46,6 +46,7 @@ export function subscribeNotifications(userId, currentUserId, callback) {
 }
 
 export async function sendPushForNotification(notificationId) {
+  console.log('sendPushForNotification called', notificationId)
   try {
     const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL;
     const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -64,6 +65,7 @@ export async function sendPushForNotification(notificationId) {
         body: JSON.stringify({ notificationId }),
       }
     );
+    console.log('push fetch completed')
   } catch (e) {
     console.warn('Push notification error:', e);
   }

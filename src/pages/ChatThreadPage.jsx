@@ -33,7 +33,7 @@ function PlanCard({ chat }) {
     <div
       style={{
         background:   'rgba(255,107,0,0.08)',
-        border:       '0.5px solid rgba(79,119,45,0.22)',
+        border:       `0.5px solid ${C.greenBorder}`,
         borderRadius: 14,
         padding:      '12px 14px',
         marginBottom: 8,

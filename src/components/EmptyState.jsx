@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { C } from '../tokens';
 
-export default function EmptyState({ icon: Icon, title, subtitle, action, actionLabel }) {
+export default function EmptyState({ icon: Icon, title, subtitle, action, actionLabel, style }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -13,6 +13,7 @@ export default function EmptyState({ icon: Icon, title, subtitle, action, action
         background:   C.bg2,
         border:       `1px dashed ${C.border}`,
         borderRadius: 20,
+        ...style,
       }}
     >
       {Icon && (

@@ -12,8 +12,8 @@ export default function Pill({ children, selected = false, onClick, style: style
       whileTap={interactive ? { scale: 0.93 } : {}}
       transition={{ duration: 0.1 }}
       animate={{
-        background:  selected ? 'rgba(245,158,11,0.14)' : C.cardElevated,
-        borderColor: selected ? 'rgba(245,158,11,0.45)' : 'rgba(255,255,255,0.08)',
+        background:  selected ? C.amberT14 : C.cardElevated,
+        borderColor: selected ? C.amberT35  : 'rgba(255,255,255,0.08)',
         color:       selected ? C.amber                  : C.muted,
       }}
       style={{

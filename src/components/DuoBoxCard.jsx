@@ -126,7 +126,7 @@ export default function DuoBoxCard({ duo, size = 'regular', onPress }) {
             <span
               key={tag}
               style={{
-                background:    'rgba(245,158,11,0.1)',
+                background:    C.amberT08,
                 color:         C.amber,
                 borderRadius:  9999,
                 padding:       '3px 9px',

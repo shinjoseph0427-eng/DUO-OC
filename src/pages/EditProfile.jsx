@@ -378,8 +378,8 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '10px 16px', borderRadius: 12, marginTop: -8,
-              background: 'rgba(245,158,11,0.07)',
-              border: '0.5px solid rgba(245,158,11,0.2)',
+              background: C.amberT08,
+              border: `0.5px solid ${C.amberT22}`,
               color: locState === 'success' ? C.success : C.amber,
               fontSize: 13, fontWeight: 600, cursor: locState === 'requesting' ? 'default' : 'pointer',
             }}

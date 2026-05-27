@@ -45,7 +45,7 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
               alignItems:     'center',
               justifyContent: 'center',
               margin:         '0 auto 20px',
-              boxShadow:      '0 8px 24px rgba(245,158,11,0.3)',
+              boxShadow:      `0 8px 24px ${C.amberT35}`,
             }}
           >
             <span style={{ fontSize: 28 }}>✓</span>
@@ -187,7 +187,7 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
               outline:      'none',
               display:      'block',
               boxSizing:    'border-box',
-              boxShadow:    msgFocus ? '0 0 0 3px rgba(245,158,11,0.12)' : 'none',
+              boxShadow:    msgFocus ? `0 0 0 3px ${C.amberT14}` : 'none',
               transition:   'border-color 0.15s, box-shadow 0.15s',
             }}
           />

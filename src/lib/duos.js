@@ -31,7 +31,7 @@ export async function getMyDuo(userId) {
 
   if (error) return null
   const memberships = Array.isArray(data) ? data : (data ? [data] : [])
-  return memberships.find((membership) => membership.duos?.status === 'active')?.duos || memberships[0]?.duos || null
+  return memberships.find((membership) => membership.duos?.status === 'active')?.duos ?? null
 }
 
 export async function getMyDuos(userId) {
@@ -67,10 +67,8 @@ export async function getMyDuos(userId) {
     throw new Error(error.message ?? 'Failed to load Duos')
   }
 
-  console.log('[getMyDuos] raw data from supabase', JSON.stringify(data))
   const rows = data ?? []
   const mapped = rows.map((membership) => membership.duos)
-  console.log('[getMyDuos] after map (duos)', mapped)
 
   // If rows came back but every duo is null, RLS is blocking the duos join
   if (rows.length > 0 && mapped.every((d) => d == null)) {
@@ -79,7 +77,6 @@ export async function getMyDuos(userId) {
   }
 
   const filtered = mapped.filter((duo) => duo?.status === 'active')
-  console.log('[getMyDuos] after active filter', filtered)
 
   return filtered
     .sort((a, b) => new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0))
@@ -187,7 +184,9 @@ export async function getExploreDuos(userId) {
     `)
     .order('created_at', { ascending: false })
   if (error) return []
-  return duos.filter((d) => !myDuoIds.has(d.id))
+  return duos
+    .filter((d) => !myDuoIds.has(d.id))
+    .filter((duo) => duo?.status === 'active')
 }
 
 export async function getDiscoveryDuos(userId) {

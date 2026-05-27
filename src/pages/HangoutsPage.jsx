@@ -12,6 +12,7 @@ import {
   acceptPlanRequest, declinePlanRequest, cancelOpenPlan,
   isPastHangoutTime,
 } from '../lib/hangouts.js';
+import { getMyChats } from '../lib/messages.js';
 import { createPostHangoutReview, getMyReviewsForHangouts } from '../lib/reviews.js';
 import { blockDuo, reportDuo } from '../lib/safety.js';
 
@@ -74,7 +75,7 @@ function SpotCard({ spot }) {
       }}
     >
       <p style={{ fontSize: 18, marginBottom: 6 }}>{spot.emoji}</p>
-      <p style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 2 }}>{spot.name}</p>
+      <p style={{ fontSize: 11, fontWeight: 700, color: C.text ?? '#111111', marginBottom: 2 }}>{spot.name}</p>
       <p style={{ fontSize: 10, color: C.muted }}>{spot.city}</p>
     </div>
   );
@@ -95,17 +96,138 @@ function HangoutMeta({ h }) {
   );
 }
 
+function IncomingCard({ h, go, onAccept, onDecline }) {
+  const [accepted,  setAccepted]  = useState(false);
+  const [accepting, setAccepting] = useState(false);
+
+  const expiryHours = h.created_at
+    ? (Date.now() - new Date(h.created_at)) / 3600000
+    : 0;
+
+  const handleLocal = async () => {
+    if (accepting || accepted) return;
+    setAccepting(true);
+    const success = await onAccept(h.id);
+    setAccepting(false);
+    if (success) {
+      setAccepted(true);
+      setTimeout(() => go('chat'), 1500);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background:   C.cardElevated,
+        borderLeft:   `3px solid ${C.amber}`,
+        borderRight:  `0.5px solid ${C.border}`,
+        borderTop:    `0.5px solid ${C.border}`,
+        borderBottom: `0.5px solid ${C.border}`,
+        borderRadius: 14,
+        padding:      '14px 16px',
+        marginBottom: 10,
+      }}
+    >
+      <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
+        {h.duo_a?.name ?? 'A duo'}
+      </p>
+      <HangoutMeta h={h} />
+      {expiryHours > 48 && (
+        <div style={{ fontSize: 11, color: C.amber, marginTop: 3, marginBottom: 8 }}>
+          Sent 2+ days ago
+        </div>
+      )}
+      {h.message && (
+        <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
+          "{h.message}"
+        </p>
+      )}
+      {accepted ? (
+        <p style={{ fontSize: 13, color: C.success, fontWeight: 700, marginTop: 8 }}>
+          It's on! Chat is now open.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <motion.button
+            type="button"
+            onClick={handleLocal}
+            disabled={accepting}
+            whileTap={{ scale: 0.96 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              flex:         1,
+              background:   C.gradientCTA,
+              color:        '#fff',
+              border:       'none',
+              borderRadius: 10,
+              padding:      10,
+              fontSize:     13,
+              fontWeight:   700,
+              cursor:       accepting ? 'wait' : 'pointer',
+              opacity:      accepting ? 0.7 : 1,
+              boxShadow:    '0 2px 12px rgba(255,107,0,0.15)',
+            }}
+          >
+            {accepting ? 'Accepting…' : 'Accept'}
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={() => onDecline(h.id)}
+            whileTap={{ scale: 0.96 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              flex:         1,
+              background:   'transparent',
+              color:        C.muted,
+              border:       `0.5px solid ${C.border}`,
+              borderRadius: 10,
+              padding:      10,
+              fontSize:     13,
+              fontWeight:   700,
+              cursor:       'pointer',
+            }}
+          >
+            Pass
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={() => go('counter_hangout', null, null, null, h)}
+            whileTap={{ scale: 0.96 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              flex:         1,
+              background:   'transparent',
+              color:        C.olive,
+              border:       `0.5px solid ${C.greenBorder}`,
+              borderRadius: 10,
+              padding:      10,
+              fontSize:     13,
+              fontWeight:   700,
+              cursor:       'pointer',
+            }}
+          >
+            Counter
+          </motion.button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = [], go, onLogout, showToast }) {
   // Fall back to [myDuo] if prop not yet populated (e.g. older callers)
   const myDuos = myDuosProp.length > 0 ? myDuosProp : (myDuo ? [myDuo] : []);
 
   const [hangouts,          setHangouts]          = useState([]);
   const [loading,           setLoading]           = useState(true);
-  const [acceptedHangout,   setAcceptedHangout]   = useState(null);
+  const [activeTab,         setActiveTab]         = useState('upcoming');
+  const [chatMap,           setChatMap]           = useState(new Map());
   // planData: [{ duo, plan: {...}|null, requests: [...] }]
   const [planData,          setPlanData]          = useState([]);
   const [planLoading,       setPlanLoading]       = useState(false);
   const [acceptedPlanReqId, setAcceptedPlanReqId] = useState(null);
+  const [busyPlanReqId,     setBusyPlanReqId]     = useState(null);
+  const [confirmCancelId,   setConfirmCancelId]   = useState(null);
   // Reviews
   const [reviewMap,           setReviewMap]           = useState(new Map()); // hangoutId → review
   const [reviewingHangoutId,  setReviewingHangoutId]  = useState(null);
@@ -122,9 +244,13 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
     if (!currentUser) { setLoading(false); return; }
     const ids = myDuos.map((d) => d.id).filter(Boolean);
     if (ids.length === 0) { setLoading(false); return; }
-    getMyHangouts(ids).then((data) => {
+    Promise.all([
+      getMyHangouts(ids),
+      getMyChats(currentUser.id).catch(() => []),
+    ]).then(([data, chats]) => {
       const list = data ?? [];
       setHangouts(list);
+      setChatMap(new Map((chats ?? []).map((chat) => [chat.hangoutId, chat])));
       setLoading(false);
       // Load reviews for past confirmed hangouts
       const pastIds = list
@@ -161,10 +287,11 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const handleAccept = async (id) => {
     try {
       await acceptHangout(id, currentUser?.id);
-      setAcceptedHangout(id);
       load();
+      return true;
     } catch (err) {
       showToast?.(err?.message ?? 'Could not accept hangout.', 'error');
+      return false;
     }
   };
 
@@ -178,6 +305,8 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   };
 
   const handleAcceptPlanRequest = async (reqId) => {
+    if (busyPlanReqId) return;
+    setBusyPlanReqId(reqId);
     try {
       await acceptPlanRequest(reqId, currentUser?.id);
       setAcceptedPlanReqId(reqId);
@@ -185,27 +314,41 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
       load();
     } catch (err) {
       showToast?.(err?.message ?? 'Could not accept request.', 'error');
+    } finally {
+      setBusyPlanReqId(null);
     }
   };
 
   const handleDeclinePlanRequest = async (reqId) => {
+    if (busyPlanReqId) return;
+    setBusyPlanReqId(reqId);
     try {
       await declinePlanRequest(reqId, currentUser?.id);
       loadPlan();
     } catch (err) {
       showToast?.(err?.message ?? 'Could not decline request.', 'error');
+    } finally {
+      setBusyPlanReqId(null);
     }
   };
 
   const handleCancelPlan = async (planId) => {
     if (!planId) return;
-    if (!window.confirm('Cancel your open plan? Pending requests to join will be notified.')) return;
     try {
       await cancelOpenPlan(planId, currentUser?.id);
       loadPlan();
     } catch (err) {
       showToast?.(err?.message ?? 'Could not cancel plan.', 'error');
     }
+  };
+
+  const handleOpenChat = (hangoutId) => {
+    const chat = chatMap.get(hangoutId);
+    if (!chat) {
+      showToast?.('Chat will be available soon.', 'info');
+      return;
+    }
+    go('chat_thread', null, null, chat);
   };
 
   // Reset review form when switching which hangout is being reviewed
@@ -296,6 +439,12 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const countered     = hangouts.filter((h) => h.status === 'countered' && myDuoIds.includes(h.duo_a_id)  && !isPastHangoutTime(h.date, h.time_slot, h.created_at));
   const confirmed     = hangouts.filter((h) => h.status === 'confirmed'                                    && !isPastHangoutTime(h.date, h.time_slot, h.created_at));
   const pastConfirmed = hangouts.filter((h) => h.status === 'confirmed'                                    &&  isPastHangoutTime(h.date, h.time_slot, h.created_at));
+  const requestCount  = incoming.length + outgoing.length + countered.length + totalPlanReqs;
+  const tabItems = [
+    { key: 'upcoming', label: 'Upcoming', count: confirmed.length + activePlanItems.length },
+    { key: 'requests', label: 'Requests', count: requestCount },
+    { key: 'past',     label: 'Past',     count: pastConfirmed.length },
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
@@ -309,70 +458,51 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
           </p>
         ) : (
           <>
-            {/* ACCEPT SUCCESS BANNER */}
-            <AnimatePresence>
-              {acceptedHangout && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-                  style={{
-                    background:   C.greenT08,
-                    border:       '0.5px solid rgba(79,119,45,0.28)',
-                    borderRadius: 16,
-                    padding:      '16px',
-                    marginBottom: 20,
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
-                    <div
-                      style={{
-                        width:          40,
-                        height:         40,
-                        borderRadius:   '50%',
-                        background:     'rgba(79,119,45,0.18)',
-                        display:        'flex',
-                        alignItems:     'center',
-                        justifyContent: 'center',
-                        flexShrink:     0,
-                      }}
-                    >
-                      <Check size={20} color={C.success} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 15, fontWeight: 800, color: C.white, margin: 0 }}>Hangout confirmed!</p>
-                      <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>Your 2v2 chat is ready.</p>
-                    </div>
-                  </div>
-                  <motion.button
+            <div style={{
+              display:      'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap:          6,
+              background:   C.cardElevated,
+              border:       `0.5px solid ${C.border}`,
+              borderRadius: 14,
+              padding:      4,
+              marginBottom: 18,
+            }}>
+              {tabItems.map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
                     type="button"
-                    onClick={() => go('chat')}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.1 }}
+                    onClick={() => setActiveTab(tab.key)}
                     style={{
-                      width:        '100%',
-                      background:   C.gradientCTA,
-                      color:        '#fff',
+                      minWidth:     0,
                       border:       'none',
-                      borderRadius: 11,
-                      padding:      '11px 0',
-                      fontSize:     13,
-                      fontWeight:   700,
+                      borderRadius: 10,
+                      background:   active ? C.amberT08 : 'transparent',
+                      color:        active ? C.white : C.muted,
+                      padding:      '9px 4px',
+                      fontSize:     12,
+                      fontWeight:   800,
                       cursor:       'pointer',
-                      boxShadow:    '0 2px 12px rgba(255,107,0,0.15)',
                     }}
                   >
-                    Open chat
-                  </motion.button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    {tab.label}
+                    {tab.count > 0 && (
+                      <span style={{ marginLeft: 5, color: active ? C.amber : C.muted, fontWeight: 900 }}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
             {/* INCOMING PENDING */}
+            {activeTab === 'requests' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <p style={SECTION_LABEL}>Pending</p>
-              {incoming.length > 0 && (
+              {requestCount > 0 && (
                 <span
                   style={{
                     background:   'rgba(255,107,0,0.10)',
@@ -383,12 +513,13 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                     fontWeight:   700,
                   }}
                 >
-                  {incoming.length}
+                  {requestCount}
                 </span>
               )}
             </div>
+            )}
 
-            {hangouts.length === 0 && (
+            {activeTab === 'upcoming' && confirmed.length === 0 && activePlanItems.length === 0 && (
               <EmptyState
                 icon={Calendar}
                 title="Quiet in here — send the first one."
@@ -397,103 +528,24 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
               />
             )}
 
-            {incoming.length === 0 && outgoing.length === 0 && hangouts.length > 0 && (
+            {activeTab === 'requests' && requestCount === 0 && activePlanItems.length === 0 && (
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
-                No active hangout requests.
+                No active hangout or plan requests.
               </p>
             )}
 
-            {incoming.map((h) => (
-              <div
+            {activeTab === 'requests' && incoming.map((h) => (
+              <IncomingCard
                 key={h.id}
-                style={{
-                  background:   C.cardElevated,
-                  borderLeft:   `3px solid ${C.amber}`,
-                  borderRight:  `0.5px solid ${C.border}`,
-                  borderTop:    `0.5px solid ${C.border}`,
-                  borderBottom: `0.5px solid ${C.border}`,
-                  borderRadius: 14,
-                  padding:      '14px 16px',
-                  marginBottom: 10,
-                }}
-              >
-                <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
-                  Hangout request
-                </p>
-                <p style={{ fontSize: 13, color: C.muted, margin: '0 0 4px' }}>
-                  {h.duo_a?.name ?? 'A duo'} wants to hang out.
-                </p>
-                <HangoutMeta h={h} />
-                {h.message && (
-                  <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
-                    "{h.message}"
-                  </p>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <motion.button
-                    type="button"
-                    onClick={() => handleAccept(h.id)}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      flex:         1,
-                      background:   C.gradientCTA,
-                      color:        '#fff',
-                      border:       'none',
-                      borderRadius: 10,
-                      padding:      10,
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                      boxShadow:    '0 2px 12px rgba(255,107,0,0.15)',
-                    }}
-                  >
-                    Accept
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    onClick={() => handleDecline(h.id)}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      flex:         1,
-                      background:   'transparent',
-                      color:        C.muted,
-                      border:       `0.5px solid ${C.border}`,
-                      borderRadius: 10,
-                      padding:      10,
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                    }}
-                  >
-                    Decline
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    onClick={() => go('counter_hangout', null, null, null, h)}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      flex:         1,
-                      background:   'transparent',
-                      color:        C.olive,
-                      border:       `0.5px solid ${C.greenBorder}`,
-                      borderRadius: 10,
-                      padding:      10,
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                    }}
-                  >
-                    Counter
-                  </motion.button>
-                </div>
-              </div>
+                h={h}
+                go={go}
+                onAccept={handleAccept}
+                onDecline={handleDecline}
+              />
             ))}
 
             {/* OUTGOING PENDING */}
-            {outgoing.length > 0 && (
+            {activeTab === 'requests' && outgoing.length > 0 && (
               <>
                 <p style={{ ...SECTION_LABEL, marginTop: 20, marginBottom: 12 }}>Sent</p>
                 {outgoing.map((h) => (
@@ -510,6 +562,14 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                       marginBottom: 10,
                     }}
                   >
+                    <div style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.white,
+                      marginBottom: 2,
+                    }}>
+                      {h.duo_b?.name ?? 'Sent request'}
+                    </div>
                     <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>
                       Waiting for reply…
                     </p>
@@ -520,7 +580,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
             )}
 
             {/* COUNTERED */}
-            {countered.length > 0 && (
+            {activeTab === 'requests' && countered.length > 0 && (
               <>
                 <p style={{ ...SECTION_LABEL, marginTop: 20, marginBottom: 12 }}>New time</p>
                 {countered.map((h) => (
@@ -575,17 +635,19 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
             )}
 
             {/* CONFIRMED */}
-            <div style={{ marginBottom: 12, marginTop: 28 }}>
-              <p style={SECTION_LABEL}>Confirmed</p>
-            </div>
+            {activeTab === 'upcoming' && (
+              <div style={{ marginBottom: 12, marginTop: 8 }}>
+                <p style={SECTION_LABEL}>Confirmed hangouts</p>
+              </div>
+            )}
 
-            {confirmed.length === 0 && (
+            {activeTab === 'upcoming' && confirmed.length === 0 && activePlanItems.length > 0 && (
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
-                Nothing locked in yet.
+                No confirmed hangouts yet. Accepted plan requests will appear here.
               </p>
             )}
 
-            {confirmed.map((h) => {
+            {activeTab === 'upcoming' && confirmed.map((h) => {
               const otherDuo = myDuoIds.includes(h.duo_a_id) ? h.duo_b : h.duo_a;
               const members  = otherDuo?.duo_members ?? [];
               return (
@@ -654,12 +716,41 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                       ))
                     )}
                   </div>
+                  <motion.button
+                    type="button"
+                    onClick={() => handleOpenChat(h.id)}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      width:        '100%',
+                      background:   chatMap.has(h.id) ? C.gradientCTA : 'rgba(17,17,17,0.04)',
+                      color:        chatMap.has(h.id) ? '#fff' : C.muted,
+                      border:       chatMap.has(h.id) ? 'none' : `0.5px solid ${C.border}`,
+                      borderRadius: 11,
+                      padding:      '11px 0',
+                      fontSize:     13,
+                      fontWeight:   700,
+                      cursor:       'pointer',
+                      boxShadow:    chatMap.has(h.id) ? '0 2px 12px rgba(255,107,0,0.15)' : 'none',
+                    }}
+                  >
+                    {chatMap.has(h.id) ? 'Open Chat' : 'Chat coming soon'}
+                  </motion.button>
                 </div>
               );
             })}
 
             {/* PAST HANGOUTS */}
-            {pastConfirmed.length > 0 && (
+            {activeTab === 'past' && pastConfirmed.length === 0 && (
+              <EmptyState
+                icon={Calendar}
+                title="No past hangouts yet."
+                subtitle="After a confirmed hangout time passes, it will move here."
+                style={{ marginBottom: 24 }}
+              />
+            )}
+
+            {activeTab === 'past' && pastConfirmed.length > 0 && (
               <>
                 <div style={{ marginBottom: 6, marginTop: 28 }}>
                   <p style={SECTION_LABEL}>Past hangouts</p>
@@ -1061,8 +1152,9 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
             )}
 
             {/* MY PLANS */}
+            {(activeTab === 'upcoming' || activeTab === 'requests') && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 28 }}>
-              <p style={SECTION_LABEL}>{planSectionLabel}</p>
+              <p style={SECTION_LABEL}>{activeTab === 'requests' ? 'Plan join requests' : planSectionLabel}</p>
               {totalPlanReqs > 0 && (
                 <span
                   style={{
@@ -1078,10 +1170,11 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                 </span>
               )}
             </div>
+            )}
 
-            {planLoading ? (
+            {(activeTab === 'upcoming' || activeTab === 'requests') && planLoading ? (
               <div className="shimmer" style={{ height: 80, borderRadius: 14, background: C.cardDeep, marginBottom: 20 }} />
-            ) : activePlanItems.length > 0 ? (
+            ) : (activeTab === 'upcoming' || activeTab === 'requests') && activePlanItems.length > 0 ? (
               <>
                 {/* Plan-matched success banner */}
                 <AnimatePresence>
@@ -1093,7 +1186,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                       transition={{ type: 'spring', stiffness: 280, damping: 24 }}
                       style={{
                         background:   C.greenT08,
-                        border:       '0.5px solid rgba(79,119,45,0.28)',
+                        border:       `0.5px solid ${C.greenBorder}`,
                         borderRadius: 14,
                         padding:      '14px 16px',
                         marginBottom: 12,
@@ -1105,7 +1198,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                             width:          36,
                             height:         36,
                             borderRadius:   '50%',
-                            background:     'rgba(79,119,45,0.18)',
+                            background:     C.greenT12,
                             display:        'flex',
                             alignItems:     'center',
                             justifyContent: 'center',
@@ -1162,6 +1255,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                     )}
 
                     {/* Plan card */}
+                    {activeTab === 'upcoming' && (
                     <div
                       style={{
                         background:   C.cardElevated,
@@ -1195,28 +1289,81 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                           "{plan.message}"
                         </p>
                       )}
-                      <motion.button
-                        type="button"
-                        onClick={() => handleCancelPlan(plan.id)}
-                        whileTap={{ scale: 0.96 }}
-                        transition={{ duration: 0.1 }}
-                        style={{
-                          background:   'transparent',
-                          color:        C.muted,
-                          border:       `0.5px solid ${C.border}`,
+                      {confirmCancelId === plan.id ? (
+                        <div style={{
+                          marginTop: 8,
+                          padding: '10px 12px',
                           borderRadius: 10,
-                          padding:      '8px 14px',
-                          fontSize:     12,
-                          fontWeight:   600,
-                          cursor:       'pointer',
-                        }}
-                      >
-                        Cancel plan
-                      </motion.button>
+                          background: 'rgba(220,38,38,0.08)',
+                          border: '0.5px solid rgba(220,38,38,0.2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                        }}>
+                          <span style={{
+                            fontSize: 12,
+                            color: C.danger,
+                            fontWeight: 500,
+                          }}>
+                            Cancel this plan?
+                          </span>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => setConfirmCancelId(null)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 7,
+                                border: `0.5px solid ${C.border}`,
+                                background: 'transparent',
+                                fontSize: 12,
+                                color: C.muted,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Keep it
+                            </button>
+                            <button
+                              onClick={() => {
+                                setConfirmCancelId(null);
+                                handleCancelPlan(plan.id);
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 7,
+                                border: 'none',
+                                background: C.danger,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.cream,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel plan
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmCancelId(plan.id)}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: 8,
+                            border: `0.5px solid ${C.border}`,
+                            background: 'transparent',
+                            fontSize: 12,
+                            color: C.muted,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Cancel plan
+                        </button>
+                      )}
                     </div>
+                    )}
 
                     {/* Incoming requests to join this plan */}
-                    {requests.length > 0 ? (
+                    {activeTab === 'requests' && requests.length > 0 ? (
                       <>
                         <p style={{ ...SECTION_LABEL, marginBottom: 10 }}>
                           {myDuos.length > 1 ? `Requests for ${planDuo.name}` : 'Requests to join'}
@@ -1249,26 +1396,28 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                               <motion.button
                                 type="button"
                                 onClick={() => handleAcceptPlanRequest(req.id)}
+                                disabled={busyPlanReqId === req.id}
                                 whileTap={{ scale: 0.96 }}
                                 transition={{ duration: 0.1 }}
                                 style={{
                                   flex:         1,
-                                  background:   C.gradientCTA,
+                                  background:   busyPlanReqId === req.id ? C.muted : C.gradientCTA,
                                   color:        '#fff',
                                   border:       'none',
                                   borderRadius: 10,
                                   padding:      10,
                                   fontSize:     13,
                                   fontWeight:   700,
-                                  cursor:       'pointer',
+                                  cursor:       busyPlanReqId === req.id ? 'wait' : 'pointer',
                                   boxShadow:    '0 2px 12px rgba(255,107,0,0.15)',
                                 }}
                               >
-                                Accept
+                                {busyPlanReqId === req.id ? 'Accepting...' : 'Accept'}
                               </motion.button>
                               <motion.button
                                 type="button"
                                 onClick={() => handleDeclinePlanRequest(req.id)}
+                                disabled={busyPlanReqId === req.id}
                                 whileTap={{ scale: 0.96 }}
                                 transition={{ duration: 0.1 }}
                                 style={{
@@ -1280,24 +1429,25 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                                   padding:      10,
                                   fontSize:     13,
                                   fontWeight:   700,
-                                  cursor:       'pointer',
+                                  cursor:       busyPlanReqId === req.id ? 'wait' : 'pointer',
+                                  opacity:      busyPlanReqId === req.id ? 0.65 : 1,
                                 }}
                               >
-                                Decline
+                                {busyPlanReqId === req.id ? 'Working...' : 'Decline'}
                               </motion.button>
                             </div>
                           </div>
                         ))}
                       </>
-                    ) : (
+                    ) : activeTab === 'requests' ? (
                       <p style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>
                         No requests to join yet.
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </>
-            ) : myDuos.length === 0 ? (
+            ) : (activeTab === 'upcoming' || activeTab === 'requests') && myDuos.length === 0 ? (
               <div
                 style={{
                   background:   C.cardElevated,
@@ -1334,7 +1484,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                   Find a homie
                 </motion.button>
               </div>
-            ) : (
+            ) : (activeTab === 'upcoming' || activeTab === 'requests') ? (
               <div
                 style={{
                   background:   C.cardElevated,
@@ -1345,10 +1495,10 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                 }}
               >
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 4px' }}>
-                  Create an open plan
+                  {activeTab === 'requests' ? 'No plan requests.' : 'Create an open plan'}
                 </p>
                 <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>
-                  Post a plan so another duo can request to join.
+                  {activeTab === 'requests' ? 'Requests to join your open plans will show up here.' : 'Post a plan so another duo can request to join.'}
                 </p>
                 <motion.button
                   type="button"
@@ -1371,7 +1521,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                   Create plan →
                 </motion.button>
               </div>
-            )}
+            ) : null}
 
             {/* OC SPOTS */}
             <div style={{ marginBottom: 12, marginTop: 28 }}>

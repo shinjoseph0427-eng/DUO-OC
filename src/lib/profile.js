@@ -20,9 +20,17 @@ export async function updateProfile(userId, updates) {
   if (error) throw error
 }
 
-export function isProfileOnboardingComplete(profile, duo) {
+export function isProfileOnboardingComplete(profile) {
   if (profile?.onboarding_complete === true) return true
-  return Boolean(profile?.name && profile?.birth_year && duo?.id)
+  return Boolean(profile?.name && profile?.birth_year)
+}
+
+export async function saveFcmToken(userId, token) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ fcm_token: token })
+    .eq('id', userId);
+  if (error) console.error('FCM token save error:', error);
 }
 
 // Returns true if available, false if taken

@@ -1,29 +1,21 @@
-import { requireSupabase } from './supabaseClient.js';
-
-// ─── Nested select fragments ───────────────────────────────────────────────────
+import { supabase } from './supabaseClient.js';
 
 const DUO_WITH_MEMBERS = `
-  id, name, cities, vibes, card_bg,
-  duo_members!inner(
-    id, status,
-    users!inner( id, first_name, instagram_handle )
+  id, name, city, vibes,
+  duo_members(
+    user_id,
+    profiles( id, name, instagram )
   )
 `.trim();
 
-// ─── Send a 2v2 request ────────────────────────────────────────────────────────
-
 export async function sendMatchRequest({ fromDuoId, toDuoId, vibe, preferredTime, message }) {
-  const sb = requireSupabase();
-
-  // Guard: no self-request
   if (fromDuoId === toDuoId) {
     throw new Error('Cannot send a request to your own duo.');
   }
 
-  // Guard: no duplicate pending request
-  const { data: existing, error: checkError } = await sb
+  const { data: existing, error: checkError } = await supabase
     .from('match_requests')
-    .select('id, status')
+    .select('id')
     .eq('from_duo_id', fromDuoId)
     .eq('to_duo_id', toDuoId)
     .eq('status', 'pending')
@@ -32,7 +24,7 @@ export async function sendMatchRequest({ fromDuoId, toDuoId, vibe, preferredTime
   if (checkError) throw checkError;
   if (existing) throw new Error('A pending request to this duo already exists.');
 
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('match_requests')
     .insert({
       from_duo_id:    fromDuoId,
@@ -49,12 +41,8 @@ export async function sendMatchRequest({ fromDuoId, toDuoId, vibe, preferredTime
   return data;
 }
 
-// ─── Incoming requests for a duo ───────────────────────────────────────────────
-
 export async function getIncomingRequests(duoId) {
-  const sb = requireSupabase();
-
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('match_requests')
     .select(`
       id, status, vibe, preferred_time, message, created_at,
@@ -68,12 +56,8 @@ export async function getIncomingRequests(duoId) {
   return data ?? [];
 }
 
-// ─── Requests sent by a duo ────────────────────────────────────────────────────
-
 export async function getSentRequests(duoId) {
-  const sb = requireSupabase();
-
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('match_requests')
     .select(`
       id, status, vibe, preferred_time, message, created_at,
@@ -86,13 +70,8 @@ export async function getSentRequests(duoId) {
   return data ?? [];
 }
 
-// ─── Accept a request → creates matches row ────────────────────────────────────
-
 export async function acceptMatchRequest(requestId) {
-  const sb = requireSupabase();
-
-  // Fetch the request first to get both duo IDs
-  const { data: req, error: fetchError } = await sb
+  const { data: req, error: fetchError } = await supabase
     .from('match_requests')
     .select('id, from_duo_id, to_duo_id, status')
     .eq('id', requestId)
@@ -101,16 +80,16 @@ export async function acceptMatchRequest(requestId) {
   if (fetchError) throw fetchError;
   if (req.status !== 'pending') throw new Error('Request is no longer pending.');
 
-  // Update request status
-  const { error: updateError } = await sb
+  // Step 1: mark accepted
+  const { error: updateError } = await supabase
     .from('match_requests')
     .update({ status: 'accepted', responded_at: new Date().toISOString() })
     .eq('id', requestId);
 
   if (updateError) throw updateError;
 
-  // Insert matches row (requester = duo_a, acceptor = duo_b)
-  const { data: match, error: matchError } = await sb
+  // Step 2: create match row — roll back status on failure
+  const { data: match, error: matchError } = await supabase
     .from('matches')
     .insert({
       duo_a_id:   req.from_duo_id,
@@ -121,16 +100,33 @@ export async function acceptMatchRequest(requestId) {
     .select('id')
     .single();
 
-  if (matchError) throw matchError;
+  if (matchError) {
+    await supabase
+      .from('match_requests')
+      .update({ status: 'pending', responded_at: null })
+      .eq('id', requestId)
+      .catch(() => {});
+    throw matchError;
+  }
+
+  // Step 3: create chat thread — roll back match + status on failure
+  const { error: chatError } = await supabase
+    .from('chat_threads')
+    .insert({ match_id: match.id });
+
+  if (chatError) {
+    await Promise.allSettled([
+      supabase.from('matches').delete().eq('id', match.id),
+      supabase.from('match_requests').update({ status: 'pending', responded_at: null }).eq('id', requestId),
+    ]);
+    throw chatError;
+  }
+
   return match;
 }
 
-// ─── Decline a request ─────────────────────────────────────────────────────────
-
 export async function declineMatchRequest(requestId) {
-  const sb = requireSupabase();
-
-  const { error } = await sb
+  const { error } = await supabase
     .from('match_requests')
     .update({ status: 'rejected', responded_at: new Date().toISOString() })
     .eq('id', requestId);
@@ -138,12 +134,8 @@ export async function declineMatchRequest(requestId) {
   if (error) throw error;
 }
 
-// ─── Get a single match with full duo data ─────────────────────────────────────
-
 export async function getMatchById(matchId) {
-  const sb = requireSupabase();
-
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('matches')
     .select(`
       id, status, created_at,
@@ -158,12 +150,8 @@ export async function getMatchById(matchId) {
   return data;
 }
 
-// ─── All active matches for a duo ─────────────────────────────────────────────
-
 export async function getMyMatches(duoId) {
-  const sb = requireSupabase();
-
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('matches')
     .select(`
       id, status, created_at,

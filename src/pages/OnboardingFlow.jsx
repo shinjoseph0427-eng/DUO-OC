@@ -1,25 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Check } from 'lucide-react';
 import { C } from '../tokens';
 import { createDuo } from '../lib/duos.js';
 import { updateProfile } from '../lib/profile.js';
+import { createInvite } from '../lib/invites.js';
+import { uploadPhoto } from '../lib/upload.js';
 import { logError } from '../lib/logger.js';
 
 const VIBES = ['Coffee', 'Boba', 'Gym', 'Beach', 'Bowling', 'Food', 'Nightlife', 'Shopping', 'Drives', 'Games'];
 
-const initialForm = {
-  name:      '',
-  age:       '',
-  city:      '',
-  instagram: '',
-  duoName:   '',
-  vibes:     [],
-};
-
-// Steps: 1 = About you, 2 = Friend?, 3 = Duo profile, 4 = Done
-// Step 2 has no footer CTA — the choice buttons navigate directly.
-// Step 4 has no footer CTA — the "Find Duos" button is inside the body.
+// Steps: 1 = About you, 2 = Photos, 3 = Duo setup, 4 = Duo profile, 5 = Done
+// Step 3 has no footer CTA; the choice buttons navigate directly.
+// Step 5 has no footer CTA; finish actions are inside the body.
 
 function FieldLabel({ children }) {
   return (
@@ -73,7 +66,7 @@ function TextInput({ value, onChange, placeholder, type = 'text', prefix, error,
           color:        C.white,
           outline:      'none',
           boxSizing:    'border-box',
-          boxShadow:    focused ? '0 0 0 3px rgba(245,158,11,0.12)' : 'none',
+          boxShadow:    focused ? `0 0 0 3px ${C.amberT14}` : 'none',
           transition:   'border-color 0.15s, box-shadow 0.15s',
         }}
       />
@@ -90,8 +83,8 @@ function VibePill({ selected, onClick, children }) {
       whileTap={{ scale: 0.92 }}
       transition={{ duration: 0.1 }}
       animate={{
-        background:  selected ? 'rgba(245,158,11,0.14)' : C.cardElevated,
-        borderColor: selected ? 'rgba(245,158,11,0.45)' : 'rgba(255,255,255,0.08)',
+        background:  selected ? C.amberT14 : C.cardElevated,
+        borderColor: selected ? C.amberT35  : 'rgba(255,255,255,0.08)',
         color:       selected ? C.amber : C.muted,
       }}
       style={{
@@ -121,10 +114,17 @@ function useField(initial = '') {
   };
 }
 
-export default function OnboardingFlow({ go, currentUser, onComplete }) {
-  const [step,    setStep]    = useState(1);
-  const [errors,  setErrors]  = useState({});
-  const [loading, setLoading] = useState(false);
+export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos = [], onComplete, showToast }) {
+  const hasDuo = Boolean(myDuo || myDuos.length > 0);
+  const hasProfileBasics = Boolean(profile?.name && profile?.birth_year);
+  const hasPendingInvite = typeof window !== 'undefined' && Boolean(sessionStorage.getItem('duo_oc_invite_token'));
+  const [step,          setStep]          = useState(hasProfileBasics && !hasDuo ? 3 : 1);
+  const [errors,        setErrors]        = useState({});
+  const [loading,       setLoading]       = useState(false);
+  const [photos,        setPhotos]        = useState([null, null, null]);
+  const [uploadingIndex,setUploadingIndex]= useState(null);
+  const [photoError,    setPhotoError]    = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const name      = useField('');
   const age       = useField('');
@@ -133,12 +133,42 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
   const duoName   = useField('');
   const [vibes, setVibes] = useState([]);
 
+  useEffect(() => {
+    if (!profile) return;
+    name.set(profile.name ?? '');
+    age.set(profile.birth_year ? String(new Date().getFullYear() - Number(profile.birth_year)) : '');
+    city.set(profile.city ?? '');
+    instagram.set(profile.instagram ?? '');
+    const stored = profile.photos ?? [];
+    setPhotos([stored[0] ?? null, stored[1] ?? null, stored[2] ?? null]);
+    if (profile.name && profile.birth_year && !hasDuo) setStep(3);
+  }, [profile, hasDuo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleVibe = (v) => {
     setVibes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
     setErrors((e) => ({ ...e, vibes: undefined }));
   };
 
   const clearErr = (field) => setErrors((e) => ({ ...e, [field]: undefined }));
+
+  async function handlePhotoAdd(index, file) {
+    setUploadingIndex(index);
+    setPhotoError('');
+    try {
+      const url = await uploadPhoto(currentUser.id, file);
+      setPhotos(prev => {
+        const next = [...prev];
+        next[index] = url;
+        return next;
+      });
+    } catch (e) {
+      setPhotoError(e.message ?? 'Upload failed. Try again.');
+    } finally {
+      setUploadingIndex(null);
+    }
+  }
+
+  const filledPhotos = photos.filter(Boolean);
 
   // Validate step 1 fields
   const validateStep1 = () => {
@@ -167,6 +197,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
     birth_year: new Date().getFullYear() - parseInt(age.value),
     city:       city.value.trim() || null,
     instagram:  instagram.value.trim().replace(/^@/, '') || null,
+    photos:     photos.filter(Boolean),
     onboarding_complete: true,
   });
 
@@ -176,33 +207,50 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
   };
 
   // Step 2 solo path: save profile → Done
-  const handleSolo = async () => {
+  const saveProfileBasics = () => updateProfile(currentUser.id, buildProfileUpdate());
+
+  const handleCreateYourDuo = async () => {
     if (!currentUser) return;
     try {
       setLoading(true);
-      await updateProfile(currentUser.id, buildProfileUpdate());
-      if (onComplete) {
-        onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
-      } else {
-        go('home');
-      }
+      await saveProfileBasics();
+      setStep(4);
     } catch (err) {
-      logError('solo save error', err);
+      logError('profile save error', err);
+      showToast?.('Could not save your profile yet.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 2 → Step 3 (duo path)
-  const handleInviteFriend = () => setStep(3);
+  const handleJoinPendingInvite = async () => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      await saveProfileBasics();
+      if (onComplete) {
+        onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
+      } else {
+        go('me');
+      }
+    } catch (err) {
+      logError('invite profile save error', err);
+      showToast?.('Could not save your profile yet.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Step 3 → Done
+  // Step 3 → Step 4 (duo path)
+  const handleInviteFriend = () => setStep(4);
+
+  // Step 4 → Done
   const handleCreateDuo = async () => {
     if (!validateStep3() || !currentUser) return;
     try {
       setLoading(true);
       await Promise.all([
-        updateProfile(currentUser.id, buildProfileUpdate()),
+        saveProfileBasics(),
         createDuo(currentUser.id, {
           name:       duoName.value.trim(),
           city:       city.value.trim() || '',
@@ -212,20 +260,49 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
           instagram:  instagram.value.trim().replace(/^@/, '') || '',
         }),
       ]);
-      setStep(4);
+      showToast?.('Duo created!', 'success');
+      setStep(5);
     } catch (err) {
       logError('create duo error', err);
+      showToast?.('Could not create your Duo yet.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Done → Home
+  // Done → Find Homie
+  const handleInviteHomie = async () => {
+    if (!currentUser || inviteLoading) return;
+    setInviteLoading(true);
+    try {
+      const token = await createInvite(currentUser.id);
+      const url = `${window.location.origin}?invite=${token}`;
+
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Join me on DUO OC',
+          text: 'Be my duo partner on DUO OC.',
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+        showToast?.('Invite link copied!', 'success');
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        logError('invite create error', err);
+        showToast?.('Could not create invite link.', 'error');
+      }
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   const handleFindDuos = () => {
     if (onComplete) {
       onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
     } else {
-      go('home');
+      go('me');
     }
   };
 
@@ -233,27 +310,30 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
     if (step === 1) { go('landing'); return; }
     if (step === 2) { setStep(1); return; }
     if (step === 3) { setStep(2); return; }
+    if (step === 4) { setStep(3); return; }
   };
 
-  // Progress: steps 1-3 = 33/66/100%, step 4 = 100%
-  const progress = step === 1 ? 33 : step === 2 ? 66 : 100;
+  // Progress: steps 1-4 = 25/50/75/100%, step 5 = 100%
+  const progress = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
 
   const stepLabel = step === 1
-    ? 'Step 1 of 3 — About you'
+    ? 'Step 1 of 4 — About you'
     : step === 2
-    ? 'Step 2 of 3 — Got a friend?'
+    ? 'Step 2 of 4 — Photos'
     : step === 3
-    ? 'Step 3 of 3 — Duo profile'
+    ? 'Step 3 of 4 - Duo setup'
+    : step === 4
+    ? 'Step 4 of 4 — Duo profile'
     : null;
 
-  const showBackBtn = step <= 3;
-  const showFooterCTA = step === 1 || step === 3;
+  const showBackBtn = step <= 4;
+  const showFooterCTA = step === 1 || step === 2 || step === 4;
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white, paddingBottom: 32 }}>
 
       {/* Header */}
-      {step < 4 && (
+      {step < 5 && (
         <header
           className="glass"
           style={{
@@ -306,7 +386,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
       )}
 
       {/* Progress bar (steps 1-3 only) */}
-      {step < 4 && (
+      {step < 5 && (
         <div style={{ height: 2, background: 'rgba(255,255,255,0.06)' }}>
           <motion.div
             animate={{ width: `${progress}%` }}
@@ -390,24 +470,101 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
             </>
           )}
 
-          {/* ── Step 2: Got a friend? ── */}
+          {/* ── Step 2: Photos ── */}
           {step === 2 && (
             <>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
                 {stepLabel}
               </p>
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
-                Got a friend?
+                Add your photos
+              </h1>
+              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.5 }}>
+                Add photos so duos know who they're hanging with.
+              </p>
+
+              <div style={{
+                display:             'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap:                 10,
+                marginBottom:        16,
+              }}>
+                {[0, 1, 2].map(i => (
+                  <label key={i} style={{
+                    aspectRatio:    '3/4',
+                    borderRadius:   14,
+                    border:         `0.5px solid ${photos[i] ? C.amber : C.border}`,
+                    background:     photos[i] ? 'transparent' : C.cardElevated,
+                    overflow:       'hidden',
+                    cursor:         uploadingIndex === i ? 'wait' : 'pointer',
+                    display:        'flex',
+                    alignItems:     'center',
+                    justifyContent: 'center',
+                    position:       'relative',
+                  }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      disabled={uploadingIndex !== null}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoAdd(i, file);
+                        e.target.value = '';
+                      }}
+                    />
+                    {photos[i] ? (
+                      <img
+                        src={photos[i]}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : uploadingIndex === i ? (
+                      <div style={{ fontSize: 11, color: C.muted }}>Uploading...</div>
+                    ) : (
+                      <div style={{ fontSize: 24, color: C.muted, opacity: 0.4 }}>+</div>
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              <div style={{
+                fontSize:   12,
+                color:      C.muted,
+                textAlign:  'center',
+                marginBottom: 8,
+              }}>
+                {filledPhotos.length > 0
+                  ? `${filledPhotos.length} photo${filledPhotos.length > 1 ? 's' : ''} added`
+                  : 'Add photos so duos know who you are'}
+              </div>
+
+              {photoError && (
+                <div style={{ fontSize: 12, color: '#ef4444', textAlign: 'center' }}>
+                  {photoError}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Step 3: Duo setup ── */}
+          {step === 3 && (
+            <>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
+                {stepLabel}
+              </p>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
+                Set up your Duo
               </h1>
               <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 24px' }}>
-                DUO OC is built around pairs. You and a friend make a team, then you meet another team for a 2v2 hangout.
+                DUO OC is built around pairs. Create your Duo first, then invite your homie and meet another team for a 2v2 hangout.
               </p>
 
               {/* Explainer box */}
               <div
                 style={{
-                  background:   'rgba(245,158,11,0.06)',
-                  border:       '0.5px solid rgba(245,158,11,0.18)',
+                  background:   C.amberT08,
+                  border:       `0.5px solid ${C.amberT22}`,
                   borderRadius: 16,
                   padding:      '16px 18px',
                   marginBottom: 32,
@@ -417,14 +574,15 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   How it works
                 </p>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.65 }}>
-                  Create a duo with a friend. Other duos find you and propose a hangout. You both confirm and plans are made — no awkward one-on-ones.
+                  Other duos find your Duo and propose a hangout. You both confirm and plans are made - no awkward one-on-ones.
                 </p>
               </div>
 
               {/* Choice buttons */}
               <motion.button
                 type="button"
-                onClick={handleInviteFriend}
+                onClick={hasPendingInvite ? handleJoinPendingInvite : handleCreateYourDuo}
+                disabled={loading}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1 }}
                 style={{
@@ -436,19 +594,19 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   color:        '#fff',
                   fontSize:     16,
                   fontWeight:   800,
-                  cursor:       'pointer',
+                  cursor:       loading ? 'not-allowed' : 'pointer',
                   marginBottom: 12,
                   letterSpacing:'-0.2px',
-                  boxShadow:    '0 4px 20px rgba(245,158,11,0.28)',
+                  boxShadow:    `0 4px 20px ${C.amberT35}`,
+                  opacity:      loading ? 0.6 : 1,
                 }}
               >
-                I have a friend in mind
+                {loading ? 'Saving...' : hasPendingInvite ? 'Join your Duo' : 'Create your Duo'}
               </motion.button>
 
               <motion.button
                 type="button"
-                onClick={handleSolo}
-                disabled={loading}
+                onClick={handleInviteFriend}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1 }}
                 style={{
@@ -457,23 +615,23 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   borderRadius: 16,
                   border:       '0.5px solid rgba(255,255,255,0.1)',
                   background:   'rgba(255,255,255,0.04)',
-                  color:        loading ? C.muted : C.white,
+                  color:        C.white,
                   fontSize:     15,
                   fontWeight:   600,
-                  cursor:       loading ? 'not-allowed' : 'pointer',
+                  cursor:       'pointer',
                 }}
               >
-                {loading ? 'Saving…' : 'Start on my own for now'}
+                {hasPendingInvite ? 'Create a different Duo' : 'Invite your homie after setup'}
               </motion.button>
 
               <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-                You can add a friend later from your profile.
+                Invite links are available after your Duo profile exists.
               </p>
             </>
           )}
 
-          {/* ── Step 3: Duo profile ── */}
-          {step === 3 && (
+          {/* ── Step 4: Duo profile ── */}
+          {step === 4 && (
             <>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
                 {stepLabel}
@@ -512,8 +670,8 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
             </>
           )}
 
-          {/* ── Step 4: Done ── */}
-          {step === 4 && (
+          {/* ── Step 5: Done ── */}
+          {step === 5 && (
             <div
               style={{
                 minHeight:      'calc(100vh - 64px)',
@@ -536,7 +694,7 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   alignItems:     'center',
                   justifyContent: 'center',
                   marginBottom:   28,
-                  boxShadow:      '0 8px 32px rgba(245,158,11,0.32)',
+                  boxShadow:      `0 8px 32px ${C.amberT35}`,
                 }}
               >
                 <Check size={34} color={C.cream} strokeWidth={2.5} />
@@ -562,8 +720,31 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   maxWidth:    260,
                 }}
               >
-                Your profile is ready. Start finding duos around OC.
+                Your profile and Duo are ready. Invite your homie or start exploring OC.
               </p>
+
+              <motion.button
+                type="button"
+                onClick={handleInviteHomie}
+                disabled={inviteLoading}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
+                style={{
+                  width:         '100%',
+                  maxWidth:      320,
+                  height:        54,
+                  borderRadius:  16,
+                  border:        '0.5px solid rgba(255,255,255,0.1)',
+                  background:    'rgba(255,255,255,0.04)',
+                  color:         inviteLoading ? C.muted : C.white,
+                  fontSize:      15,
+                  fontWeight:    700,
+                  cursor:        inviteLoading ? 'not-allowed' : 'pointer',
+                  marginBottom:  12,
+                }}
+              >
+                {inviteLoading ? 'Creating link...' : 'Invite your homie'}
+              </motion.button>
 
               <motion.button
                 type="button"
@@ -582,10 +763,10 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
                   fontWeight:    800,
                   cursor:        'pointer',
                   letterSpacing: '-0.2px',
-                  boxShadow:     '0 4px 24px rgba(245,158,11,0.3)',
+                  boxShadow:     `0 4px 24px ${C.amberT35}`,
                 }}
               >
-                Find Duos
+                Go to My Duo
               </motion.button>
             </div>
           )}
@@ -608,8 +789,15 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
         >
           <motion.button
             type="button"
-            onClick={step === 1 ? handleNextFromStep1 : handleCreateDuo}
-            disabled={loading}
+            onClick={
+              step === 1 ? handleNextFromStep1
+              : step === 2 ? () => setStep(3)
+              : handleCreateDuo
+            }
+            disabled={
+              loading ||
+              (step === 2 && uploadingIndex !== null)
+            }
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.1 }}
             style={{
@@ -621,12 +809,16 @@ export default function OnboardingFlow({ go, currentUser, onComplete }) {
               color:         '#fff',
               fontSize:      16,
               fontWeight:    800,
-              cursor:        loading ? 'not-allowed' : 'pointer',
-              boxShadow:     '0 4px 20px rgba(245,158,11,0.25)',
-              opacity:       loading ? 0.7 : 1,
+              cursor:        (loading || (step === 2 && uploadingIndex !== null)) ? 'not-allowed' : 'pointer',
+              boxShadow:     `0 4px 20px ${C.amberT35}`,
+              opacity:       (loading || (step === 2 && uploadingIndex !== null)) ? 0.5 : 1,
             }}
           >
-            {loading ? 'Creating duo…' : step === 1 ? 'Next' : 'Create Duo'}
+            {loading
+              ? (step === 4 ? 'Creating duo…' : 'Saving…')
+              : step === 1 ? 'Next'
+              : step === 2 ? 'Continue →'
+              : 'Create Duo'}
           </motion.button>
         </footer>
       )}

@@ -91,6 +91,15 @@ export async function blockDuo({ blockerDuoId, blockedDuoId }) {
   if (error) throw error
 }
 
+export async function unblockDuo({ blockerDuoId, blockedDuoId }) {
+  const { error } = await supabase
+    .from('blocks')
+    .delete()
+    .eq('blocker_duo_id', blockerDuoId)
+    .eq('blocked_duo_id', blockedDuoId)
+  if (error) throw error
+}
+
 export async function getBlockedDuoIds(myDuoId) {
   const duoIds = Array.isArray(myDuoId) ? myDuoId.filter(Boolean) : [myDuoId].filter(Boolean)
   if (duoIds.length === 0) return []
@@ -195,6 +204,44 @@ export async function getRestrictedDuoIds() {
   const { data, error } = await supabase.rpc('get_restricted_duo_ids_for_explore')
   if (error) return []
   return (data ?? []).map((r) => r.duo_id).filter(Boolean)
+}
+
+async function getBlockedUserIds(userId) {
+  if (!userId) return []
+  const { data } = await supabase
+    .from('user_blocks')
+    .select('blocked_id')
+    .eq('blocker_id', userId)
+  return (data ?? []).map((r) => r.blocked_id).filter(Boolean)
+}
+
+export async function blockUser(blockerUserId, blockedUserId) {
+  if (!blockerUserId || !blockedUserId) throw new Error('Missing user IDs')
+  const { error } = await supabase
+    .from('user_blocks')
+    .upsert(
+      { blocker_id: blockerUserId, blocked_id: blockedUserId },
+      { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true },
+    )
+  if (error) throw error
+}
+
+export async function getHiddenUserIds(myDuoIds, currentUserId) {
+  const duoIds = Array.isArray(myDuoIds) ? myDuoIds.filter(Boolean) : [myDuoIds].filter(Boolean)
+  const [blockedDuoIds, restrictedDuoIds, userBlockedIds] = await Promise.all([
+    getBlockedDuoIds(duoIds),
+    getRestrictedDuoIds(),
+    getBlockedUserIds(currentUserId),
+  ])
+  const allDuoIds = [...new Set([...blockedDuoIds, ...restrictedDuoIds])].filter(Boolean)
+  const hiddenIds = new Set(userBlockedIds)
+  if (allDuoIds.length === 0) return hiddenIds
+  const { data } = await supabase
+    .from('duo_members')
+    .select('user_id')
+    .in('duo_id', allDuoIds)
+  ;(data ?? []).forEach((r) => { if (r.user_id) hiddenIds.add(r.user_id) })
+  return hiddenIds
 }
 
 export const SAFETY_MESSAGES = {

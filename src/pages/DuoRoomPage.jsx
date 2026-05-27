@@ -47,8 +47,8 @@ function MessageBubble({ msg, isMine, senderLabel }) {
                 }
               : {
                   background: '#1E1E24',
-                  color: C.white,
-                  border: `0.5px solid ${C.border}`,
+                  color: '#FFFFFF',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
                   borderRadius: '18px 18px 18px 4px',
                 }),
           }}
@@ -111,10 +111,8 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
     });
 
     subscribeDuoMessages(duoId, currentUser.id, (newMsg) => {
-      console.log('[DuoRoom] realtime message received', newMsg.id);
       setMessages((prev) => {
         if (prev.some((m) => m.id === newMsg.id)) {
-          console.log('[DuoRoom] realtime dedup blocked', newMsg.id);
           return prev;
         }
         return [...prev, newMsg];
@@ -158,18 +156,14 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
     setTimeout(scrollToBottom, 50);
 
     try {
-      console.log('[DuoRoom] send clicked', text);
       const saved = await sendDuoMessage({
         duoId,
         senderUserId: currentUser.id,
         content: text,
       });
-      console.log('[DuoRoom] sendDuoMessage result', saved);
-      // Replace optimistic with real saved message so realtime dedup works
       setMessages((prev) => {
         const without = prev.filter((m) => m.id !== optimistic.id);
         const alreadyPresent = without.some((m) => m.id === saved.id);
-        console.log('[DuoRoom] messages before/after append', prev.length, '->', without.length + (alreadyPresent ? 0 : 1));
         return alreadyPresent ? without : [...without, saved];
       });
     } catch (error) {

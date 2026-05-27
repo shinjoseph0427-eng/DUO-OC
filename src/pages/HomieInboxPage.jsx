@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Inbox, MapPin, MessageCircle, Settings2, UserCheck, Users } from 'lucide-react';
+import { Inbox, MapPin } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
-import { acceptHomieRequest, getMyHomieRequests } from '../lib/homie.js';
-import { getMyDuo } from '../lib/duos.js';
+import { acceptHomieRequest, getMyHomieRequests, getSentHomieRequests } from '../lib/homie.js';
 
 function getSender(request) {
   return request?.profiles ?? request?.profile ?? request?.from_profile ?? {};
@@ -26,117 +25,6 @@ function RequestSkeleton() {
   );
 }
 
-function AcceptedCard({ profile, duoId }) {
-  const name = profile?.name ?? 'New homie';
-
-  return (
-    <div
-      style={{
-        background: 'rgba(79,119,45,0.09)',
-        border: '0.5px solid rgba(79,119,45,0.28)',
-        borderRadius: 16,
-        padding: 14,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-      }}
-    >
-      <div
-        style={{
-          width: 42,
-          height: 42,
-          borderRadius: 12,
-          background: 'rgba(255,107,0,0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <UserCheck size={20} color={C.success} strokeWidth={2.2} />
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 3px' }}>
-          You are now a duo.
-        </p>
-        <p style={{ fontSize: 12, color: 'rgba(245,245,248,0.68)', margin: 0, lineHeight: 1.4 }}>
-          You joined {name}'s duo{duoId ? ` (${duoId.slice(0, 8)})` : ''}.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function DuoSuccessCard({ duo }) {
-  const members = duo?.duo_members ?? [];
-  const memberCount = members.length || 2;
-  const tags = [
-    ...(Array.isArray(duo?.vibes) ? duo.vibes : []),
-    ...(Array.isArray(duo?.spots) ? duo.spots : []),
-  ].filter(Boolean).slice(0, 4);
-
-  return (
-    <div
-      style={{
-        background: C.cardElevated,
-        border: `0.5px solid ${C.border}`,
-        borderRadius: 18,
-        overflow: 'hidden',
-        marginBottom: 18,
-      }}
-    >
-      <div style={{ height: 3, background: C.gradientCTA }} />
-      <div style={{ padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              background: 'rgba(245,158,11,0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Users size={20} color={C.amber} strokeWidth={2.2} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 17, fontWeight: 900, color: C.white, margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {duo?.name ?? 'Your Duo'}
-            </p>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-              {[duo?.city, `${memberCount} members`].filter(Boolean).join(' · ')}
-            </p>
-          </div>
-        </div>
-
-        {tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  background: 'rgba(245,158,11,0.1)',
-                  color: C.amber,
-                  border: '0.5px solid rgba(245,158,11,0.22)',
-                  borderRadius: 9999,
-                  padding: '4px 10px',
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function RequestCard({ request, accepting, accepted, onAccept }) {
   const sender = getSender(request);
   const photo = sender?.photos?.[0] ?? sender?.avatar_url ?? null;
@@ -151,7 +39,7 @@ function RequestCard({ request, accepting, accepted, onAccept }) {
       transition={{ duration: 0.22 }}
       style={{
         background: C.cardElevated,
-        border: `0.5px solid ${accepted ? 'rgba(79,119,45,0.35)' : C.border}`,
+        border: `0.5px solid ${accepted ? C.greenBorder : C.border}`,
         borderRadius: 16,
         padding: 14,
       }}
@@ -221,13 +109,14 @@ function RequestCard({ request, accepting, accepted, onAccept }) {
 
 export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }) {
   const [requests, setRequests] = useState([]);
-  const [acceptedDuo, setAcceptedDuo] = useState(null);
-  const [acceptedHomieName, setAcceptedHomieName] = useState('');
+  const [showBanner, setShowBanner] = useState(false);
   const [acceptingRequestId, setAcceptingRequestId] = useState(null);
   const [acceptedIds, setAcceptedIds] = useState({});
-  const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('received');
+  const [sentRequests, setSentRequests] = useState([]);
+  const [sentLoading, setSentLoading] = useState(false);
 
   const loadRequests = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -257,29 +146,35 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
     return () => { cancelled = true; };
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser?.id) return () => { cancelled = true; };
+
+    setSentLoading(true);
+    getSentHomieRequests(currentUser.id).then((nextRequests) => {
+      if (!cancelled) setSentRequests(nextRequests);
+    }).finally(() => {
+      if (!cancelled) setSentLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
+
   const handleAccept = async (request) => {
     if (!request?.id || acceptingRequestId) return;
 
     setAcceptingRequestId(request.id);
     setErrorMessage('');
-    setSuccessMessage('');
     try {
-      const sender = getSender(request);
-      const result = await acceptHomieRequest(request.id);
-      console.log('[HomieInboxPage] accept result', result);
+      await acceptHomieRequest(request.id);
       setAcceptedIds((prev) => ({ ...prev, [request.id]: true }));
-      setAcceptedHomieName(sender?.name ?? 'your homie');
-      setSuccessMessage('You are now a duo.');
-      let nextDuo = null;
       try {
-        nextDuo = await onDuoChanged?.();
+        await onDuoChanged?.();
       } catch (refreshError) {
         console.error('HomieInboxPage onDuoChanged refresh failed:', refreshError);
       }
-      if (!nextDuo && currentUser?.id) {
-        nextDuo = await getMyDuo(currentUser.id);
-      }
-      setAcceptedDuo(nextDuo ?? { id: result?.duo_id, name: 'Your Duo', duo_members: [{}, {}] });
+      setShowBanner(true);
+      setTimeout(() => go('explore'), 2500);
       await loadRequests();
     } catch (err) {
       console.error('HomieInboxPage accept homie request failed:', err);
@@ -289,60 +184,33 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
     }
   };
 
-  if (acceptedDuo) {
-    return (
-      <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-        <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
-
-        <div style={{ padding: '28px 16px 104px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 22 }}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 18,
-                background: C.greenT12,
-                border: '0.5px solid rgba(79,119,45,0.28)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px',
-              }}
-            >
-              <UserCheck size={28} color={C.success} strokeWidth={2.3} />
-            </div>
-            <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: 0, color: C.white, margin: '0 0 8px' }}>
-              Duo is created!
-            </h1>
-            <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.55, margin: 0 }}>
-              You and {acceptedHomieName || 'your homie'} are now a duo.
-            </p>
-          </div>
-
-          <DuoSuccessCard duo={acceptedDuo} />
-
-          <div style={{ display: 'grid', gap: 10 }}>
-            <PremiumButton fullWidth onClick={() => go('me')} style={{ gap: 8 }}>
-              <Users size={16} strokeWidth={2.2} />
-              View in My Duos
-            </PremiumButton>
-            <PremiumButton fullWidth variant="ghost" onClick={() => go('duo_room')} style={{ gap: 8 }}>
-              <MessageCircle size={16} strokeWidth={2.2} />
-              Open Duo Room
-            </PremiumButton>
-            <PremiumButton fullWidth variant="ghost" onClick={() => go('home')} style={{ gap: 8 }}>
-              <Home size={16} strokeWidth={2.2} />
-              Back Home
-            </PremiumButton>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
       <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
+
+      {showBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            position: 'fixed',
+            top: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#111',
+            color: '#fff',
+            padding: '12px 20px',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 999,
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          }}
+        >
+          Duo created — now find someone to hang with
+        </motion.div>
+      )}
 
       <div style={{ padding: '18px 16px 104px' }}>
         <div style={{ marginBottom: 18 }}>
@@ -357,23 +225,36 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
           </p>
         </div>
 
-        {successMessage && (
-          <div
-            style={{
-              background: 'rgba(79,119,45,0.09)',
-              border: '0.5px solid rgba(79,119,45,0.28)',
-              borderRadius: 16,
-              padding: 14,
-              marginBottom: 16,
-            }}
-          >
-            <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: 0 }}>
-              {successMessage}
-            </p>
-          </div>
-        )}
+        <div style={{
+          display: 'flex',
+          gap: 0,
+          margin: '0 16px 16px',
+          border: `0.5px solid ${C.border}`,
+          borderRadius: 10,
+          overflow: 'hidden',
+        }}>
+          {['received', 'sent'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                flex: 1,
+                padding: '9px 0',
+                border: 'none',
+                background: activeTab === tab ? C.amber : 'transparent',
+                color: activeTab === tab ? C.cream : C.muted,
+                fontSize: 13,
+                fontWeight: activeTab === tab ? 600 : 400,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              {tab === 'received' ? 'Received' : 'Sent'}
+            </button>
+          ))}
+        </div>
 
-        {errorMessage && (
+        {activeTab === 'received' && errorMessage && (
           <div
             style={{
               background: 'rgba(239,68,68,0.09)',
@@ -392,7 +273,7 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
           </div>
         )}
 
-        {loading ? (
+        {activeTab === 'received' && (loading ? (
           <div style={{ display: 'grid', gap: 12 }}>
             <RequestSkeleton />
             <RequestSkeleton />
@@ -416,6 +297,89 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
                 onAccept={handleAccept}
               />
             ))}
+          </div>
+        ))}
+
+        {activeTab === 'sent' && (
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {sentLoading && (
+              <div style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: 24 }}>
+                Loading...
+              </div>
+            )}
+            {!sentLoading && sentRequests.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '32px 16px',
+                color: C.muted,
+                fontSize: 13,
+              }}>
+                No sent requests yet.
+              </div>
+            )}
+            {!sentLoading && sentRequests.map((req) => {
+              const name = req.to_profile?.name ?? req.profiles?.name ?? 'Someone';
+              const city = req.to_profile?.city ?? req.profiles?.city ?? '';
+              const accepted = req.status === 'accepted';
+
+              return (
+                <div key={req.id ?? req.to_user_id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  border: `0.5px solid ${C.border}`,
+                  background: C.bg2,
+                }}>
+                  <div style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: '50%',
+                    background: C.amberT08,
+                    border: `1px solid ${C.brownBorder}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: C.amber,
+                    flexShrink: 0,
+                  }}>
+                    {name[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.white,
+                    }}>
+                      {name}
+                    </div>
+                    {city && (
+                      <div style={{
+                        fontSize: 11,
+                        color: C.muted,
+                        marginTop: 1,
+                      }}>
+                        {city}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    color: accepted ? C.success : C.amber,
+                    fontWeight: 500,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    background: accepted ? C.greenT08 : C.amberT08,
+                    border: `0.5px solid ${accepted ? C.greenBorder : C.brownBorder}`,
+                  }}>
+                    {accepted ? 'Accepted' : 'Pending'}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

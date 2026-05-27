@@ -30,7 +30,7 @@ export default function Button({
 
   const variants = {
     primary: {
-      background: press ? C.orangeD : C.orange,
+      background: press ? '#E05A00' : C.amber,
       color: C.white,
       padding: '15px 24px',
       fontSize: 15,

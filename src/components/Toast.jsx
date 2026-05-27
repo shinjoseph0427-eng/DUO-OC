@@ -3,7 +3,7 @@ import { Check, X, Info } from 'lucide-react';
 import { C } from '../tokens';
 
 const STYLES = {
-  success: { bg: 'rgba(79,119,45,0.12)',  border: 'rgba(79,119,45,0.25)', icon: Check, color: C.moss },
+  success: { bg: C.greenT12,              border: C.greenBorder,          icon: Check, color: C.moss },
   error:   { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)',  icon: X,     color: '#EF4444' },
   info:    { bg: C.cardElevated,           border: C.border,                icon: Info,  color: C.muted  },
 };
@@ -32,7 +32,7 @@ export default function Toast({ message, type = 'info', visible }) {
             display:      'flex',
             alignItems:   'center',
             gap:          10,
-            boxShadow:    C.shadow,
+            boxShadow:    '0 4px 16px rgba(0,0,0,0.10)',
           }}
         >
           <Icon size={16} color={s.color} strokeWidth={2} />

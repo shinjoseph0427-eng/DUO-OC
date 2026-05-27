@@ -87,7 +87,7 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
     color:        C.white,
     outline:      'none',
     boxSizing:    'border-box',
-    boxShadow:    focused ? '0 0 0 3px rgba(245,158,11,0.12)' : 'none',
+    boxShadow:    focused ? `0 0 0 3px ${C.amberT14}` : 'none',
     transition:   'border-color 0.15s, box-shadow 0.15s',
   });
 

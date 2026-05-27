@@ -75,8 +75,8 @@ export default function FindHomie({ currentUser, go }) {
       <div style={{ paddingBottom: 40 }}>
         <div
           style={{
-            background: 'rgba(245,158,11,0.07)',
-            border: '1px solid rgba(245,158,11,0.15)',
+            background: C.amberT08,
+            border: `1px solid ${C.amberT22}`,
             borderRadius: 16,
             padding: 16,
             margin: 16,
@@ -97,7 +97,7 @@ export default function FindHomie({ currentUser, go }) {
               style={{
                 fontSize: 12,
                 color: C.amber,
-                border: '0.5px solid rgba(245,158,11,0.3)',
+                border: `0.5px solid ${C.amberT35}`,
                 borderRadius: 9999,
                 padding: '4px 12px',
                 fontWeight: 600,

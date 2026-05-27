@@ -140,12 +140,6 @@ export default function EditDuoProfile({ currentUser, duo: selectedDuoProp = nul
     let cancelled = false;
     const incomingDuo = selectedDuoProp ?? myDuoProp ?? null;
 
-    console.log('[EditDuoProfile] received props', {
-      duo: selectedDuoProp,
-      myDuo: myDuoProp,
-      currentUser,
-    });
-
     if (incomingDuo) {
       loadFromDuo(incomingDuo);
     }
@@ -208,7 +202,6 @@ export default function EditDuoProfile({ currentUser, duo: selectedDuoProp = nul
 
   const handleSave = async () => {
     const currentDuo = duo ?? selectedDuoProp ?? myDuoProp ?? null;
-    console.log('[EditDuoProfile] currentDuo before save', currentDuo);
     if (!currentDuo?.id) {
       setErrorMessage('No Duo found. Open this page from My Duos and try again.');
       showToast?.('No Duo found', 'error');
@@ -250,8 +243,8 @@ export default function EditDuoProfile({ currentUser, duo: selectedDuoProp = nul
         {successMessage && (
           <div
             style={{
-              background: 'rgba(79,119,45,0.09)',
-              border: '0.5px solid rgba(79,119,45,0.28)',
+              background: C.greenT08,
+              border: `0.5px solid ${C.greenBorder}`,
               borderRadius: 16,
               padding: 14,
               marginBottom: 16,

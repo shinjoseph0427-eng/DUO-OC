@@ -119,9 +119,12 @@ export async function sendHomieRequest(fromUserId, toUserId) {
   const { data: notification, error: notificationError } = await supabase
     .rpc('notify_homie_request', { p_request_id: request.id })
     .single()
+  console.log('notification RPC result', { notification, notificationError })
   if (notificationError) throwStep('homie request notification failed', notificationError)
 
   if (notification?.id) await sendPushForNotification(notification.id)
+  console.log('notification id check', notification?.id)
+  console.log('push sent for notification', notification?.id)
 
   return { success: true }
 }
