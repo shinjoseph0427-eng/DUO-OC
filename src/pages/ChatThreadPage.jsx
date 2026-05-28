@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, SendHorizonal } from 'lucide-react';
-import { C } from '../tokens';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { ArrowLeft, CalendarDays, Info, MessageCircle, MoreHorizontal, Paperclip, SendHorizonal } from 'lucide-react';
+import { C, E } from '../tokens';
 import DuoAvatarStack from '../components/DuoAvatarStack.jsx';
 import PlanContextBar from '../components/PlanContextBar.jsx';
 import ChatMessageBubble from '../components/MessageBubble.jsx';
@@ -10,131 +10,58 @@ import { getMessages, sendMessage, subscribeMessages } from '../lib/messages.js'
 const MAX_MESSAGE_LENGTH = 500;
 
 const DATE_LABELS = {
-  today: 'Today', tomorrow: 'Tomorrow', friday: 'This Friday',
-  saturday: 'Saturday', sunday: 'This Sunday', next_week: 'Next week',
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  friday: 'This Friday',
+  saturday: 'Saturday',
+  sunday: 'This Sunday',
+  next_week: 'Next week',
 };
+
 const TIME_LABELS = {
-  morning: 'Morning (10am–12pm)', afternoon: 'Afternoon (12pm–4pm)',
-  evening: 'Evening (4pm–7pm)', night: 'Night (7pm–10pm)',
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  night: 'Night',
 };
-const QUICK_REPLIES = [
-  'Saturday works for us',
-  'What time works?',
-  'Down for this spot',
-  'Any food preferences?',
-];
 
-function PlanCard({ chat }) {
-  const vibe     = chat?.vibe     ?? null;
-  const date     = DATE_LABELS[chat?.date]     ?? chat?.date     ?? null;
-  const timeSlot = TIME_LABELS[chat?.timeSlot] ?? chat?.timeSlot ?? null;
-  const place    = chat?.place    ?? null;
-  const meta     = [vibe, date, timeSlot].filter(Boolean).join(' · ');
-  if (!meta && !place) return null;
-  return (
-    <div
-      style={{
-        background:   'rgba(255,107,0,0.08)',
-        border:       `0.5px solid ${C.greenBorder}`,
-        borderRadius: 14,
-        padding:      '12px 14px',
-        marginBottom: 8,
-        flexShrink:   0,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: meta || place ? 6 : 0 }}>
-        <span
-          style={{
-            fontSize:      10,
-            fontWeight:    700,
-            color:         C.moss,
-            letterSpacing: '0.9px',
-            textTransform: 'uppercase',
-          }}
-        >
-          ✓ Confirmed
-        </span>
-      </div>
-      {meta && (
-        <p style={{ fontSize: 13, color: C.white, margin: '0 0 2px', lineHeight: 1.5 }}>
-          {meta}
-        </p>
-      )}
-      {place && (
-        <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-          📍 {place}
-        </p>
-      )}
-    </div>
-  );
+function chatTitle(chat) {
+  return chat?.otherDuo?.name ?? 'Duo';
 }
 
-function formatMsgTime(dateStr) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+function chatSubtitle(chat) {
+  const plan = [
+    chat?.vibe,
+    DATE_LABELS[chat?.date] ?? chat?.date,
+    TIME_LABELS[chat?.timeSlot] ?? chat?.timeSlot,
+    chat?.place,
+  ].filter(Boolean).join(' - ');
+
+  if (plan) return plan;
+
+  const duoAName = chat?.duoA?.name ?? null;
+  const duoBName = chat?.duoB?.name ?? null;
+  return [duoAName, duoBName].filter(Boolean).join(' x ') || 'Hangout chat';
 }
 
-function MessageBubble({ msg, isMine, senderLabel }) {
-  return (
-    <motion.div
-      initial="initial"
-      animate="animate"
-      style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}
-    >
-      <p style={{ fontSize: 11, color: C.muted, margin: '0 4px 4px', fontWeight: 500 }}>
-        {senderLabel}
-      </p>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flexDirection: isMine ? 'row-reverse' : 'row' }}>
-        <div
-          style={{
-            maxWidth:    '72%',
-            padding:     '10px 14px',
-            fontSize:    14,
-            lineHeight:  1.5,
-            ...(isMine
-              ? {
-                  background:   C.gradientCTA,
-                  color:        C.cream,
-                  borderRadius: '18px 18px 4px 18px',
-                  fontWeight:   500,
-                }
-              : {
-                  background:   C.cardElevated,
-                  color:        C.white,
-                  border:       `0.5px solid ${C.border}`,
-                  borderRadius: '18px 18px 18px 4px',
-                }),
-          }}
-        >
-          {msg.content}
-        </div>
-        <span style={{ fontSize: 10, color: C.muted, flexShrink: 0, paddingBottom: 2 }}>
-          {formatMsgTime(msg.created_at)}
-        </span>
-      </div>
-    </motion.div>
-  );
-}
+export default function ChatThreadPage({ chat, go, currentUser, myDuo, embedded = false }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [inputFocus, setInputFocus] = useState(false);
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef(null);
 
-export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo }) {
-  const [messages,    setMessages]    = useState([]);
-  const [input,       setInput]       = useState('');
-  const [inputFocus,  setInputFocus]  = useState(false);
-  const [sending,     setSending]     = useState(false);
-  const messagesEndRef                = useRef(null);
+  const hangoutId = chat?.hangoutId;
+  const myDuoId = chat?.myDuoId ?? myDuo?.id;
+  const otherDuo = chat?.otherDuo ?? { name: 'Duo', members: [] };
+  const otherMembers = otherDuo?.members ?? [];
+  const title = chatTitle(chat);
+  const subtitle = chatSubtitle(chat);
 
-  const hangoutId  = chat?.hangoutId;
-  const myDuoId    = chat?.myDuoId ?? myDuo?.id;
-  const otherDuo   = chat?.otherDuo ?? { name: 'Duo', members: [] };
-  const duoAName   = chat?.duoA?.name ?? otherDuo.name;
-  const duoBName   = chat?.duoB?.name ?? otherDuo.name;
-
-  // userId → display name for all 4 participants. Built once from chat prop;
-  // realtime messages have sender_user_id so they resolve from the same map.
   const senderNames = useMemo(() => {
     const map = {};
     [...(chat?.duoA?.members ?? []), ...(chat?.duoB?.members ?? [])].forEach((m) => {
-      if (m.userId) map[m.userId] = m.name;
+      if (m?.userId) map[m.userId] = m.name;
     });
     return map;
   }, [chat]);
@@ -144,7 +71,7 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
   }, []);
 
   useEffect(() => {
-    if (!hangoutId || !currentUser) return;
+    if (!hangoutId || !currentUser) return undefined;
 
     let cancelled = false;
     let unsub = null;
@@ -162,7 +89,7 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
       });
       setTimeout(scrollToBottom, 50);
     }).then((fn) => {
-      if (cancelled) fn?.();   // unmounted before promise resolved — clean up immediately
+      if (cancelled) fn?.();
       else unsub = fn;
     });
 
@@ -174,20 +101,19 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || sending || !currentUser || !myDuoId) return;
+    if (!text || sending || !currentUser || !myDuoId || !hangoutId) return;
     if (text.length > MAX_MESSAGE_LENGTH) return;
 
     setInput('');
     setSending(true);
 
-    // optimistic update
     const optimistic = {
-      id:             `opt-${Date.now()}`,
-      hangout_id:     hangoutId,
-      sender_duo_id:  myDuoId,
+      id: `opt-${Date.now()}`,
+      hangout_id: hangoutId,
+      sender_duo_id: myDuoId,
       sender_user_id: currentUser.id,
-      content:        text,
-      created_at:     new Date().toISOString(),
+      content: text,
+      created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimistic]);
     setTimeout(scrollToBottom, 50);
@@ -195,17 +121,14 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
     try {
       const saved = await sendMessage({
         hangoutId,
-        senderDuoId:  myDuoId,
+        senderDuoId: myDuoId,
         senderUserId: currentUser.id,
-        content:      text,
+        content: text,
       });
-      // Replace the optimistic entry with the real saved row so the realtime
-      // dedup check (m.id === newMsg.id) recognises it and skips the duplicate.
       if (saved?.id) {
-        setMessages((prev) => prev.map((m) => m.id === optimistic.id ? saved : m));
+        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
       }
     } catch {
-      // remove optimistic on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setInput(text);
     } finally {
@@ -214,184 +137,268 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
-  const headerNames = `${duoAName} x ${duoBName}`;
-  const otherMembers = otherDuo?.members ?? [];
+  const canSend = input.trim().length > 0
+    && input.trim().length <= MAX_MESSAGE_LENGTH
+    && Boolean(currentUser && myDuoId && hangoutId)
+    && !sending;
 
   return (
-    <div style={{ background: C.bg, display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* Header */}
+    <div
+      style={{
+        background: C.bg,
+        display: 'flex',
+        flexDirection: 'column',
+        height: embedded ? '100%' : '100vh',
+        minHeight: embedded ? 0 : '100vh',
+      }}
+    >
       <header
         style={{
-          background:   C.bg2,
+          background: 'rgba(255,255,255,0.94)',
+          backdropFilter: 'blur(18px)',
           borderBottom: `0.5px solid ${C.border}`,
-          minHeight:    68,
-          display:      'flex',
-          alignItems:   'center',
-          gap:          8,
-          padding:      '0 16px',
-          position:     'sticky',
-          top:          0,
-          zIndex:       100,
-          flexShrink:   0,
+          minHeight: 76,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: embedded ? '0 20px' : '0 16px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          flexShrink: 0,
         }}
       >
-        {/* Back */}
-        <motion.button
-          type="button"
-          aria-label="Back"
-          onClick={() => go('chat')}
-          whileTap={{ scale: 0.88 }}
-          transition={{ duration: 0.1 }}
-          style={{
-            width:          36,
-            height:         36,
-            display:        'inline-flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-            borderRadius:   10,
-            background:     'rgba(17,17,17,0.05)',
-            border:         `0.5px solid ${C.border}`,
-            cursor:         'pointer',
-            flexShrink:     0,
-          }}
-        >
-          <ArrowLeft size={18} color={C.white} strokeWidth={2} />
-        </motion.button>
+        {!embedded && (
+          <button
+            type="button"
+            aria-label="Back"
+            onClick={() => go('chat')}
+            style={{
+              width: 38,
+              height: 38,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '50%',
+              background: C.cardDeep,
+              border: `0.5px solid ${C.border}`,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <ArrowLeft size={18} color={C.text} strokeWidth={2.2} />
+          </button>
+        )}
 
-        <DuoAvatarStack members={otherMembers} size={30} />
+        <DuoAvatarStack members={otherMembers} size={32} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 15, fontWeight: 900, color: C.text, margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {otherDuo.name}
+          <p
+            style={{
+              fontSize: 16,
+              fontWeight: 950,
+              color: C.text,
+              margin: '0 0 3px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {title}
           </p>
-          <p style={{ fontSize: 11, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {headerNames}
+          <p
+            style={{
+              fontSize: 12,
+              color: C.muted,
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {subtitle}
           </p>
         </div>
 
-        <div style={{ width: 36, flexShrink: 0 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {[
+            { label: 'Plan', icon: CalendarDays },
+            { label: 'Info', icon: Info },
+            { label: 'More', icon: MoreHorizontal },
+          ].map(({ label, icon: Icon }) => (
+            <button
+              key={label}
+              type="button"
+              aria-label={label}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                border: `0.5px solid ${C.border}`,
+                background: C.cardElevated,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: C.text,
+                cursor: 'default',
+              }}
+            >
+              <Icon size={17} strokeWidth={2.2} />
+            </button>
+          ))}
+        </div>
       </header>
+
       <PlanContextBar chat={chat} />
 
-      {/* Messages */}
       <div
         style={{
-          flex:          1,
-          overflowY:     'auto',
-          padding:       '12px 16px 24px',
-          display:       'flex',
+          flex: 1,
+          overflowY: 'auto',
+          padding: embedded ? '20px 24px 28px' : '16px 16px 24px',
+          display: 'flex',
           flexDirection: 'column',
-          gap:           10,
+          gap: 4,
+          background:
+            'linear-gradient(180deg, rgba(255,243,232,0.38) 0%, rgba(255,255,255,0) 160px), #FFFFFF',
         }}
       >
         {messages.length === 0 && (
-          <div style={{ marginTop: 24 }}>
-            <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', marginBottom: 16 }}>
-              Start the vibe. Say hi and lock in the plan.
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {QUICK_REPLIES.map((reply) => (
-                <motion.button
-                  key={reply}
-                  type="button"
-                  onClick={() => setInput(reply)}
-                  whileTap={{ scale: 0.94 }}
-                  transition={{ duration: 0.1 }}
-                  style={{
-                    background:   'rgba(17,17,17,0.05)',
-                    border:       `0.5px solid ${C.border}`,
-                    borderRadius: 9999,
-                    padding:      '8px 14px',
-                    fontSize:     13,
-                    color:        C.muted,
-                    cursor:       'pointer',
-                  }}
-                >
-                  {reply}
-                </motion.button>
-              ))}
+          <div style={{ margin: '42px auto 20px', maxWidth: 300, textAlign: 'center' }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                margin: '0 auto 12px',
+                background: C.orangeSurface,
+                color: C.orange,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MessageCircle size={20} strokeWidth={2.2} />
             </div>
+            <p style={{ margin: 0, fontSize: 13, color: C.muted, lineHeight: 1.55 }}>
+              No messages yet. Send the first note when you are ready.
+            </p>
           </div>
         )}
+
         <AnimatePresence initial={false}>
-          {messages.map((msg) => {
+          {messages.map((msg, index) => {
             const isMine = msg.sender_user_id === currentUser?.id;
-            const senderLabel = isMine
-              ? 'You'
-              : (senderNames[msg.sender_user_id] ?? otherDuo.name);
+            const prev = messages[index - 1];
+            const grouped = prev?.sender_user_id === msg.sender_user_id;
+            const senderLabel = isMine ? 'You' : (senderNames[msg.sender_user_id] ?? title);
             return (
-              <ChatMessageBubble
-                key={msg.id}
-                msg={msg}
-                isMine={isMine}
-                senderLabel={senderLabel}
-              />
+              <div key={msg.id} style={{ marginTop: grouped ? 2 : 10 }}>
+                <ChatMessageBubble
+                  msg={msg}
+                  isMine={isMine}
+                  senderLabel={senderLabel}
+                  showSender={!grouped}
+                />
+              </div>
             );
           })}
         </AnimatePresence>
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input bar */}
       <div
         style={{
-          background:  C.bg2,
-          borderTop:   `0.5px solid ${C.border}`,
-          padding:     '10px 14px',
-          display:     'flex',
-          alignItems:  'center',
-          gap:         8,
-          flexShrink:  0,
+          background: 'rgba(255,255,255,0.96)',
+          backdropFilter: 'blur(16px)',
+          borderTop: `0.5px solid ${C.border}`,
+          padding: embedded ? '13px 20px 16px' : '11px 14px calc(11px + env(safe-area-inset-bottom))',
+          flexShrink: 0,
         }}
       >
-        <input
-          type="text"
-          aria-label={`Message ${otherDuo.name}`}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onFocus={() => setInputFocus(true)}
-          onBlur={() => setInputFocus(false)}
-          onKeyDown={handleKeyDown}
-          maxLength={MAX_MESSAGE_LENGTH}
-          placeholder={`Message ${duoAName} x ${duoBName}...`}
+        <div
           style={{
-            flex:         1,
-            background:   C.cardElevated,
-            border:       `1px solid ${inputFocus ? C.amber : 'transparent'}`,
-            borderRadius: 22,
-            padding:      '10px 16px',
-            fontSize:     14,
-            color:        C.white,
-            outline:      'none',
-            transition:   'border-color 0.15s',
-          }}
-        />
-        <motion.button
-          type="button"
-          aria-label="Send message"
-          onClick={handleSend}
-          disabled={!input.trim() || input.trim().length > MAX_MESSAGE_LENGTH || sending}
-          whileTap={input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? { scale: 0.88 } : {}}
-          transition={{ duration: 0.1 }}
-          style={{
-            width:          38,
-            height:         38,
-            borderRadius:   '50%',
-            background:     input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? C.gradientCTA : C.cardElevated,
-            border:         'none',
-            cursor:         input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? 'pointer' : 'default',
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-            flexShrink:     0,
-            transition:     'background 0.15s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: C.cardElevated,
+            border: `1px solid ${inputFocus ? C.orange : C.border}`,
+            borderRadius: 999,
+            padding: '6px 7px 6px 10px',
+            boxShadow: inputFocus ? '0 0 0 3px rgba(255,107,0,0.10)' : E.cardShadow,
           }}
         >
-          <SendHorizonal size={16} color={input.trim() && input.trim().length <= MAX_MESSAGE_LENGTH ? C.cream : C.muted} strokeWidth={2} />
-        </motion.button>
+          <button
+            type="button"
+            aria-label="Attachment"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              border: 0,
+              background: C.bg2,
+              color: C.muted,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'default',
+              flexShrink: 0,
+            }}
+          >
+            <Paperclip size={16} strokeWidth={2.2} />
+          </button>
+
+          <input
+            type="text"
+            aria-label={`Message ${title}`}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onFocus={() => setInputFocus(true)}
+            onBlur={() => setInputFocus(false)}
+            onKeyDown={handleKeyDown}
+            maxLength={MAX_MESSAGE_LENGTH}
+            placeholder={`Message ${title}`}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: 'transparent',
+              border: 0,
+              padding: '9px 4px',
+              fontSize: 14,
+              color: C.text,
+              outline: 'none',
+              fontFamily: 'inherit',
+            }}
+          />
+
+          <button
+            type="button"
+            aria-label="Send message"
+            onClick={handleSend}
+            disabled={!canSend}
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              background: canSend ? C.gradientCTA : C.cardDeep,
+              border: 'none',
+              cursor: canSend ? 'pointer' : 'default',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: canSend ? E.buttonShadow : 'none',
+            }}
+          >
+            <SendHorizonal size={17} color={canSend ? C.cream : C.muted} strokeWidth={2.4} />
+          </button>
+        </div>
       </div>
     </div>
   );

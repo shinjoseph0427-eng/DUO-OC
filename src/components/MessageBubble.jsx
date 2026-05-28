@@ -11,7 +11,7 @@ function formatMsgTime(dateStr) {
   });
 }
 
-export default function MessageBubble({ msg, isMine, senderLabel }) {
+export default function MessageBubble({ msg, isMine, senderLabel, showSender = true }) {
   return (
     <motion.div
       variants={messageVariants}
@@ -23,13 +23,15 @@ export default function MessageBubble({ msg, isMine, senderLabel }) {
         alignItems: isMine ? 'flex-end' : 'flex-start',
       }}
     >
-      <p style={{ fontSize: 10.5, color: C.muted, margin: '0 4px 4px', fontWeight: 700 }}>
-        {senderLabel}
-      </p>
+      {showSender && (
+        <p style={{ fontSize: 10.5, color: C.muted, margin: '0 4px 4px', fontWeight: 700 }}>
+          {senderLabel}
+        </p>
+      )}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flexDirection: isMine ? 'row-reverse' : 'row' }}>
         <div
           style={{
-            maxWidth: '78%',
+            maxWidth: '72%',
             padding: '10px 14px',
             fontSize: 14,
             lineHeight: 1.5,

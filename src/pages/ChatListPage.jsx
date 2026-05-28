@@ -1,199 +1,216 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, Search } from 'lucide-react';
-import { C } from '../tokens';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CalendarDays, MessageCircle, Search, Users } from 'lucide-react';
+import { C, E } from '../tokens';
 import EmptyState from '../components/EmptyState.jsx';
+import DuoAvatarStack from '../components/DuoAvatarStack.jsx';
+import ChatThreadPage from './ChatThreadPage.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
 import { getMyChats, getMyDuoRooms, getMyHomieRooms } from '../lib/messages.js';
 
 const DATE_LABELS = {
-  today: 'Today', tomorrow: 'Tomorrow', friday: 'This Friday',
-  saturday: 'Saturday', sunday: 'This Sunday', next_week: 'Next week',
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  friday: 'This Friday',
+  saturday: 'Saturday',
+  sunday: 'This Sunday',
+  next_week: 'Next week',
 };
+
 const TIME_LABELS = {
-  morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night',
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  night: 'Night',
 };
 
-// Avatar color palette (cycling)
-const AV_COLORS = [
-  { bg: '#FAECE7', color: '#993C1D' },
-  { bg: '#EEEDFE', color: '#534AB7' },
-  { bg: '#E1F5EE', color: '#0F6E56' },
-  { bg: '#FAEEDA', color: '#854F0B' },
-  { bg: '#FBEAF0', color: '#993556' },
-  { bg: '#E6F1FB', color: '#185FA5' },
-];
-
-function avColor(idx) { return AV_COLORS[idx % AV_COLORS.length]; }
-
-function initials(name) {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
+const TABS = ['All', 'Hangouts', 'Homies'];
 
 function formatTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const diffDays = Math.floor((now - d) / 86400000);
-  if (diffDays === 0) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  if (diffDays === 0) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7)  return d.toLocaleDateString('en-US', { weekday: 'short' });
+  if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function truncate(str, n) {
+function truncate(str, n = 56) {
   if (!str) return null;
-  return str.length > n ? str.slice(0, n) + '…' : str;
+  return str.length > n ? `${str.slice(0, n)}...` : str;
 }
 
-// ── Overlapping duo avatar stack ──────────────────────────────────
-function ThreadAvatars({ m0Name, m1Name, colorIdx0 = 0, colorIdx1 = 1, online = false }) {
-  const c0 = avColor(colorIdx0);
-  const c1 = avColor(colorIdx1);
-  return (
-    <div style={{ position: 'relative', flexShrink: 0, width: 44, height: 44 }}>
-      <div style={{
-        width: 32, height: 32, borderRadius: '50%',
-        background: c0.bg, color: c0.color,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 600,
-        position: 'absolute', top: 0, left: 0,
-        border: `2px solid ${C.cardElevated}`,
-      }}>
-        {initials(m0Name)}
-      </div>
-      <div style={{
-        width: 32, height: 32, borderRadius: '50%',
-        background: c1.bg, color: c1.color,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 600,
-        position: 'absolute', bottom: 0, right: 0,
-        border: `2px solid ${C.cardElevated}`,
-      }}>
-        {initials(m1Name)}
-      </div>
-      {online && (
-        <div style={{
-          width: 10, height: 10, background: '#22c55e', borderRadius: '50%',
-          border: `2px solid ${C.cardElevated}`,
-          position: 'absolute', bottom: 0, left: 0,
-        }} />
-      )}
-    </div>
-  );
+function memberName(member) {
+  return member?.name ?? member?.profiles?.name ?? '';
 }
 
-// ── Plan banner between thread rows ──────────────────────────────
-function PlanBanner({ vibe, place, date, timeSlot }) {
-  const dateLabel = DATE_LABELS[date] ?? date ?? '';
-  const timeLabel = TIME_LABELS[timeSlot] ?? timeSlot ?? '';
-  const when = [dateLabel, timeLabel].filter(Boolean).join(' ');
+function planLine(chat) {
+  const parts = [
+    chat?.vibe,
+    DATE_LABELS[chat?.date] ?? chat?.date,
+    TIME_LABELS[chat?.timeSlot] ?? chat?.timeSlot,
+    chat?.place,
+  ].filter(Boolean);
+  return parts.join(' - ');
+}
+
+function matchesSearch(row, query) {
+  if (!query) return true;
+  const haystack = [
+    row.title,
+    row.preview,
+    row.context,
+    ...(row.members ?? []).map(memberName),
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
+function ChatEmptyState() {
   return (
-    <div style={{
-      margin: '4px 0',
-      padding: '8px 10px',
-      background: C.amberT08,
-      border: `1px solid #FDBA74`,
-      borderRadius: 10,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-    }}>
-      <div style={{
-        width: 28, height: 28, background: C.amber, borderRadius: 8,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 14, color: '#fff' }}>☕</span>
-      </div>
-      <div>
-        <div style={{ fontSize: 11, color: '#C2410C', fontWeight: 500, lineHeight: 1.3 }}>
-          {[vibe, place].filter(Boolean).join(' · ')}
+    <div
+      style={{
+        height: '100%',
+        minHeight: 420,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
+        background:
+          'radial-gradient(circle at 50% 18%, rgba(255,107,0,0.10), transparent 34%), #FFFFFF',
+      }}
+    >
+      <div style={{ textAlign: 'center', maxWidth: 340 }}>
+        <div
+          style={{
+            width: 58,
+            height: 58,
+            borderRadius: '50%',
+            margin: '0 auto 16px',
+            background: C.gradientCTA,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: E.buttonShadow,
+          }}
+        >
+          <MessageCircle size={25} color={C.cream} strokeWidth={2.4} />
         </div>
-        {when && (
-          <div style={{ fontSize: 10, color: '#9A3412' }}>
-            {when} · confirmed
-          </div>
-        )}
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: C.text }}>
+          Select a chat to start talking
+        </h2>
+        <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.5, color: C.muted }}>
+          Open a confirmed hangout conversation from the inbox.
+        </p>
       </div>
     </div>
   );
 }
 
-// ── Thread row ────────────────────────────────────────────────────
-function ThreadRow({ name, m0Name, m1Name, colorIdx0, colorIdx1, preview, time, unreadCount, online, isActive, onClick, planBanner }) {
+function ChatConversationRow({ row, active, onOpen }) {
   return (
-    <>
-      <motion.div
-        layout
-        whileTap={{ scale: 0.99 }}
-        onClick={onClick}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '11px 14px',
-          cursor: 'pointer',
-          borderBottom: `0.5px solid ${C.border}`,
-          background: isActive ? C.amberT08 : C.cardElevated,
-          position: 'relative',
-        }}
-      >
-        <ThreadAvatars
-          m0Name={m0Name}
-          m1Name={m1Name}
-          colorIdx0={colorIdx0}
-          colorIdx1={colorIdx1}
-          online={online}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 13, fontWeight: 500, color: C.text,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {name}
-          </div>
-          <div style={{
-            fontSize: 12,
-            color: unreadCount ? C.text : C.muted,
-            fontWeight: unreadCount ? 500 : 400,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            marginTop: 1,
-          }}>
-            {preview ?? 'Chat is open — say hi!'}
-          </div>
-        </div>
-        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          <span style={{ fontSize: 11, color: C.muted }}>{time}</span>
-          {unreadCount > 0 && (
-            <div style={{
-              width: 18, height: 18, background: C.amber, borderRadius: '50%',
-              fontSize: 10, color: '#fff', fontWeight: 600,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {unreadCount}
-            </div>
+    <motion.button
+      type="button"
+      layout
+      variants={staggerItem}
+      whileTap={{ scale: 0.99 }}
+      onClick={onOpen}
+      style={{
+        width: '100%',
+        border: 0,
+        borderBottom: `0.5px solid ${C.border}`,
+        background: active ? C.orangeSurface : C.cardElevated,
+        cursor: 'pointer',
+        padding: '13px 16px',
+        textAlign: 'left',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}
+    >
+      <DuoAvatarStack members={row.members} size={34} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <p
+            style={{
+              margin: 0,
+              flex: 1,
+              minWidth: 0,
+              fontSize: 14,
+              fontWeight: 850,
+              color: C.text,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {row.title}
+          </p>
+          {row.time && (
+            <span style={{ flexShrink: 0, fontSize: 11, color: C.muted }}>
+              {row.time}
+            </span>
           )}
         </div>
-      </motion.div>
-      {planBanner && <div style={{ padding: '0 12px' }}>{planBanner}</div>}
-    </>
+
+        <p
+          style={{
+            margin: '3px 0 0',
+            fontSize: 12.5,
+            color: C.muted,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {row.preview || 'No messages yet'}
+        </p>
+
+        {row.context && (
+          <p
+            style={{
+              margin: '4px 0 0',
+              fontSize: 11.5,
+              color: active ? C.orange : C.textMuted,
+              fontWeight: 750,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            {row.kind === 'hangout' ? <CalendarDays size={12} strokeWidth={2.2} /> : <Users size={12} strokeWidth={2.2} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {row.context}
+            </span>
+          </p>
+        )}
+      </div>
+    </motion.button>
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────
-export default function ChatListPage({ go, onLogout, currentUser }) {
-  const [chats,    setChats]    = useState([]);
-  const [rooms,    setRooms]    = useState([]);
+export default function ChatListPage({ go, currentUser }) {
+  const [chats, setChats] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [homieRooms, setHomieRooms] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState('');
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('All');
+  const [activeChat, setActiveChat] = useState(null);
 
   useEffect(() => {
-    if (!currentUser) { setLoading(false); return; }
+    if (!currentUser) {
+      setLoading(false);
+      return undefined;
+    }
 
     const load = () =>
       Promise.all([
@@ -211,189 +228,267 @@ export default function ChatListPage({ go, onLogout, currentUser }) {
     return () => clearInterval(interval);
   }, [currentUser]);
 
-  const activeChats = chats.filter(
-    (c) => c.duoA?.status === 'active' && c.duoB?.status === 'active',
+  const activeChats = useMemo(
+    () => chats.filter((c) => c?.duoA?.status === 'active' && c?.duoB?.status === 'active'),
+    [chats],
   );
 
-  const hasContent = rooms.length > 0 || homieRooms.length > 0 || activeChats.length > 0;
+  useEffect(() => {
+    if (!activeChat?.hangoutId) return;
+    const next = activeChats.find((chat) => chat.hangoutId === activeChat.hangoutId);
+    if (next && next !== activeChat) setActiveChat(next);
+  }, [activeChat, activeChats]);
 
-  const lc = search.toLowerCase();
-  const filteredRooms = rooms.filter((r) =>
-    !search || r.duoName?.toLowerCase().includes(lc) ||
-    r.members.some((m) => m.name?.toLowerCase().includes(lc))
-  );
-  const filteredHomieRooms = homieRooms.filter((r) =>
-    !search || r.homieName?.toLowerCase().includes(lc) ||
-    r.members.some((m) => m.name?.toLowerCase().includes(lc))
-  );
-  const filteredChats = activeChats.filter((c) =>
-    !search || c.otherDuo?.name?.toLowerCase().includes(lc) ||
-    (c.otherDuo?.members ?? []).some((m) => m.name?.toLowerCase().includes(lc))
-  );
+  const rows = useMemo(() => {
+    const duoRows = rooms.map((room) => ({
+      id: `duo-${room.duoId}`,
+      kind: 'duo',
+      title: room.duoName ?? 'Duo Room',
+      members: room.members ?? [],
+      preview: truncate(room.lastMessage),
+      context: 'Duo Room',
+      time: formatTime(room.updatedAt),
+      updatedAt: room.updatedAt,
+      room,
+    }));
+
+    const homieRows = homieRooms.map((room) => ({
+      id: `homie-${room.roomId}`,
+      kind: 'homie',
+      title: room.homieName ?? 'Homie',
+      members: room.members ?? [],
+      preview: truncate(room.lastMessage),
+      context: 'Homie',
+      time: formatTime(room.updatedAt),
+      updatedAt: room.updatedAt,
+      room,
+    }));
+
+    const hangoutRows = activeChats.map((chat) => ({
+      id: `hangout-${chat.hangoutId}`,
+      kind: 'hangout',
+      title: chat.otherDuo?.name ?? 'Duo',
+      members: chat.otherDuo?.members ?? [],
+      preview: truncate(chat.lastMessage),
+      context: planLine(chat),
+      time: formatTime(chat.updatedAt),
+      updatedAt: chat.updatedAt,
+      chat,
+    }));
+
+    return [...duoRows, ...homieRows, ...hangoutRows].sort((a, b) => {
+      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [activeChats, homieRooms, rooms]);
+
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (tab === 'Hangouts' && row.kind !== 'hangout') return false;
+      if (tab === 'Homies' && row.kind !== 'homie') return false;
+      return matchesSearch(row, query);
+    });
+  }, [rows, search, tab]);
+
+  const hasContent = rows.length > 0;
+
+  const openRow = (row) => {
+    if (row.kind === 'duo') {
+      const duoShape = {
+        id: row.room.duoId,
+        name: row.room.duoName,
+        duo_members: (row.room.members ?? []).map((m) => ({
+          user_id: m.userId,
+          profiles: { name: m.name, photos: m.avatarUrl ? [m.avatarUrl] : [] },
+        })),
+      };
+      go('duo_room', duoShape);
+      return;
+    }
+
+    if (row.kind === 'homie') {
+      if (row.room.profile) go('homie_profile', row.room.profile);
+      return;
+    }
+
+    const isWide = typeof window !== 'undefined' && window.matchMedia('(min-width: 860px)').matches;
+    if (isWide) setActiveChat(row.chat);
+    else go('chat_thread', null, null, row.chat);
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
-      {/* Header */}
-      <div style={{
-        background: C.cardElevated,
-        borderBottom: `0.5px solid ${C.border}`,
-        padding: '16px 16px 12px',
-      }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Messages</div>
-        <div style={{ marginTop: 10, position: 'relative' }}>
-          <Search
-            size={14}
-            color={C.muted}
-            style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-          />
-          <input
-            type="text"
-            placeholder="Search chats..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '7px 10px 7px 30px',
-              borderRadius: 8,
-              border: `0.5px solid ${C.border}`,
-              background: C.bg2,
-              fontSize: 13,
-              color: C.text,
-              outline: 'none',
-              fontFamily: 'inherit',
-            }}
-          />
-        </div>
-      </div>
+    <div className="chat-shell" style={{ minHeight: '100vh', background: C.bg }}>
+      <style>{`
+        .chat-shell {
+          display: grid;
+          grid-template-columns: minmax(320px, 36%) minmax(0, 1fr);
+        }
+        .chat-left-panel {
+          min-width: 0;
+          border-right: 0.5px solid ${C.border};
+          background: ${C.cardElevated};
+        }
+        .chat-right-panel {
+          min-width: 0;
+          background: ${C.bg};
+          display: flex;
+          flex-direction: column;
+        }
+        @media (max-width: 859px) {
+          .chat-shell {
+            display: block;
+          }
+          .chat-right-panel {
+            display: none;
+          }
+          .chat-left-panel {
+            border-right: 0;
+            min-height: 100vh;
+          }
+        }
+      `}</style>
 
-      {/* Thread list */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 88 }}>
-        {loading ? (
-          <div style={{ padding: 16 }}>
-            {[1, 2, 3].map((i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: `0.5px solid ${C.border}` }}>
-                <div className="shimmer" style={{ width: 44, height: 44, borderRadius: '50%', background: C.cardDeep, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div className="shimmer" style={{ width: '50%', height: 13, borderRadius: 6, background: C.cardDeep, marginBottom: 6 }} />
-                  <div className="shimmer" style={{ width: '70%', height: 11, borderRadius: 6, background: C.cardDeep }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : !hasContent ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-            <EmptyState
-              icon={MessageCircle}
-              title="No chats yet"
-              subtitle="Form a duo to open a Duo Room, or accept a hangout to start a 2v2 chat."
-              action={() => go('hangouts')}
-              actionLabel="Find a hangout →"
+      <section className="chat-left-panel">
+        <div
+          style={{
+            padding: '20px 18px 14px',
+            borderBottom: `0.5px solid ${C.border}`,
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
+            background: C.cardElevated,
+          }}
+        >
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 950, color: C.text }}>Messages</h1>
+          <p style={{ margin: '3px 0 14px', fontSize: 13, color: C.muted }}>
+            Plans, duos, and homies
+          </p>
+
+          <label style={{ position: 'relative', display: 'block' }}>
+            <Search
+              size={15}
+              color={C.muted}
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
             />
+            <input
+              type="text"
+              placeholder="Search messages"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: '100%',
+                height: 38,
+                padding: '0 12px 0 36px',
+                borderRadius: 999,
+                border: `0.5px solid ${C.border}`,
+                background: C.bg2,
+                color: C.text,
+                fontSize: 13,
+                outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+          </label>
+
+          <div
+            role="tablist"
+            aria-label="Message filters"
+            style={{
+              marginTop: 12,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: 4,
+              padding: 4,
+              borderRadius: 999,
+              background: C.cardDeep,
+            }}
+          >
+            {TABS.map((name) => {
+              const active = tab === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(name)}
+                  style={{
+                    border: 0,
+                    borderRadius: 999,
+                    padding: '8px 10px',
+                    background: active ? C.cardElevated : 'transparent',
+                    color: active ? C.text : C.muted,
+                    fontSize: 12,
+                    fontWeight: 850,
+                    cursor: 'pointer',
+                    boxShadow: active ? '0 1px 8px rgba(17,17,17,0.08)' : 'none',
+                  }}
+                >
+                  {name}
+                </button>
+              );
+            })}
           </div>
-        ) : (
-          <AnimatePresence>
-            <motion.div variants={staggerContainer} initial="initial" animate="animate">
+        </div>
 
-              {/* ── Duo Rooms ── */}
-              {filteredRooms.map((room, idx) => {
-                const m0 = room.members[0];
-                const m1 = room.members[1];
-                const preview = truncate(room.lastMessage, 42);
-                return (
-                  <motion.div key={room.duoId} variants={staggerItem}>
-                    <ThreadRow
-                      name={room.duoName ?? 'Duo Room'}
-                      m0Name={m0?.name}
-                      m1Name={m1?.name}
-                      colorIdx0={idx * 2}
-                      colorIdx1={idx * 2 + 1}
-                      preview={preview ?? 'Your private duo chat — say something!'}
-                      time={formatTime(room.updatedAt)}
-                      online={false}
-                      onClick={() => {
-                        const duoShape = {
-                          id:          room.duoId,
-                          name:        room.duoName,
-                          duo_members: room.members.map((m) => ({
-                            user_id:  m.userId,
-                            profiles: { name: m.name },
-                          })),
-                        };
-                        go('duo_room', duoShape);
-                      }}
-                    />
-                  </motion.div>
-                );
-              })}
-
-              {/* ── 2v2 Hangout Chats ── */}
-              {filteredHomieRooms.length > 0 && (
-                <div style={{ padding: '14px 14px 6px', fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Direct Messages
+        <div style={{ overflowY: 'auto', paddingBottom: 88 }}>
+          {loading ? (
+            <div style={{ padding: 16 }}>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
+                  <div className="shimmer" style={{ width: 48, height: 48, borderRadius: '50%', background: C.cardDeep, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="shimmer" style={{ width: '52%', height: 13, borderRadius: 6, background: C.cardDeep, marginBottom: 7 }} />
+                    <div className="shimmer" style={{ width: '76%', height: 11, borderRadius: 6, background: C.cardDeep }} />
+                  </div>
                 </div>
-              )}
-              {filteredHomieRooms.map((room, idx) => {
-                const m0 = room.members[0];
-                const m1 = room.members[1];
-                return (
-                  <motion.div key={room.roomId} variants={staggerItem}>
-                    <ThreadRow
-                      name={room.homieName ?? 'Homie'}
-                      m0Name={m0?.name}
-                      m1Name={m1?.name}
-                      colorIdx0={(filteredRooms.length + idx) * 2}
-                      colorIdx1={(filteredRooms.length + idx) * 2 + 1}
-                      preview="Connected homie"
-                      time={formatTime(room.updatedAt)}
-                      online={false}
-                      onClick={() => room.profile && go('homie_profile', room.profile)}
-                    />
-                  </motion.div>
-                );
-              })}
-
-              {filteredChats.map((chat, idx) => {
-                const otherMembers = chat.otherDuo?.members ?? [];
-                const m0 = otherMembers[0];
-                const m1 = otherMembers[1];
-                const preview = truncate(chat.lastMessage, 42);
-                const colorBase = (filteredRooms.length + filteredHomieRooms.length + idx) * 2;
-                const metaParts = [
-                  chat.vibe,
-                  DATE_LABELS[chat.date] ?? chat.date,
-                  TIME_LABELS[chat.timeSlot] ?? chat.timeSlot,
-                  chat.place,
-                ].filter(Boolean);
-                const banner = metaParts.length > 0 ? (
-                  <PlanBanner
-                    vibe={chat.vibe}
-                    place={chat.place}
-                    date={chat.date}
-                    timeSlot={chat.timeSlot}
+              ))}
+            </div>
+          ) : !hasContent ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '58vh', padding: 24 }}>
+              <EmptyState
+                icon={MessageCircle}
+                title="No chats yet"
+                subtitle="Form a duo to open a Duo Room, or accept a hangout to start a 2v2 chat."
+                action={() => go('hangouts')}
+                actionLabel="Find a hangout"
+              />
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>
+              No conversations match this search.
+            </div>
+          ) : (
+            <AnimatePresence>
+              <motion.div variants={staggerContainer} initial="initial" animate="animate">
+                {filteredRows.map((row) => (
+                  <ChatConversationRow
+                    key={row.id}
+                    row={row}
+                    active={row.kind === 'hangout' && row.chat?.hangoutId === activeChat?.hangoutId}
+                    onOpen={() => openRow(row)}
                   />
-                ) : null;
-                return (
-                  <motion.div key={chat.hangoutId} variants={staggerItem}>
-                    <ThreadRow
-                      name={chat.otherDuo?.name ?? 'Duo'}
-                      m0Name={m0?.name}
-                      m1Name={m1?.name}
-                      colorIdx0={colorBase}
-                      colorIdx1={colorBase + 1}
-                      preview={preview}
-                      time={formatTime(chat.updatedAt)}
-                      online={false}
-                      onClick={() => go('chat_thread', null, null, chat)}
-                      planBanner={banner}
-                    />
-                  </motion.div>
-                );
-              })}
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </div>
+      </section>
 
-            </motion.div>
-          </AnimatePresence>
+      <section className="chat-right-panel">
+        {activeChat ? (
+          <ChatThreadPage
+            chat={activeChat}
+            go={go}
+            currentUser={currentUser}
+            embedded
+          />
+        ) : (
+          <ChatEmptyState />
         )}
-      </div>
+      </section>
     </div>
   );
 }
