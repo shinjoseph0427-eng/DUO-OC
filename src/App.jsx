@@ -268,7 +268,7 @@ export default function App() {
         {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} showToast={showToast} />}
         {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onComplete={handleOnboardingComplete} showToast={showToast} />}
         {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
-        {page === 'explore'     && <ExplorePage currentUser={currentUser} go={go} />}
+        {page === 'explore'     && <ExplorePage currentUser={currentUser} go={go} showToast={showToast} />}
         {page === 'duo_detail'  && (selectedDuo
           ? <DuoDetailPage duo={selectedDuo} go={go} goBack={goBack} onLogout={handleLogout} currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} showToast={showToast} />
           : fallback('Duo not found'))}

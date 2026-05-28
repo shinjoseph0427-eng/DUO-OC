@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, SlidersHorizontal, MapPin, X, Check } from 'lucide-react';
+import { Search, SlidersHorizontal, MapPin, X } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import { getExploreDuos } from '../lib/duos.js';
 import { getMyProfile } from '../lib/profile.js';
 import { getBlockedDuoIds, getRestrictedDuoIds, getHiddenUserIds } from '../lib/safety.js';
 import { getMyDuos } from '../lib/duos.js';
-import { getOpenPlans } from '../lib/hangouts.js';
+import { getOpenPlans, requestToJoinPlan } from '../lib/hangouts.js';
 import { findHomies } from '../lib/homie.js';
 import HomieCard from '../components/HomieCard.jsx';
+import FilterStrip from '../components/FilterStrip.jsx';
+import PlanCard from '../components/PlanCard.jsx';
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -471,7 +473,7 @@ function activeFilterCount(f) {
   return [f.vibes.length > 0, f.ageRange != null, f.instagramOnly, f.distanceKm != null].filter(Boolean).length;
 }
 
-export default function ExplorePage({ currentUser, go }) {
+export default function ExplorePage({ currentUser, go, showToast }) {
   const [duos,         setDuos]         = useState([]);
   const [myProfile,    setMyProfile]    = useState(null);
   const [blockedSet,   setBlockedSet]   = useState(new Set());
@@ -482,13 +484,17 @@ export default function ExplorePage({ currentUser, go }) {
   const [debQ,         setDebQ]         = useState('');
   const [filterOpen,   setFilterOpen]   = useState(false);
   const [filters,      setFilters]      = useState({ ...DEFAULT_FILTERS });
-  const [planFilter,   setPlanFilter]   = useState('all'); // 'all' | 'open_plans'
+  const [planFilter,   setPlanFilter]   = useState('all'); // 'all' | 'open_plans' | vibe
   const debTimer = useRef(null);
 
   const [myDuoIds,      setMyDuoIds]      = useState([]);
+  const [myDuos,        setMyDuos]        = useState([]);
   const [activeTab,     setActiveTab]     = useState('duos');
   const [homies,        setHomies]        = useState([]);
   const [homiesLoading, setHomiesLoading] = useState(false);
+  const [passedPlanIds, setPassedPlanIds] = useState(new Set());
+  const [requestedPlanIds, setRequestedPlanIds] = useState(new Set());
+  const [requestingPlanId, setRequestingPlanId] = useState(null);
 
   useEffect(() => {
     if (!currentUser) { setLoading(false); return; }
@@ -496,7 +502,9 @@ export default function ExplorePage({ currentUser, go }) {
       getExploreDuos(currentUser.id),
       getMyProfile(currentUser.id),
       getMyDuos(currentUser.id).then((duos) => {
-        const ids = (duos ?? []).map((duo) => duo.id);
+        const list = duos ?? [];
+        setMyDuos(list);
+        const ids = list.map((duo) => duo.id);
         setMyDuoIds(ids);
         return getBlockedDuoIds(ids);
       }).catch(() => []),
@@ -583,12 +591,69 @@ export default function ExplorePage({ currentUser, go }) {
 
     if (planFilter === 'open_plans') {
       r = r.filter((d) => openPlanMap.has(d.id));
+    } else if (planFilter !== 'all') {
+      r = r.filter((d) => {
+        const plan = openPlanMap.get(d.id);
+        return plan?.vibe === planFilter;
+      });
     }
 
+    r = r.filter((d) => {
+      const plan = openPlanMap.get(d.id);
+      return !plan || !passedPlanIds.has(plan.id);
+    });
+
     return r;
-  }, [duos, blockedSet, restrictedSet, debQ, filters, myLat, myLng, currentYear, planFilter, openPlanMap]);
+  }, [duos, blockedSet, restrictedSet, debQ, filters, myLat, myLng, currentYear, planFilter, openPlanMap, passedPlanIds]);
 
   const numFilters = activeFilterCount(filters);
+  const openPlanCount = useMemo(
+    () => filtered.filter((duo) => openPlanMap.has(duo.id)).length,
+    [filtered, openPlanMap],
+  );
+  const featuredDuo = useMemo(
+    () => filtered.find((duo) => openPlanMap.has(duo.id)) ?? null,
+    [filtered, openPlanMap],
+  );
+  const feedDuos = featuredDuo ? filtered.filter((duo) => duo.id !== featuredDuo.id) : filtered;
+  const planFilterOptions = useMemo(() => {
+    const vibes = Array.from(new Set(Array.from(openPlanMap.values()).map((plan) => plan.vibe).filter(Boolean)));
+    return [
+      { value: 'all', label: 'All' },
+      { value: 'open_plans', label: `Open plans${openPlanCount > 0 ? ` ${openPlanCount}` : ''}` },
+      ...vibes.slice(0, 5).map((vibe) => ({ value: vibe, label: vibe })),
+    ];
+  }, [openPlanMap, openPlanCount]);
+
+  const handlePassPlan = (planId) => {
+    if (!planId) return;
+    setPassedPlanIds((prev) => new Set(prev).add(planId));
+  };
+
+  const handleRequestPlan = async (plan, duo) => {
+    if (!plan?.id || requestingPlanId) return;
+    const requesterDuoId = myDuos[0]?.id ?? myDuoIds[0];
+    if (!requesterDuoId) {
+      showToast?.('Create your Duo before requesting to join.', 'info');
+      go('me');
+      return;
+    }
+
+    setRequestingPlanId(plan.id);
+    try {
+      await requestToJoinPlan({
+        planId: plan.id,
+        requesterDuoId,
+        message: `We'd love to join ${duo?.name ?? 'your duo'} for this plan.`,
+      });
+      setRequestedPlanIds((prev) => new Set(prev).add(plan.id));
+      showToast?.('Request sent!', 'success');
+    } catch (err) {
+      showToast?.(err?.message ?? 'Could not send request.', 'error');
+    } finally {
+      setRequestingPlanId(null);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, paddingBottom: 80 }}>
@@ -786,45 +851,18 @@ export default function ExplorePage({ currentUser, go }) {
       {/* Duos tab content */}
       {activeTab === 'duos' && <div style={{ padding: '14px 16px 0' }}>
 
-        {/* Plan filter chips */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          {[
-            { value: 'all',        label: 'All' },
-            { value: 'open_plans', label: 'Open plans' },
-          ].map(({ value, label }) => (
-            <motion.button
-              key={value}
-              type="button"
-              onClick={() => setPlanFilter(value)}
-              whileTap={{ scale: 0.92 }}
-              transition={{ duration: 0.1 }}
-              style={{
-                background:   planFilter === value ? C.amberT08 : C.cardElevated,
-                border:       `0.5px solid ${planFilter === value ? C.brownBorder : C.border}`,
-                borderRadius: 9999,
-                padding:      '6px 14px',
-                fontSize:     13,
-                fontWeight:   600,
-                color:        planFilter === value ? C.amber : C.muted,
-                cursor:       'pointer',
-              }}
-            >
-              {label}
-            </motion.button>
-          ))}
-        </div>
+        <FilterStrip
+          options={planFilterOptions}
+          value={planFilter}
+          onChange={setPlanFilter}
+          style={{ marginBottom: 14 }}
+        />
 
         {loading ? (
-          <div
-            style={{
-              display:             'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap:                 10,
-            }}
-          >
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
+            <div className="explore-photo-feed" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
                 style={{
                   borderRadius: 16,
                   background:   C.cardElevated,
@@ -880,24 +918,42 @@ export default function ExplorePage({ currentUser, go }) {
               {filtered.length} duo{filtered.length !== 1 ? 's' : ''}
               {planFilter === 'open_plans' && ' with open plans'}
             </p>
-            <div
-              style={{
-                display:             'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap:                 10,
-              }}
-            >
-              {filtered.map((duo) => (
-                <ExploreCard
+            <style>{`
+              @media (max-width: 520px) {
+                .explore-photo-feed { grid-template-columns: 1fr !important; }
+              }
+            `}</style>
+            <div className="explore-photo-feed" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              {featuredDuo && (
+                <PlanCard
+                  duo={featuredDuo}
+                  plan={openPlanMap.get(featuredDuo.id)}
+                  featured
+                  distanceLabel={formatKm(duoMinDistance(featuredDuo, myLat, myLng))}
+                  requested={requestedPlanIds.has(openPlanMap.get(featuredDuo.id)?.id)}
+                  requestBusy={requestingPlanId === openPlanMap.get(featuredDuo.id)?.id}
+                  onOpen={() => go('duo_detail', featuredDuo)}
+                  onPass={() => handlePassPlan(openPlanMap.get(featuredDuo.id)?.id)}
+                  onRequest={() => handleRequestPlan(openPlanMap.get(featuredDuo.id), featuredDuo)}
+                />
+              )}
+              {feedDuos.map((duo) => {
+                const plan = openPlanMap.get(duo.id) ?? null;
+                return (
+                <PlanCard
                   key={duo.id}
                   duo={duo}
-                  myLat={myLat}
-                  myLng={myLng}
-                  go={go}
-                  openPlan={openPlanMap.get(duo.id) ?? null}
-                  openPlanMap={openPlanMap}
+                  plan={plan}
+                  distanceLabel={formatKm(duoMinDistance(duo, myLat, myLng))}
+                  requested={requestedPlanIds.has(plan?.id)}
+                  passing={passedPlanIds.has(plan?.id)}
+                  requestBusy={requestingPlanId === plan?.id}
+                  onOpen={() => go('duo_detail', duo)}
+                  onPass={() => handlePassPlan(plan?.id)}
+                  onRequest={() => handleRequestPlan(plan, duo)}
                 />
-              ))}
+                );
+              })}
             </div>
           </>
         )}
