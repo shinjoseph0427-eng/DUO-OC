@@ -231,8 +231,8 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
 
   const load = useCallback(() => {
     if (!currentUser) { setLoading(false); return; }
-    const ids = myDuos.map((d) => d.id).filter(Boolean);
-    if (ids.length === 0) { setLoading(false); return; }
+    const ids = myDuos.map((d) => d?.id).filter(Boolean);
+    setLoading(true);
     Promise.all([
       getMyHangouts(ids),
       getMyChats(currentUser.id).catch(() => []),
@@ -254,10 +254,14 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   }, [currentUser, myDuos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPlan = useCallback(() => {
-    if (!myDuos.length) return;
+    if (!myDuos.length) {
+      setPlanData([]);
+      setPlanLoading(false);
+      return;
+    }
     setPlanLoading(true);
     Promise.all(
-      myDuos.map((duo) =>
+      myDuos.filter((duo) => duo?.id).map((duo) =>
         Promise.all([
           getMyActivePlan(duo.id),
           getIncomingPlanRequests(duo.id),
@@ -418,7 +422,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
     }
   };
 
-  const myDuoIds       = myDuos.map((d) => d.id);
+  const myDuoIds       = myDuos.map((d) => d?.id).filter(Boolean);
   const activePlanItems = planData.filter((item) => item.plan !== null);
   const totalPlanReqs   = planData.reduce((sum, item) => sum + item.requests.length, 0);
   const planSectionLabel = myDuos.length > 1 ? 'My Plans' : 'My Plan';
