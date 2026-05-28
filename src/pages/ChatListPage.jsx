@@ -1,22 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Search } from 'lucide-react';
 import { C } from '../tokens';
-import TopBar from '../components/TopBar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import DuoAvatarStack from '../components/DuoAvatarStack.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
-import { getMyChats, getMyDuoRooms } from '../lib/messages.js';
-
-// ── Purple palette for Duo Rooms ──────────────────────────────────
-const P = {
-  solid:    C.purple,
-  gradient: `linear-gradient(135deg, #7C3AED 0%, ${C.purple} 100%)`,
-  t08:      C.purpleT08,
-  t14:      C.purpleT14,
-  t22:      C.purpleBorder,
-  shadow:   'rgba(139,92,246,0.18)',
-};
+import { getMyChats, getMyDuoRooms, getMyHomieRooms } from '../lib/messages.js';
 
 const DATE_LABELS = {
   today: 'Today', tomorrow: 'Tomorrow', friday: 'This Friday',
@@ -25,6 +13,25 @@ const DATE_LABELS = {
 const TIME_LABELS = {
   morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night',
 };
+
+// Avatar color palette (cycling)
+const AV_COLORS = [
+  { bg: '#FAECE7', color: '#993C1D' },
+  { bg: '#EEEDFE', color: '#534AB7' },
+  { bg: '#E1F5EE', color: '#0F6E56' },
+  { bg: '#FAEEDA', color: '#854F0B' },
+  { bg: '#FBEAF0', color: '#993556' },
+  { bg: '#E6F1FB', color: '#185FA5' },
+];
+
+function avColor(idx) { return AV_COLORS[idx % AV_COLORS.length]; }
+
+function initials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
 function formatTime(dateStr) {
   if (!dateStr) return '';
@@ -42,270 +49,138 @@ function truncate(str, n) {
   return str.length > n ? str.slice(0, n) + '…' : str;
 }
 
-// ── Section header with horizontal rule ──────────────────────────
-function SectionHeader({ label, count }) {
+// ── Overlapping duo avatar stack ──────────────────────────────────
+function ThreadAvatars({ m0Name, m1Name, colorIdx0 = 0, colorIdx1 = 1, online = false }) {
+  const c0 = avColor(colorIdx0);
+  const c1 = avColor(colorIdx1);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
-      <span style={{
-        fontSize:      11,
-        fontWeight:    700,
-        color:         C.muted,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        whiteSpace:    'nowrap',
-        display:       'flex',
-        alignItems:    'center',
-        gap:           6,
+    <div style={{ position: 'relative', flexShrink: 0, width: 44, height: 44 }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: '50%',
+        background: c0.bg, color: c0.color,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 600,
+        position: 'absolute', top: 0, left: 0,
+        border: `2px solid ${C.cardElevated}`,
       }}>
-        {label}
-        {count != null && (
-          <span style={{
-            background:   'rgba(255,255,255,0.08)',
-            borderRadius: 9999,
-            padding:      '1px 7px',
-            fontSize:     10,
-            color:        C.muted,
-            fontWeight:   700,
+        {initials(m0Name)}
+      </div>
+      <div style={{
+        width: 32, height: 32, borderRadius: '50%',
+        background: c1.bg, color: c1.color,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 600,
+        position: 'absolute', bottom: 0, right: 0,
+        border: `2px solid ${C.cardElevated}`,
+      }}>
+        {initials(m1Name)}
+      </div>
+      {online && (
+        <div style={{
+          width: 10, height: 10, background: '#22c55e', borderRadius: '50%',
+          border: `2px solid ${C.cardElevated}`,
+          position: 'absolute', bottom: 0, left: 0,
+        }} />
+      )}
+    </div>
+  );
+}
+
+// ── Plan banner between thread rows ──────────────────────────────
+function PlanBanner({ vibe, place, date, timeSlot }) {
+  const dateLabel = DATE_LABELS[date] ?? date ?? '';
+  const timeLabel = TIME_LABELS[timeSlot] ?? timeSlot ?? '';
+  const when = [dateLabel, timeLabel].filter(Boolean).join(' ');
+  return (
+    <div style={{
+      margin: '4px 0',
+      padding: '8px 10px',
+      background: C.amberT08,
+      border: `1px solid #FDBA74`,
+      borderRadius: 10,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    }}>
+      <div style={{
+        width: 28, height: 28, background: C.amber, borderRadius: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: 14, color: '#fff' }}>☕</span>
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: '#C2410C', fontWeight: 500, lineHeight: 1.3 }}>
+          {[vibe, place].filter(Boolean).join(' · ')}
+        </div>
+        {when && (
+          <div style={{ fontSize: 10, color: '#9A3412' }}>
+            {when} · confirmed
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Thread row ────────────────────────────────────────────────────
+function ThreadRow({ name, m0Name, m1Name, colorIdx0, colorIdx1, preview, time, unreadCount, online, isActive, onClick, planBanner }) {
+  return (
+    <>
+      <motion.div
+        layout
+        whileTap={{ scale: 0.99 }}
+        onClick={onClick}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '11px 14px',
+          cursor: 'pointer',
+          borderBottom: `0.5px solid ${C.border}`,
+          background: isActive ? C.amberT08 : C.cardElevated,
+          position: 'relative',
+        }}
+      >
+        <ThreadAvatars
+          m0Name={m0Name}
+          m1Name={m1Name}
+          colorIdx0={colorIdx0}
+          colorIdx1={colorIdx1}
+          online={online}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 500, color: C.text,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {count}
-          </span>
-        )}
-      </span>
-      <div style={{ flex: 1, height: '0.5px', background: C.border }} />
-    </div>
-  );
-}
-
-// ── Skeleton card ─────────────────────────────────────────────────
-function SkeletonCard() {
-  return (
-    <div style={{ background: C.cardElevated, border: `0.5px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 10 }}>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-        <div className="shimmer" style={{ width: 40, height: 40, borderRadius: 10, background: C.cardDeep }} />
-        <div style={{ flex: 1 }}>
-          <div className="shimmer" style={{ width: '55%', height: 13, borderRadius: 6, background: C.cardDeep, marginBottom: 8 }} />
-          <div className="shimmer" style={{ width: '35%', height: 10, borderRadius: 6, background: C.cardDeep }} />
-        </div>
-      </div>
-      <div className="shimmer" style={{ width: '80%', height: 11, borderRadius: 6, background: C.cardDeep, marginBottom: 14 }} />
-      <div className="shimmer" style={{ width: '100%', height: 38, borderRadius: 10, background: C.cardDeep }} />
-    </div>
-  );
-}
-
-// ── Duo Room card (purple) ─────────────────────────────────────────
-function DuoRoomCard({ room, go }) {
-  const preview     = truncate(room.lastMessage, 42);
-  const memberNames = room.members.map((m) => m.name).join(' & ');
-
-  const duoShape = {
-    id:          room.duoId,
-    name:        room.duoName,
-    duo_members: room.members.map((m) => ({
-      user_id:  m.userId,
-      profiles: { name: m.name },
-    })),
-  };
-
-  return (
-    <motion.div
-      layout
-      style={{
-        background:   C.bg2,
-        border:       `0.5px solid ${P.t22}`,
-        borderRadius: 18,
-        overflow:     'hidden',
-        marginBottom: 10,
-      }}
-    >
-      {/* Purple accent bar */}
-      <div style={{ height: 3, background: P.gradient }} />
-
-      <div style={{ padding: 16 }}>
-        {/* Header row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <DuoAvatarStack members={room.members} size={34} />
-
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p style={{
-              fontSize:     15,
-              fontWeight:   700,
-              color:        C.white,
-              margin:       '0 0 2px',
-              overflow:     'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace:   'nowrap',
-            }}>
-              {room.duoName}
-            </p>
-            <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
-              {memberNames}
-            </p>
+            {name}
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <span style={{
-              background:   P.t08,
-              color:        P.solid,
-              borderRadius: 9999,
-              padding:      '2px 8px',
-              fontSize:     10,
-              fontWeight:   700,
-              letterSpacing:'0.03em',
-            }}>
-              Duo Room
-            </span>
-            {room.updatedAt && (
-              <span style={{ fontSize: 10, color: C.muted }}>
-                {formatTime(room.updatedAt)}
-              </span>
-            )}
+          <div style={{
+            fontSize: 12,
+            color: unreadCount ? C.text : C.muted,
+            fontWeight: unreadCount ? 500 : 400,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            marginTop: 1,
+          }}>
+            {preview ?? 'Chat is open — say hi!'}
           </div>
         </div>
-
-        {/* Last message */}
-        <p style={{
-          fontSize:     12,
-          color:        preview ? C.muted : P.solid,
-          margin:       '0 0 14px',
-          overflow:     'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace:   'nowrap',
-          fontStyle:    preview ? 'normal' : 'italic',
-        }}>
-          {preview ?? 'Your private duo chat — say something!'}
-        </p>
-
-        {/* CTA */}
-        <motion.button
-          type="button"
-          onClick={() => go('duo_room', duoShape)}
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.1 }}
-          style={{
-            width:        '100%',
-            background:   P.gradient,
-            color:        C.white,
-            border:       'none',
-            borderRadius: 11,
-            padding:      '11px 0',
-            fontSize:     13,
-            fontWeight:   700,
-            cursor:       'pointer',
-            boxShadow:    `0 2px 12px ${P.shadow}`,
-          }}
-        >
-          Open Room
-        </motion.button>
-      </div>
-    </motion.div>
-  );
-}
-
-// ── Hangout chat card (amber) ──────────────────────────────────────
-function ChatCard({ chat, go }) {
-  const metaParts = [
-    chat.vibe,
-    DATE_LABELS[chat.date]     ?? chat.date,
-    TIME_LABELS[chat.timeSlot] ?? chat.timeSlot,
-    chat.place,
-  ].filter(Boolean);
-
-  const otherName = chat.otherDuo?.name ?? chat.duoA.name;
-  const preview   = truncate(chat.lastMessage, 42);
-  const otherMembers = chat.otherDuo?.members ?? [];
-
-  return (
-    <motion.div
-      layout
-      style={{
-        background:   C.cardElevated,
-        border:       `0.5px solid ${C.border}`,
-        borderRadius: 18,
-        overflow:     'hidden',
-        marginBottom: 10,
-      }}
-    >
-      {/* Amber accent bar */}
-      <div style={{ height: 3, background: C.gradientCTA }} />
-
-      <div style={{ padding: 16 }}>
-        {/* Header row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <DuoAvatarStack members={otherMembers} size={34} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p style={{
-              fontSize:     15,
-              fontWeight:   700,
-              color:        C.white,
-              margin:       '0 0 2px',
-              overflow:     'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace:   'nowrap',
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span style={{ fontSize: 11, color: C.muted }}>{time}</span>
+          {unreadCount > 0 && (
+            <div style={{
+              width: 18, height: 18, background: C.amber, borderRadius: '50%',
+              fontSize: 10, color: '#fff', fontWeight: 600,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {otherName}
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                background:   C.greenT12,
-                color:        C.success,
-                borderRadius: 9999,
-                padding:      '2px 8px',
-                fontSize:     10,
-                fontWeight:   700,
-              }}>
-                Confirmed
-              </span>
-              <span style={{ fontSize: 10, color: C.muted }}>
-                {formatTime(chat.updatedAt)}
-              </span>
+              {unreadCount}
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Hangout meta */}
-        {metaParts.length > 0 && (
-          <p style={{ fontSize: 12, color: C.muted, margin: '0 0 8px', lineHeight: 1.5 }}>
-            {metaParts.join(' - ')}
-          </p>
-        )}
-
-        {/* Last message */}
-        <p style={{
-          fontSize:     12,
-          color:        preview ? C.muted : C.amber,
-          margin:       '0 0 14px',
-          overflow:     'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace:   'nowrap',
-          fontStyle:    preview ? 'normal' : 'italic',
-        }}>
-          {preview ?? 'Chat is open — say hi!'}
-        </p>
-
-        {/* CTA */}
-        <motion.button
-          type="button"
-          onClick={() => go('chat_thread', null, null, chat)}
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.1 }}
-          style={{
-            width:        '100%',
-            background:   C.gradientCTA,
-            color:        '#fff',
-            border:       'none',
-            borderRadius: 11,
-            padding:      '11px 0',
-            fontSize:     13,
-            fontWeight:   700,
-            cursor:       'pointer',
-            boxShadow:    '0 2px 12px rgba(255,107,0,0.15)',
-          }}
-        >
-          Open Chat
-        </motion.button>
-      </div>
-    </motion.div>
+      </motion.div>
+      {planBanner && <div style={{ padding: '0 12px' }}>{planBanner}</div>}
+    </>
   );
 }
 
@@ -313,7 +188,9 @@ function ChatCard({ chat, go }) {
 export default function ChatListPage({ go, onLogout, currentUser }) {
   const [chats,    setChats]    = useState([]);
   const [rooms,    setRooms]    = useState([]);
+  const [homieRooms, setHomieRooms] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState('');
 
   useEffect(() => {
     if (!currentUser) { setLoading(false); return; }
@@ -322,9 +199,11 @@ export default function ChatListPage({ go, onLogout, currentUser }) {
       Promise.all([
         getMyChats(currentUser.id).catch(() => []),
         getMyDuoRooms(currentUser.id).catch(() => []),
-      ]).then(([nextChats, nextRooms]) => {
+        getMyHomieRooms(currentUser.id).catch(() => []),
+      ]).then(([nextChats, nextRooms, nextHomieRooms]) => {
         setChats(nextChats);
         setRooms(nextRooms);
+        setHomieRooms(nextHomieRooms);
       }).finally(() => setLoading(false));
 
     load();
@@ -336,20 +215,71 @@ export default function ChatListPage({ go, onLogout, currentUser }) {
     (c) => c.duoA?.status === 'active' && c.duoB?.status === 'active',
   );
 
-  const hasContent = rooms.length > 0 || activeChats.length > 0;
+  const hasContent = rooms.length > 0 || homieRooms.length > 0 || activeChats.length > 0;
+
+  const lc = search.toLowerCase();
+  const filteredRooms = rooms.filter((r) =>
+    !search || r.duoName?.toLowerCase().includes(lc) ||
+    r.members.some((m) => m.name?.toLowerCase().includes(lc))
+  );
+  const filteredHomieRooms = homieRooms.filter((r) =>
+    !search || r.homieName?.toLowerCase().includes(lc) ||
+    r.members.some((m) => m.name?.toLowerCase().includes(lc))
+  );
+  const filteredChats = activeChats.filter((c) =>
+    !search || c.otherDuo?.name?.toLowerCase().includes(lc) ||
+    (c.otherDuo?.members ?? []).some((m) => m.name?.toLowerCase().includes(lc))
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
-      <TopBar onLogout={onLogout} onLogoClick={() => go('home')} />
+      {/* Header */}
+      <div style={{
+        background: C.cardElevated,
+        borderBottom: `0.5px solid ${C.border}`,
+        padding: '16px 16px 12px',
+      }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Messages</div>
+        <div style={{ marginTop: 10, position: 'relative' }}>
+          <Search
+            size={14}
+            color={C.muted}
+            style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+          />
+          <input
+            type="text"
+            placeholder="Search chats..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '7px 10px 7px 30px',
+              borderRadius: 8,
+              border: `0.5px solid ${C.border}`,
+              background: C.bg2,
+              fontSize: 13,
+              color: C.text,
+              outline: 'none',
+              fontFamily: 'inherit',
+            }}
+          />
+        </div>
+      </div>
 
-      <div style={{ flex: 1, padding: '16px 16px 88px' }}>
+      {/* Thread list */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 88 }}>
         {loading ? (
-          <>
-            <div style={{ height: 20, marginBottom: 12 }} />
-            <SkeletonCard />
-            <div style={{ height: 20, marginBottom: 12 }} />
-            <SkeletonCard />
-          </>
+          <div style={{ padding: 16 }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: `0.5px solid ${C.border}` }}>
+                <div className="shimmer" style={{ width: 44, height: 44, borderRadius: '50%', background: C.cardDeep, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="shimmer" style={{ width: '50%', height: 13, borderRadius: 6, background: C.cardDeep, marginBottom: 6 }} />
+                  <div className="shimmer" style={{ width: '70%', height: 11, borderRadius: 6, background: C.cardDeep }} />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : !hasContent ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
             <EmptyState
@@ -364,28 +294,101 @@ export default function ChatListPage({ go, onLogout, currentUser }) {
           <AnimatePresence>
             <motion.div variants={staggerContainer} initial="initial" animate="animate">
 
-              {/* ── Duo Rooms section ── */}
-              {rooms.length > 0 && (
-                <motion.div variants={staggerItem}>
-                  <SectionHeader label="Duo Rooms" count={rooms.length} />
-                  {rooms.map((room) => (
-                    <DuoRoomCard key={room.duoId} room={room} go={go} />
-                  ))}
-                </motion.div>
-              )}
+              {/* ── Duo Rooms ── */}
+              {filteredRooms.map((room, idx) => {
+                const m0 = room.members[0];
+                const m1 = room.members[1];
+                const preview = truncate(room.lastMessage, 42);
+                return (
+                  <motion.div key={room.duoId} variants={staggerItem}>
+                    <ThreadRow
+                      name={room.duoName ?? 'Duo Room'}
+                      m0Name={m0?.name}
+                      m1Name={m1?.name}
+                      colorIdx0={idx * 2}
+                      colorIdx1={idx * 2 + 1}
+                      preview={preview ?? 'Your private duo chat — say something!'}
+                      time={formatTime(room.updatedAt)}
+                      online={false}
+                      onClick={() => {
+                        const duoShape = {
+                          id:          room.duoId,
+                          name:        room.duoName,
+                          duo_members: room.members.map((m) => ({
+                            user_id:  m.userId,
+                            profiles: { name: m.name },
+                          })),
+                        };
+                        go('duo_room', duoShape);
+                      }}
+                    />
+                  </motion.div>
+                );
+              })}
 
-              {/* ── 2v2 Hangout Chats section ── */}
-              {activeChats.length > 0 && (
-                <motion.div
-                  variants={staggerItem}
-                  style={{ marginTop: rooms.length > 0 ? 8 : 0 }}
-                >
-                  <SectionHeader label="2v2 Hangouts" count={activeChats.length} />
-                  {activeChats.map((chat) => (
-                    <ChatCard key={chat.hangoutId} chat={chat} go={go} />
-                  ))}
-                </motion.div>
+              {/* ── 2v2 Hangout Chats ── */}
+              {filteredHomieRooms.length > 0 && (
+                <div style={{ padding: '14px 14px 6px', fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Direct Messages
+                </div>
               )}
+              {filteredHomieRooms.map((room, idx) => {
+                const m0 = room.members[0];
+                const m1 = room.members[1];
+                return (
+                  <motion.div key={room.roomId} variants={staggerItem}>
+                    <ThreadRow
+                      name={room.homieName ?? 'Homie'}
+                      m0Name={m0?.name}
+                      m1Name={m1?.name}
+                      colorIdx0={(filteredRooms.length + idx) * 2}
+                      colorIdx1={(filteredRooms.length + idx) * 2 + 1}
+                      preview="Connected homie"
+                      time={formatTime(room.updatedAt)}
+                      online={false}
+                      onClick={() => room.profile && go('homie_profile', room.profile)}
+                    />
+                  </motion.div>
+                );
+              })}
+
+              {filteredChats.map((chat, idx) => {
+                const otherMembers = chat.otherDuo?.members ?? [];
+                const m0 = otherMembers[0];
+                const m1 = otherMembers[1];
+                const preview = truncate(chat.lastMessage, 42);
+                const colorBase = (filteredRooms.length + filteredHomieRooms.length + idx) * 2;
+                const metaParts = [
+                  chat.vibe,
+                  DATE_LABELS[chat.date] ?? chat.date,
+                  TIME_LABELS[chat.timeSlot] ?? chat.timeSlot,
+                  chat.place,
+                ].filter(Boolean);
+                const banner = metaParts.length > 0 ? (
+                  <PlanBanner
+                    vibe={chat.vibe}
+                    place={chat.place}
+                    date={chat.date}
+                    timeSlot={chat.timeSlot}
+                  />
+                ) : null;
+                return (
+                  <motion.div key={chat.hangoutId} variants={staggerItem}>
+                    <ThreadRow
+                      name={chat.otherDuo?.name ?? 'Duo'}
+                      m0Name={m0?.name}
+                      m1Name={m1?.name}
+                      colorIdx0={colorBase}
+                      colorIdx1={colorBase + 1}
+                      preview={preview}
+                      time={formatTime(chat.updatedAt)}
+                      online={false}
+                      onClick={() => go('chat_thread', null, null, chat)}
+                      planBanner={banner}
+                    />
+                  </motion.div>
+                );
+              })}
 
             </motion.div>
           </AnimatePresence>

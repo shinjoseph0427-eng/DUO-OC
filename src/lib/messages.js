@@ -167,13 +167,19 @@ export async function getMyDuoRooms(userId) {
 
   const results = await Promise.all(
     duos.map(async (duo) => {
-      const { data: lastMsg } = await supabase
-        .from('duo_messages')
-        .select('content, created_at')
-        .eq('duo_id', duo.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      let lastMsg = null;
+      try {
+        const { data } = await supabase
+          .from('duo_messages')
+          .select('content, created_at')
+          .eq('duo_id', duo.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        lastMsg = data;
+      } catch {
+        // duo_messages query failed; room still renders without last message
+      }
 
       const members = (duo.duo_members ?? []).map((m) => ({
         userId: m.user_id,
@@ -192,6 +198,48 @@ export async function getMyDuoRooms(userId) {
   )
 
   return results
+}
+
+export async function getMyHomieRooms(userId) {
+  if (!userId) return []
+
+  const { data, error } = await supabase
+    .from('homie_requests')
+    .select(`
+      id, from_user_id, to_user_id, status, created_at,
+      from_profile:profiles!homie_requests_from_user_id_fkey(id, name, photos, avatar_url, city),
+      to_profile:profiles!homie_requests_to_user_id_fkey(id, name, photos, avatar_url, city)
+    `)
+    .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
+    .eq('status', 'accepted')
+    .order('created_at', { ascending: false })
+
+  if (error || !data) return []
+
+  return data.map((request) => {
+    const otherProfile = request.from_user_id === userId ? request.to_profile : request.from_profile
+    const mineProfile = request.from_user_id === userId ? request.from_profile : request.to_profile
+    return {
+      roomId:      request.id,
+      homieId:     otherProfile?.id ?? null,
+      homieName:   otherProfile?.name ?? 'Homie',
+      profile:     otherProfile ?? null,
+      members:     [
+        {
+          userId,
+          name:      mineProfile?.name ?? 'You',
+          avatarUrl: mineProfile?.photos?.[0] ?? mineProfile?.avatar_url ?? null,
+        },
+        {
+          userId:    otherProfile?.id ?? null,
+          name:      otherProfile?.name ?? 'Homie',
+          avatarUrl: otherProfile?.photos?.[0] ?? otherProfile?.avatar_url ?? null,
+        },
+      ],
+      lastMessage: null,
+      updatedAt:   request.created_at,
+    }
+  })
 }
 
 export async function subscribeMessages(hangoutId, currentUserId, callback) {

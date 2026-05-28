@@ -495,6 +495,7 @@ export default function ExplorePage({ currentUser, go, showToast }) {
   const [passedPlanIds, setPassedPlanIds] = useState(new Set());
   const [requestedPlanIds, setRequestedPlanIds] = useState(new Set());
   const [requestingPlanId, setRequestingPlanId] = useState(null);
+  const [createDuoPromptOpen, setCreateDuoPromptOpen] = useState(false);
 
   useEffect(() => {
     if (!currentUser) { setLoading(false); return; }
@@ -506,13 +507,31 @@ export default function ExplorePage({ currentUser, go, showToast }) {
         setMyDuos(list);
         const ids = list.map((duo) => duo.id);
         setMyDuoIds(ids);
-        return getBlockedDuoIds(ids);
-      }).catch(() => []),
+        return getBlockedDuoIds(ids)
+          .then((b) => ({ blocked: b, myIds: ids }))
+          .catch(() => ({ blocked: [], myIds: ids }));
+      }).catch(() => {
+        setMyDuos([]);
+        setMyDuoIds([]);
+        return { blocked: [], myIds: [] };
+      }),
       getRestrictedDuoIds(),
       getOpenPlans().catch(() => []),
     ])
-      .then(([d, p, blocked, restricted, plans]) => {
-        setDuos(d ?? []);
+      .then(([d, p, { blocked, myIds }, restricted, plans]) => {
+        // Merge plan creator duos that aren't already in the explore results
+        const existingIds = new Set((d ?? []).map((x) => x.id));
+        const myIdSet = new Set(myIds);
+        const planDuos = (plans ?? [])
+          .map((pl) => pl.creator_duo)
+          .filter((duo) =>
+            duo?.id &&
+            !existingIds.has(duo.id) &&
+            !myIdSet.has(duo.id) &&
+            !(blocked ?? []).includes(duo.id) &&
+            !(restricted ?? []).includes(duo.id)
+          );
+        setDuos([...(d ?? []), ...planDuos]);
         setMyProfile(p);
         setBlockedSet(new Set(blocked));
         setRestrictedSet(new Set(restricted));
@@ -634,8 +653,8 @@ export default function ExplorePage({ currentUser, go, showToast }) {
     if (!plan?.id || requestingPlanId) return;
     const requesterDuoId = myDuos[0]?.id ?? myDuoIds[0];
     if (!requesterDuoId) {
-      showToast?.('Create your Duo before requesting to join.', 'info');
-      go('me');
+      showToast?.('Create your Duo first to send a request', 'info');
+      setCreateDuoPromptOpen(true);
       return;
     }
 
@@ -961,6 +980,86 @@ export default function ExplorePage({ currentUser, go, showToast }) {
 
       {/* Filter panel backdrop */}
       <AnimatePresence>
+        {createDuoPromptOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setCreateDuoPromptOpen(false)}
+              style={{
+                position:   'fixed',
+                inset:      0,
+                zIndex:     198,
+                background: 'rgba(0,0,0,0.62)',
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              style={{
+                position:     'fixed',
+                left:         16,
+                right:        16,
+                bottom:       96,
+                zIndex:       201,
+                background:   C.cardElevated,
+                border:       `0.5px solid ${C.border}`,
+                borderRadius: 16,
+                padding:      16,
+                boxShadow:    '0 18px 44px rgba(0,0,0,0.28)',
+              }}
+            >
+              <p style={{ fontSize: 16, fontWeight: 900, color: C.text, margin: '0 0 5px' }}>
+                Create your Duo first
+              </p>
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>
+                You need an active Duo before you can request to join an open plan.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setCreateDuoPromptOpen(false)}
+                  style={{
+                    flex:         1,
+                    background:   'transparent',
+                    border:       `0.5px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding:      '10px 0',
+                    color:        C.muted,
+                    fontSize:     13,
+                    fontWeight:   800,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Not now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateDuoPromptOpen(false);
+                    go('find_homie');
+                  }}
+                  style={{
+                    flex:         2,
+                    background:   C.gradientCTA,
+                    border:       'none',
+                    borderRadius: 10,
+                    padding:      '10px 0',
+                    color:        C.cream,
+                    fontSize:     13,
+                    fontWeight:   900,
+                    cursor:       'pointer',
+                  }}
+                >
+                  Create Duo
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
         {filterOpen && (
           <>
             <motion.div
