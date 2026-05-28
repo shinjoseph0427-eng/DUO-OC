@@ -5,6 +5,8 @@ import { C, AVATAR_GRADIENTS } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import InstagramButton from '../components/InstagramButton.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import HangoutCard from '../components/HangoutCard.jsx';
+import HangoutRequestCard from '../components/HangoutRequestCard.jsx';
 import { OC_SPOTS } from '../data/duos.js';
 import {
   getMyHangouts, acceptHangout, declineHangout,
@@ -116,31 +118,18 @@ function IncomingCard({ h, go, onAccept, onDecline }) {
   };
 
   return (
-    <div
-      style={{
-        background:   C.cardElevated,
-        borderLeft:   `3px solid ${C.amber}`,
-        borderRight:  `0.5px solid ${C.border}`,
-        borderTop:    `0.5px solid ${C.border}`,
-        borderBottom: `0.5px solid ${C.border}`,
-        borderRadius: 14,
-        padding:      '14px 16px',
-        marginBottom: 10,
-      }}
+    <HangoutRequestCard
+      duo={h.duo_a}
+      item={h}
+      statusLabel="Incoming"
+      title={`${h.duo_a?.name ?? 'A duo'} wants to hang`}
+      message={h.message}
+      busy={accepting}
     >
-      <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
-        {h.duo_a?.name ?? 'A duo'}
-      </p>
-      <HangoutMeta h={h} />
       {expiryHours > 48 && (
         <div style={{ fontSize: 11, color: C.amber, marginTop: 3, marginBottom: 8 }}>
           Sent 2+ days ago
         </div>
-      )}
-      {h.message && (
-        <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
-          "{h.message}"
-        </p>
       )}
       {accepted ? (
         <p style={{ fontSize: 13, color: C.success, fontWeight: 700, marginTop: 8 }}>
@@ -210,7 +199,7 @@ function IncomingCard({ h, go, onAccept, onDecline }) {
           </motion.button>
         </div>
       )}
-    </div>
+    </HangoutRequestCard>
   );
 }
 
@@ -651,38 +640,16 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
               const otherDuo = myDuoIds.includes(h.duo_a_id) ? h.duo_b : h.duo_a;
               const members  = otherDuo?.duo_members ?? [];
               return (
-                <div
+                <HangoutCard
                   key={h.id}
-                  style={{
-                    background:      C.gradientCafe,
-                    borderLeft:      `3px solid ${C.success}`,
-                    border:          `0.5px solid ${C.border}`,
-                    borderLeftWidth: 3,
-                    borderLeftColor: C.success,
-                    borderRadius:    16,
-                    padding:         20,
-                    marginBottom:    12,
-                  }}
+                  duo={otherDuo}
+                  item={h}
+                  status="confirmed"
+                  title={otherDuo?.name ?? 'Duo'}
+                  chatAvailable={chatMap.has(h.id)}
+                  onOpenChat={() => handleOpenChat(h.id)}
                 >
-                  <span
-                    style={{
-                      display:      'inline-block',
-                      background:   C.greenT12,
-                      color:        C.success,
-                      borderRadius: 9999,
-                      padding:      '4px 12px',
-                      fontSize:     12,
-                      fontWeight:   600,
-                      marginBottom: 12,
-                    }}
-                  >
-                    Confirmed hangout
-                  </span>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 4px' }}>
-                    {otherDuo?.name ?? 'Duo'}
-                  </p>
-                  <HangoutMeta h={h} />
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, marginBottom: 12 }}>
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 12 }}>
                     <p
                       style={{
                         fontSize:      11,
@@ -716,27 +683,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                       ))
                     )}
                   </div>
-                  <motion.button
-                    type="button"
-                    onClick={() => handleOpenChat(h.id)}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      width:        '100%',
-                      background:   chatMap.has(h.id) ? C.gradientCTA : 'rgba(17,17,17,0.04)',
-                      color:        chatMap.has(h.id) ? '#fff' : C.muted,
-                      border:       chatMap.has(h.id) ? 'none' : `0.5px solid ${C.border}`,
-                      borderRadius: 11,
-                      padding:      '11px 0',
-                      fontSize:     13,
-                      fontWeight:   700,
-                      cursor:       'pointer',
-                      boxShadow:    chatMap.has(h.id) ? '0 2px 12px rgba(255,107,0,0.15)' : 'none',
-                    }}
-                  >
-                    {chatMap.has(h.id) ? 'Open Chat' : 'Chat coming soon'}
-                  </motion.button>
-                </div>
+                </HangoutCard>
               );
             })}
 
@@ -767,34 +714,19 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                   return (
                     <div key={h.id} style={{ marginBottom: 10 }}>
                       {/* Past card */}
-                      <div
-                        style={{
-                          background:   C.cardElevated,
-                          border:       `0.5px solid ${C.border}`,
-                          borderLeft:   `3px solid ${C.border}`,
-                          borderRadius: isReviewing ? '16px 16px 0 0' : 16,
-                          padding:      20,
-                        }}
+                      <HangoutCard
+                        duo={otherDuo}
+                        item={h}
+                        status="done"
+                        title={otherDuo?.name ?? 'Duo'}
+                        calmer
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                          <span
-                            style={{
-                              display:      'inline-block',
-                              background:   'rgba(17,17,17,0.05)',
-                              color:        C.muted,
-                              borderRadius: 9999,
-                              padding:      '4px 12px',
-                              fontSize:     12,
-                              fontWeight:   600,
-                            }}
-                          >
-                            Past
-                          </span>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
                           {existingReview ? (
                             <span
                               style={{
                                 fontSize:   11,
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 color:      C.muted,
                                 display:    'flex',
                                 alignItems: 'center',
@@ -814,9 +746,9 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                                 background:   isReviewing ? 'rgba(255,107,0,0.15)' : 'rgba(17,17,17,0.04)',
                                 border:       `0.5px solid ${isReviewing ? 'rgba(255,107,0,0.22)' : C.border}`,
                                 borderRadius: 9999,
-                                padding:      '5px 12px',
+                                padding:      '6px 12px',
                                 fontSize:     12,
-                                fontWeight:   600,
+                                fontWeight:   700,
                                 color:        isReviewing ? C.amber : C.muted,
                                 cursor:       'pointer',
                               }}
@@ -825,11 +757,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                             </motion.button>
                           )}
                         </div>
-                        <p style={{ fontSize: 15, fontWeight: 700, color: C.white, margin: '0 0 4px' }}>
-                          {otherDuo?.name ?? 'Duo'}
-                        </p>
-                        <HangoutMeta h={h} />
-                      </div>
+                      </HangoutCard>
 
                       {/* Safety follow-up card */}
                       <AnimatePresence>
@@ -1256,39 +1184,13 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
 
                     {/* Plan card */}
                     {activeTab === 'upcoming' && (
-                    <div
-                      style={{
-                        background:   C.cardElevated,
-                        borderLeft:   `3px solid ${C.success}`,
-                        borderRight:  `0.5px solid ${C.border}`,
-                        borderTop:    `0.5px solid ${C.border}`,
-                        borderBottom: `0.5px solid ${C.border}`,
-                        borderRadius: 14,
-                        padding:      '14px 16px',
-                        marginBottom: 12,
-                      }}
+                    <HangoutCard
+                      duo={planDuo}
+                      item={plan}
+                      status="open"
+                      title="Your open plan"
+                      subtitle="Waiting for another duo"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>Your open plan</p>
-                        <span
-                          style={{
-                            background:   C.greenT12,
-                            color:        C.success,
-                            borderRadius: 9999,
-                            padding:      '2px 10px',
-                            fontSize:     11,
-                            fontWeight:   600,
-                          }}
-                        >
-                          Open
-                        </span>
-                      </div>
-                      <HangoutMeta h={plan} />
-                      {plan.message && (
-                        <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '-4px 0 8px' }}>
-                          "{plan.message}"
-                        </p>
-                      )}
                       {confirmCancelId === plan.id ? (
                         <div style={{
                           marginTop: 8,
@@ -1359,7 +1261,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                           Cancel plan
                         </button>
                       )}
-                    </div>
+                    </HangoutCard>
                     )}
 
                     {/* Incoming requests to join this plan */}
@@ -1369,29 +1271,15 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                           {myDuos.length > 1 ? `Requests for ${planDuo.name}` : 'Requests to join'}
                         </p>
                         {requests.map((req) => (
-                          <div
+                          <HangoutRequestCard
                             key={req.id}
-                            style={{
-                              background:   C.cardElevated,
-                              border:       `0.5px solid ${C.border}`,
-                              borderRadius: 14,
-                              padding:      '14px 16px',
-                              marginBottom: 10,
-                            }}
+                            duo={req.requester_duo}
+                            item={req.plan ?? plan}
+                            statusLabel="Request"
+                            title={`${req.requester_duo?.name ?? 'A duo'} wants to join`}
+                            message={req.message}
+                            busy={busyPlanReqId === req.id}
                           >
-                            <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
-                              {req.requester_duo?.name ?? 'A duo'}
-                            </p>
-                            {req.requester_duo?.city && (
-                              <p style={{ fontSize: 12, color: C.muted, margin: '0 0 6px' }}>
-                                {req.requester_duo.city}
-                              </p>
-                            )}
-                            {req.message && (
-                              <p style={{ fontSize: 13, color: C.muted, fontStyle: 'italic', margin: '0 0 12px' }}>
-                                "{req.message}"
-                              </p>
-                            )}
                             <div style={{ display: 'flex', gap: 8 }}>
                               <motion.button
                                 type="button"
@@ -1436,7 +1324,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                                 {busyPlanReqId === req.id ? 'Working...' : 'Decline'}
                               </motion.button>
                             </div>
-                          </div>
+                          </HangoutRequestCard>
                         ))}
                       </>
                     ) : activeTab === 'requests' ? (

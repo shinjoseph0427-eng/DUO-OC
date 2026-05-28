@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, Users } from 'lucide-react';
-import { C, AVATAR_GRADIENTS } from '../tokens';
+import { MessageCircle } from 'lucide-react';
+import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import DuoAvatarStack from '../components/DuoAvatarStack.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
 import { getMyChats, getMyDuoRooms } from '../lib/messages.js';
 
@@ -39,27 +40,6 @@ function formatTime(dateStr) {
 function truncate(str, n) {
   if (!str) return null;
   return str.length > n ? str.slice(0, n) + '…' : str;
-}
-
-function InitialsAvatar({ name, size = 38, bg, border, color = '#fff', fontSize }) {
-  return (
-    <div style={{
-      width:          size,
-      height:         size,
-      borderRadius:   size * 0.28,
-      background:     bg ?? AVATAR_GRADIENTS[0],
-      border:         border ?? 'none',
-      display:        'flex',
-      alignItems:     'center',
-      justifyContent: 'center',
-      fontSize:       fontSize ?? size * 0.38,
-      fontWeight:     800,
-      color,
-      flexShrink:     0,
-    }}>
-      {(name ?? '?')[0].toUpperCase()}
-    </div>
-  );
 }
 
 // ── Section header with horizontal rule ──────────────────────────
@@ -144,19 +124,7 @@ function DuoRoomCard({ room, go }) {
       <div style={{ padding: 16 }}>
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div style={{
-            width:          40,
-            height:         40,
-            borderRadius:   10,
-            background:     P.t08,
-            border:         `0.5px solid ${P.t22}`,
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-            flexShrink:     0,
-          }}>
-            <Users size={18} color={P.solid} strokeWidth={2.2} />
-          </div>
+          <DuoAvatarStack members={room.members} size={34} />
 
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{
@@ -245,6 +213,7 @@ function ChatCard({ chat, go }) {
 
   const otherName = chat.otherDuo?.name ?? chat.duoA.name;
   const preview   = truncate(chat.lastMessage, 42);
+  const otherMembers = chat.otherDuo?.members ?? [];
 
   return (
     <motion.div
@@ -263,11 +232,7 @@ function ChatCard({ chat, go }) {
       <div style={{ padding: 16 }}>
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <InitialsAvatar
-            name={otherName}
-            bg={AVATAR_GRADIENTS[2]}
-            size={40}
-          />
+          <DuoAvatarStack members={otherMembers} size={34} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{
               fontSize:     15,
@@ -301,7 +266,7 @@ function ChatCard({ chat, go }) {
         {/* Hangout meta */}
         {metaParts.length > 0 && (
           <p style={{ fontSize: 12, color: C.muted, margin: '0 0 8px', lineHeight: 1.5 }}>
-            {metaParts.join(' · ')}
+            {metaParts.join(' - ')}
           </p>
         )}
 

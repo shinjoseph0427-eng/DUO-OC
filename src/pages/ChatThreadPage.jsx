@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, SendHorizonal } from 'lucide-react';
-import { C, AVATAR_GRADIENTS } from '../tokens';
-import { messageVariants } from '../lib/motion';
+import { C } from '../tokens';
+import DuoAvatarStack from '../components/DuoAvatarStack.jsx';
+import PlanContextBar from '../components/PlanContextBar.jsx';
+import ChatMessageBubble from '../components/MessageBubble.jsx';
 import { getMessages, sendMessage, subscribeMessages } from '../lib/messages.js';
 
 const MAX_MESSAGE_LENGTH = 500;
@@ -75,7 +77,6 @@ function formatMsgTime(dateStr) {
 function MessageBubble({ msg, isMine, senderLabel }) {
   return (
     <motion.div
-      variants={messageVariants}
       initial="initial"
       animate="animate"
       style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}
@@ -216,7 +217,8 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const headerNames = `${duoAName} × ${duoBName}`;
+  const headerNames = `${duoAName} x ${duoBName}`;
+  const otherMembers = otherDuo?.members ?? [];
 
   return (
     <div style={{ background: C.bg, display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -225,7 +227,7 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
         style={{
           background:   C.bg2,
           borderBottom: `0.5px solid ${C.border}`,
-          height:       56,
+          minHeight:    68,
           display:      'flex',
           alignItems:   'center',
           gap:          8,
@@ -259,26 +261,20 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
           <ArrowLeft size={18} color={C.white} strokeWidth={2} />
         </motion.button>
 
-        {/* Center: logo + duo name */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <motion.button
-            type="button"
-            aria-label="Home"
-            onClick={() => go('home')}
-            whileTap={{ scale: 0.94 }}
-            transition={{ duration: 0.1 }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-          >
-            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.5px' }}>
-              <span className="gradient-text">DUO OC</span>
-            </span>
-          </motion.button>
-          <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{headerNames}</p>
+        <DuoAvatarStack members={otherMembers} size={30} />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 15, fontWeight: 900, color: C.text, margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {otherDuo.name}
+          </p>
+          <p style={{ fontSize: 11, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {headerNames}
+          </p>
         </div>
 
-        {/* Right spacer to balance layout */}
         <div style={{ width: 36, flexShrink: 0 }} />
       </header>
+      <PlanContextBar chat={chat} />
 
       {/* Messages */}
       <div
@@ -291,8 +287,6 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
           gap:           10,
         }}
       >
-        <PlanCard chat={chat} />
-
         {messages.length === 0 && (
           <div style={{ marginTop: 24 }}>
             <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', marginBottom: 16 }}>
@@ -329,7 +323,7 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
               ? 'You'
               : (senderNames[msg.sender_user_id] ?? otherDuo.name);
             return (
-              <MessageBubble
+              <ChatMessageBubble
                 key={msg.id}
                 msg={msg}
                 isMine={isMine}
@@ -362,7 +356,7 @@ export default function ChatThreadPage({ chat, go, goBack, currentUser, myDuo })
           onBlur={() => setInputFocus(false)}
           onKeyDown={handleKeyDown}
           maxLength={MAX_MESSAGE_LENGTH}
-          placeholder={`Message ${duoAName} × ${duoBName}…`}
+          placeholder={`Message ${duoAName} x ${duoBName}...`}
           style={{
             flex:         1,
             background:   C.cardElevated,

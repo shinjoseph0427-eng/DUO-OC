@@ -42,11 +42,11 @@ export async function getMyChats(userId) {
       id, duo_a_id, duo_b_id, vibe, date, time_slot, place, created_at,
       duo_a:duos!hangouts_duo_a_id_fkey(
         id, name, status,
-        duo_members(user_id, profiles(name))
+        duo_members(user_id, profiles(name, photos, avatar_url))
       ),
       duo_b:duos!hangouts_duo_b_id_fkey(
         id, name, status,
-        duo_members(user_id, profiles(name))
+        duo_members(user_id, profiles(name, photos, avatar_url))
       )
     `)
     .or(orFilter)
@@ -59,7 +59,7 @@ export async function getMyChats(userId) {
     (duo?.duo_members ?? []).map((m) => ({
       userId:    m.user_id   ?? null,
       name:      m.profiles?.name ?? 'Member',
-      avatarUrl: null,
+      avatarUrl: m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null,
     }))
 
   const results = await Promise.all(
@@ -159,7 +159,7 @@ export async function getMyDuoRooms(userId) {
 
   const { data: duos } = await supabase
     .from('duos')
-    .select('id, name, status, duo_members(user_id, profiles(name))')
+    .select('id, name, status, duo_members(user_id, profiles(name, photos, avatar_url))')
     .in('id', duoIds)
     .eq('status', 'active')
 
@@ -178,6 +178,7 @@ export async function getMyDuoRooms(userId) {
       const members = (duo.duo_members ?? []).map((m) => ({
         userId: m.user_id,
         name:   m.profiles?.name ?? 'Member',
+        avatarUrl: m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null,
       }))
 
       return {

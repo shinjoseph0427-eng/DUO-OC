@@ -136,11 +136,11 @@ export async function getMyHangouts(duoIds) {
       *,
       duo_a:duos!hangouts_duo_a_id_fkey(
         id, name, city,
-        duo_members(instagram, profiles(name, instagram))
+        duo_members(instagram, profiles(name, instagram, photos, avatar_url))
       ),
       duo_b:duos!hangouts_duo_b_id_fkey(
         id, name, city,
-        duo_members(instagram, profiles(name, instagram))
+        duo_members(instagram, profiles(name, instagram, photos, avatar_url))
       )
     `)
     .or(orFilter)
@@ -387,7 +387,7 @@ export async function getIncomingPlanRequests(duoId) {
       ),
       requester_duo:duos!hangout_plan_requests_requester_duo_id_fkey(
         id, name, city,
-        duo_members(user_id, profiles(name))
+        duo_members(user_id, profiles(name, photos, avatar_url))
       )
     `)
     .in('plan_id', planIds)
