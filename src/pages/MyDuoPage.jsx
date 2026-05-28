@@ -95,7 +95,7 @@ function DuoCard({ duo, plan, restricted, loadingPlan, go, confirmLeaveId, setCo
               borderRadius:   12,
               background:     C.amberT08,
               border:         `0.5px solid ${C.brownBorder}`,
-              display:        'flex',
+              display:        memberCount >= 2 ? 'flex' : 'none',
               alignItems:     'center',
               justifyContent: 'center',
               flexShrink:     0,
@@ -245,13 +245,16 @@ function DuoCard({ duo, plan, restricted, loadingPlan, go, confirmLeaveId, setCo
           <DuoPlanSummary plan={plan} />
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: memberCount >= 2 ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8, marginTop: 14 }}>
           <PremiumButton fullWidth variant="ghost" onClick={() => go('duo_detail', duo)} style={{ padding: '11px 10px', gap: 6, fontSize: 13 }}>
             <Eye size={14} strokeWidth={2.2} />
             View
           </PremiumButton>
           <button
-            onClick={() => go('duo_room', duo)}
+            onClick={() => {
+              if (memberCount >= 2) go('duo_room', duo);
+            }}
+            disabled={memberCount < 2}
             style={{
               padding:        '9px 0',
               borderRadius:   9,
@@ -259,8 +262,8 @@ function DuoCard({ duo, plan, restricted, loadingPlan, go, confirmLeaveId, setCo
               background:     C.cardElevated,
               fontSize:       12,
               fontWeight:     600,
-              color:          C.white,
-              cursor:         'pointer',
+              color:          memberCount >= 2 ? C.white : C.muted,
+              cursor:         memberCount >= 2 ? 'pointer' : 'default',
               display:        'flex',
               alignItems:     'center',
               justifyContent: 'center',

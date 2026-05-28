@@ -125,7 +125,7 @@ export default function App() {
       getMyDuos(currentUser.id).catch(() => []),
     ]).then(([nextProfile, nextDuo, nextMyDuos]) => {
       if (cancelled) return;
-      const complete = isProfileOnboardingComplete(nextProfile) && Boolean(nextDuo || (nextMyDuos ?? []).length > 0);
+      const complete = isProfileOnboardingComplete(nextProfile);
       setProfile(nextProfile);
       setMyDuo(nextDuo);
       setMyDuos(nextMyDuos ?? []);
@@ -159,7 +159,7 @@ export default function App() {
       ]).then(([nextDuo, nextMyDuos]) => {
         setMyDuo(nextDuo);
         setMyDuos(nextMyDuos ?? []);
-        setOnboardingComplete(isProfileOnboardingComplete(profile) && Boolean(nextDuo || (nextMyDuos ?? []).length > 0));
+        setOnboardingComplete(isProfileOnboardingComplete(profile));
       }).catch(() => {});
     }
   }, [currentUser, profile]);
@@ -213,7 +213,7 @@ export default function App() {
 
     const nextDuo = currentUser ? await refreshMyDuo() : null;
     const hasDuo = Boolean(nextDuo);
-    setOnboardingComplete(hasDuo);
+    setOnboardingComplete(true);
 
     const pendingInvite = sessionStorage.getItem('duo_oc_invite_token');
     if (pendingInvite && currentUser) {
@@ -221,16 +221,16 @@ export default function App() {
       acceptInvite(pendingInvite, currentUser.id)
         .then(async () => {
           const acceptedDuo = await refreshMyDuo();
-          setOnboardingComplete(Boolean(acceptedDuo));
-          setPage(acceptedDuo ? 'home' : 'onboarding');
+          setPage('home');
+          if (acceptedDuo) setShowGuide(true);
         })
         .catch(err => {
           console.error('Invite accept failed:', err);
           showToast('Invite link could not be used.', 'error');
-          setPage('onboarding');
+          setPage('home');
         });
     } else {
-      setPage(hasDuo ? 'me' : 'onboarding');
+      setPage(hasDuo ? 'me' : 'home');
       if (hasDuo) setShowGuide(true);
     }
 
@@ -245,7 +245,7 @@ export default function App() {
     ]);
     setMyDuo(nextDuo);
     setMyDuos(nextMyDuos ?? []);
-    setOnboardingComplete(isProfileOnboardingComplete(profile) && Boolean(nextDuo || (nextMyDuos ?? []).length > 0));
+    setOnboardingComplete(isProfileOnboardingComplete(profile));
     return nextDuo;
   };
 
@@ -256,6 +256,9 @@ export default function App() {
   const isAuthPage = AUTH_PAGES.includes(page);
   const activeTab  = NAV_TAB_PAGES.includes(page) ? page : null;
   const editDuoForRoute = page === 'edit_duo_profile' ? selectedDuo : null;
+  const duoRoomDuo = selectedDuo
+    ?? myDuos.find((duo) => (duo?.duo_members?.length ?? 0) >= 2)
+    ?? myDuo;
   if (!authReady || (currentUser && !profileReady)) {
     return <div className="app-loading" />;
   }
@@ -285,8 +288,8 @@ export default function App() {
         {page === 'chat_thread' && (selectedChat
           ? <ChatThreadPage chat={selectedChat} go={go} goBack={goBack} currentUser={currentUser} myDuo={myDuo} />
           : fallback('Chat not found', 'chat'))}
-        {page === 'duo_room'    && ((selectedDuo ?? myDuo)
-          ? <DuoRoomPage currentUser={currentUser} myDuo={selectedDuo ?? myDuo} go={go} goBack={goBack} />
+        {page === 'duo_room'    && (duoRoomDuo
+          ? <DuoRoomPage currentUser={currentUser} myDuo={duoRoomDuo} go={go} goBack={goBack} />
           : fallback('Duo not found', 'me'))}
         {page === 'me'          && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}
         {page === 'my_duo'      && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}

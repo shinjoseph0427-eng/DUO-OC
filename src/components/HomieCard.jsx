@@ -4,7 +4,7 @@ import { C } from '../tokens';
 import InitialsAvatar from './InitialsAvatar.jsx';
 
 export default function HomieCard({ homie, go }) {
-  const photo = homie?.photos?.[0] ?? homie?.avatar_url ?? null;
+  const photo = homie?.photos?.[0] ?? null;
   const name = homie?.name ?? 'Anonymous';
   const details = [homie?.age, homie?.city].filter(Boolean).join(' · ');
 

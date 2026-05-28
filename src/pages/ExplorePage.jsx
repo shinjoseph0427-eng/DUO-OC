@@ -308,7 +308,7 @@ function FilterPanel({ filters, setFilters, onClose, hasLocation }) {
 function ExploreCard({ duo, myLat, myLng, go, openPlan, openPlanMap }) {
   const members   = duo.duo_members ?? [];
   const primary   = members[0];
-  const heroPhoto = primary?.profiles?.photos?.[0] ?? primary?.profiles?.avatar_url ?? null;
+  const heroPhoto = primary?.profiles?.photos?.[0] ?? null;
   const gradIdx   = 0;
   const vibe      = duo.vibes?.[0] ?? null;
   const dist      = duoMinDistance(duo, myLat, myLng);
@@ -535,7 +535,9 @@ export default function ExplorePage({ currentUser, go, showToast }) {
         setMyProfile(p);
         setBlockedSet(new Set(blocked));
         setRestrictedSet(new Set(restricted));
-        setOpenPlanMap(new Map((plans ?? []).filter((pl) => !restricted?.includes(pl.creator_duo_id)).map((pl) => [pl.creator_duo_id, pl])));
+        setOpenPlanMap(new Map((plans ?? [])
+          .filter((pl) => !myIdSet.has(pl.creator_duo_id) && !restricted?.includes(pl.creator_duo_id))
+          .map((pl) => [pl.creator_duo_id, pl])));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -569,7 +571,7 @@ export default function ExplorePage({ currentUser, go, showToast }) {
   const myLng = myProfile?.lng ?? null;
 
   const filtered = useMemo(() => {
-    let r = duos.filter((d) => !blockedSet.has(d.id) && !restrictedSet.has(d.id));
+    let r = duos.filter((d) => !myDuoIds.includes(d.id) && !blockedSet.has(d.id) && !restrictedSet.has(d.id));
 
     if (debQ.trim()) {
       const q = debQ.replace(/^@/, '').toLowerCase();
@@ -623,7 +625,7 @@ export default function ExplorePage({ currentUser, go, showToast }) {
     });
 
     return r;
-  }, [duos, blockedSet, restrictedSet, debQ, filters, myLat, myLng, currentYear, planFilter, openPlanMap, passedPlanIds]);
+  }, [duos, myDuoIds, blockedSet, restrictedSet, debQ, filters, myLat, myLng, currentYear, planFilter, openPlanMap, passedPlanIds]);
 
   const numFilters = activeFilterCount(filters);
   const openPlanCount = useMemo(
@@ -655,6 +657,10 @@ export default function ExplorePage({ currentUser, go, showToast }) {
     if (!requesterDuoId) {
       showToast?.('Create your Duo first to send a request', 'info');
       setCreateDuoPromptOpen(true);
+      return;
+    }
+    if (requesterDuoId === plan.creator_duo_id) {
+      showToast?.('Cannot request to join your own plan.', 'info');
       return;
     }
 

@@ -4,7 +4,10 @@ import { assertDuoIsNotRestricted } from './safety.js'
 
 export async function getWeeklyConfirmedCount() {
   const { data, error } = await supabase.rpc('get_weekly_confirmed_count')
-  if (error) throw error
+  if (error) {
+    if (error.code === 'PGRST202') return 0
+    throw error
+  }
   return typeof data === 'number' ? data : 0
 }
 
@@ -125,7 +128,7 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
 
 // Accepts a single duoId (string) or an array of duoIds.
 export async function getMyHangouts(duoIds) {
-  const ids = Array.isArray(duoIds) ? duoIds : [duoIds]
+  const ids = (Array.isArray(duoIds) ? duoIds : [duoIds]).filter(Boolean)
   if (ids.length === 0) return []
 
   const orFilter = ids.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
@@ -136,11 +139,11 @@ export async function getMyHangouts(duoIds) {
       *,
       duo_a:duos!hangouts_duo_a_id_fkey(
         id, name, city,
-        duo_members(instagram, profiles(name, instagram, photos, avatar_url))
+        duo_members(instagram, profiles(name, instagram, photos))
       ),
       duo_b:duos!hangouts_duo_b_id_fkey(
         id, name, city,
-        duo_members(instagram, profiles(name, instagram, photos, avatar_url))
+        duo_members(instagram, profiles(name, instagram, photos))
       )
     `)
     .or(orFilter)
@@ -356,7 +359,7 @@ export async function getPlanRequestDetail(requestId) {
       ),
       requester_duo:duos!hangout_plan_requests_requester_duo_id_fkey(
         id, name, city,
-        duo_members(user_id, profiles(name, photos, avatar_url))
+        duo_members(user_id, profiles(name, photos))
       )
     `)
     .eq('id', requestId)
@@ -369,11 +372,12 @@ export async function getPlanRequestDetail(requestId) {
 export async function getIncomingPlanRequests(duoId) {
   if (!duoId) return []
 
-  const { data: plans } = await supabase
+  const { data: plans, error: plansError } = await supabase
     .from('hangout_plans')
     .select('id')
     .eq('creator_duo_id', duoId)
     .eq('status', 'open')
+  if (plansError) return []
 
   const planIds = (plans ?? []).map((p) => p.id)
   if (planIds.length === 0) return []
@@ -387,7 +391,7 @@ export async function getIncomingPlanRequests(duoId) {
       ),
       requester_duo:duos!hangout_plan_requests_requester_duo_id_fkey(
         id, name, city,
-        duo_members(user_id, profiles(name, photos, avatar_url))
+        duo_members(user_id, profiles(name, photos))
       )
     `)
     .in('plan_id', planIds)

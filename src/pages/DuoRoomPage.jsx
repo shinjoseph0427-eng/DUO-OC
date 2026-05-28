@@ -213,7 +213,7 @@ export default function DuoRoomPage({ currentUser, myDuo, go }) {
           <div style={{ width: 36 }} />
         </header>
         <p style={{ fontSize: 14, color: C.muted, textAlign: 'center', padding: '44px 24px' }}>
-          Create a duo first.
+          Invite your homie first to open Duo Room.
         </p>
       </div>
     );

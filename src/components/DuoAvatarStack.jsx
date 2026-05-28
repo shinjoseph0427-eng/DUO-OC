@@ -5,7 +5,7 @@ function memberName(member, fallback = 'Member') {
 }
 
 function memberPhoto(member) {
-  return member?.avatarUrl ?? member?.profiles?.photos?.[0] ?? member?.profiles?.avatar_url ?? null;
+  return member?.avatarUrl ?? member?.profiles?.photos?.[0] ?? null;
 }
 
 function initials(name) {

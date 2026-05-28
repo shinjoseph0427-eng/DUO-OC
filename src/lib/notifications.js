@@ -1,28 +1,40 @@
 import { supabase } from './supabaseClient.js'
 
 export async function getNotifications(userId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('notifications')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50)
+  if (error) throw error
   return data ?? []
 }
 
 export async function markAsRead(notificationId) {
-  await supabase
+  if (!notificationId) throw new Error('Notification id is required')
+
+  const { data, error } = await supabase
     .from('notifications')
     .update({ read: true })
     .eq('id', notificationId)
+    .select('id')
+  if (error) throw error
+  if (!data?.length) throw new Error('Notification could not be marked read')
+  return data[0]
 }
 
 export async function markAllAsRead(userId) {
-  await supabase
+  if (!userId) throw new Error('User id is required')
+
+  const { data, error } = await supabase
     .from('notifications')
     .update({ read: true })
     .eq('user_id', userId)
     .eq('read', false)
+    .select('id')
+  if (error) throw error
+  return data ?? []
 }
 
 // currentUserId must match userId — guards against cross-user subscriptions.
@@ -85,13 +97,15 @@ export async function createNotificationForUser(userId, type, payload) {
 }
 
 export async function createNotificationsForDuo(duoId, type, payload) {
-  const { data: members } = await supabase
+  const { data: members, error: membersError } = await supabase
     .from('duo_members')
     .select('user_id')
     .eq('duo_id', duoId)
+  if (membersError) throw membersError
   if (!members?.length) return
 
-  await supabase.from('notifications').insert(
+  const { error } = await supabase.from('notifications').insert(
     members.map((m) => ({ user_id: m.user_id, type, payload, read: false })),
   )
+  if (error) throw error
 }

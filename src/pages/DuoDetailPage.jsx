@@ -39,7 +39,7 @@ function normalizeMembers(duo) {
       name:    m.profiles?.name    ?? '?',
       age:     calcAge(m.profiles) ?? m.age ?? null,
       city:    m.profiles?.city    ?? null,
-      photo:   m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null,
+      photo:   m.profiles?.photos?.[0] ?? null,
       bio:     m.profiles?.bio    ?? null,
       promptQ: m.profiles?.prompt_q1 ?? null,
       promptA: m.profiles?.prompt_a1 ?? null,

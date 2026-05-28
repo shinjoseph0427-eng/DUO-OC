@@ -42,11 +42,11 @@ export async function getMyChats(userId) {
       id, duo_a_id, duo_b_id, vibe, date, time_slot, place, created_at,
       duo_a:duos!hangouts_duo_a_id_fkey(
         id, name, status,
-        duo_members(user_id, profiles(name, photos, avatar_url))
+        duo_members(user_id, profiles(name, photos))
       ),
       duo_b:duos!hangouts_duo_b_id_fkey(
         id, name, status,
-        duo_members(user_id, profiles(name, photos, avatar_url))
+        duo_members(user_id, profiles(name, photos))
       )
     `)
     .or(orFilter)
@@ -59,7 +59,7 @@ export async function getMyChats(userId) {
     (duo?.duo_members ?? []).map((m) => ({
       userId:    m.user_id   ?? null,
       name:      m.profiles?.name ?? 'Member',
-      avatarUrl: m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null,
+      avatarUrl: m.profiles?.photos?.[0] ?? null,
     }))
 
   const results = await Promise.all(
@@ -67,13 +67,19 @@ export async function getMyChats(userId) {
       const myDuoId  = duoIds.find((id) => id === h.duo_a_id || id === h.duo_b_id) ?? duoIds[0]
       const otherDuo = myDuoId === h.duo_a_id ? h.duo_b : h.duo_a
 
-      const { data: lastMsg } = await supabase
-        .from('messages')
-        .select('content, created_at')
-        .eq('hangout_id', h.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      let lastMsg = null
+      try {
+        const { data, error: lastMsgError } = await supabase
+          .from('messages')
+          .select('content, created_at')
+          .eq('hangout_id', h.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (!lastMsgError) lastMsg = data
+      } catch {
+        lastMsg = null
+      }
 
       return {
         hangoutId:   h.id,
@@ -159,7 +165,7 @@ export async function getMyDuoRooms(userId) {
 
   const { data: duos } = await supabase
     .from('duos')
-    .select('id, name, status, duo_members(user_id, profiles(name, photos, avatar_url))')
+    .select('id, name, status, duo_members(user_id, profiles(name, photos))')
     .in('id', duoIds)
     .eq('status', 'active')
 
@@ -184,7 +190,7 @@ export async function getMyDuoRooms(userId) {
       const members = (duo.duo_members ?? []).map((m) => ({
         userId: m.user_id,
         name:   m.profiles?.name ?? 'Member',
-        avatarUrl: m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null,
+        avatarUrl: m.profiles?.photos?.[0] ?? null,
       }))
 
       return {
@@ -207,8 +213,8 @@ export async function getMyHomieRooms(userId) {
     .from('homie_requests')
     .select(`
       id, from_user_id, to_user_id, status, created_at,
-      from_profile:profiles!homie_requests_from_user_id_fkey(id, name, photos, avatar_url, city),
-      to_profile:profiles!homie_requests_to_user_id_fkey(id, name, photos, avatar_url, city)
+      from_profile:profiles!homie_requests_from_user_id_fkey(id, name, photos, city),
+      to_profile:profiles!homie_requests_to_user_id_fkey(id, name, photos, city)
     `)
     .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
     .eq('status', 'accepted')
@@ -228,12 +234,12 @@ export async function getMyHomieRooms(userId) {
         {
           userId,
           name:      mineProfile?.name ?? 'You',
-          avatarUrl: mineProfile?.photos?.[0] ?? mineProfile?.avatar_url ?? null,
+          avatarUrl: mineProfile?.photos?.[0] ?? null,
         },
         {
           userId:    otherProfile?.id ?? null,
           name:      otherProfile?.name ?? 'Homie',
-          avatarUrl: otherProfile?.photos?.[0] ?? otherProfile?.avatar_url ?? null,
+          avatarUrl: otherProfile?.photos?.[0] ?? null,
         },
       ],
       lastMessage: null,

@@ -47,7 +47,7 @@ export default function HomieProfilePage({ homie, currentUser, go, showToast }) 
   const [blockConfirm,   setBlockConfirm]   = useState(false);
   const [blocking,       setBlocking]       = useState(false);
 
-  const photo = homie?.photos?.[0] ?? homie?.avatar_url ?? null;
+  const photo = homie?.photos?.[0] ?? null;
   const name = homie?.name ?? 'Anonymous';
   const details = useMemo(() => [homie?.age, homie?.city].filter(Boolean).join(' · '), [homie]);
 

@@ -12,7 +12,7 @@ function initialsFor(member, fallback = '?') {
 }
 
 function PhotoHalf({ member, index, featured }) {
-  const photo = member?.profiles?.photos?.[0] ?? member?.profiles?.avatar_url ?? null;
+  const photo = member?.profiles?.photos?.[0] ?? null;
   if (photo) {
     return (
       <img

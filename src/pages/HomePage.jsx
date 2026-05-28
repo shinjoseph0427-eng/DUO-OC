@@ -146,7 +146,7 @@ function StackedAvatars({ members }) {
   return (
     <div style={{ position: 'relative', width: 50, height: 32, flexShrink: 0 }}>
       {shown.map((m, i) => {
-        const photo = m.profiles?.photos?.[0] ?? m.profiles?.avatar_url ?? null;
+        const photo = m.profiles?.photos?.[0] ?? null;
         return (
           <div
             key={i}

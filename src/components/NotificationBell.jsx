@@ -49,7 +49,7 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
 
   useEffect(() => {
     if (!currentUser) return;
-    getNotifications(currentUser.id).then(setNotifs);
+    getNotifications(currentUser.id).then(setNotifs).catch(() => {});
     const unsub = subscribeNotifications(currentUser.id, currentUser.id, (n) => {
       setNotifs((prev) => [n, ...prev]);
     });
@@ -95,10 +95,6 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
   const unreadCount = notifs.filter((n) => !n.read).length + homieRequests.length;
 
   const handleNotifClick = async (n) => {
-    if (!n.read) {
-      await markAsRead(n.id);
-      setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-    }
     // plan_request → open detail modal instead of navigating away
     if (n.type === 'plan_request') {
       const reqId = n.payload?.request_id;
@@ -107,9 +103,27 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
         setOpen(false);
         return;
       }
+      if (!n.read) {
+        try {
+          await markAsRead(n.id);
+          setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+        } catch {
+          showToast?.('Could not update notification yet.', 'error');
+          return;
+        }
+      }
       onOpenPlanRequest(reqId);
       setOpen(false);
       return;
+    }
+    if (!n.read) {
+      try {
+        await markAsRead(n.id);
+        setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      } catch {
+        showToast?.('Could not update notification yet.', 'error');
+        return;
+      }
     }
     const meta = TYPE_META[n.type];
     if (meta?.page) go(meta.page);
@@ -164,8 +178,12 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
 
   const handleMarkAll = async () => {
     if (!currentUser) return;
-    await markAllAsRead(currentUser.id);
-    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await markAllAsRead(currentUser.id);
+      setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      showToast?.('Could not mark notifications read yet.', 'error');
+    }
   };
 
   return (
@@ -277,7 +295,7 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
                 </div>
                 {homieRequests.map((request) => {
                   const sender  = getSender(request);
-                  const avatar  = sender.photos?.[0] || sender.avatar_url;
+                  const avatar  = sender.photos?.[0] || null;
                   const initials = sender.name?.[0]?.toUpperCase() || '?';
                   return (
                     <div key={request.id} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `0.5px solid ${C.border}` }}>

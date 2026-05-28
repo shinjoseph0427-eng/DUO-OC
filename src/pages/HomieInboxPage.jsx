@@ -27,7 +27,7 @@ function RequestSkeleton() {
 
 function RequestCard({ request, accepting, accepted, onAccept }) {
   const sender = getSender(request);
-  const photo = sender?.photos?.[0] ?? sender?.avatar_url ?? null;
+  const photo = sender?.photos?.[0] ?? null;
   const name = sender?.name ?? 'Someone';
   const details = [sender?.age, sender?.city].filter(Boolean).join(' · ');
 
