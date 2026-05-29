@@ -1,252 +1,491 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { Lock, MapPin, Shield } from 'lucide-react';
-import { C } from '../tokens';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { motion, AnimatePresence, useMotionValue, useAnimation } from 'framer-motion';
+import { X, Heart, Lock } from 'lucide-react';
 
-const PREVIEW_DUOS = [
+// ── Constants ────────────────────────────────────────────────────────────
+const ORANGE = '#FF5C00';
+const BG     = '#FFFFFF';
+const FONT_H = "'Bricolage Grotesque', system-ui, sans-serif";
+const FONT_B = "'DM Sans', system-ui, sans-serif";
+
+// ── Card data ────────────────────────────────────────────────────────────
+const CARDS = [
+  { letter: 'A', name: 'Ari & Lena',    location: 'Irvine · Newport Beach', tags: ['Coffee runs', 'Pilates', 'Beach days'],  bg: '#fff0e8' },
+  { letter: 'J', name: 'Jae & Miles',   location: 'Fullerton · Anaheim',    tags: ['KBBQ', 'Late nights', 'Car meets'],      bg: '#f0f5e8' },
+  { letter: 'S', name: 'Sofia & Mina',  location: 'Costa Mesa · Newport',   tags: ['Thrift finds', 'Art walks', 'Boba'],     bg: '#e8edf5' },
+];
+
+// ── Feature rows ─────────────────────────────────────────────────────────
+const FEATURES = [
   {
-    name:    'Ari & Lena',
-    cities:  'Irvine · Newport',
-    vibes:   ['Boba', 'Gym', 'Night out'],
-    members: [
-      { name: 'Ari',  bg: '#FFF7ED' },
-      { name: 'Lena', bg: '#F0FDF4' },
-    ],
+    side: 'left',  letter: '2',  cardBg: '#fff0e8',
+    badgeLabel: '2 vs 2',      badgeSub: 'Always with a friend',
+    tag: 'No solo pressure',
+    heading: ['Bring your friend.', 'They bring theirs.'],
+    body: 'Four people, one plan, zero awkward one-on-ones. You show up with backup — so does everyone else.',
   },
   {
-    name:    'Jae & Miles',
-    cities:  'Fullerton',
-    vibes:   ['Gym', 'Cars', 'Late night'],
-    members: [
-      { name: 'Jae',   bg: '#F0FDF4' },
-      { name: 'Miles', bg: '#FFF7ED' },
-    ],
+    side: 'right', letter: 'IG', cardBg: '#e8edf5',
+    badgeLabel: 'Instagram',   badgeSub: 'Unlocks on match',
+    tag: 'The unlock',
+    heading: ['Match first.', 'Instagram opens.'],
+    body: "You only see their Instagram when both duos agree. The anticipation is the whole point.",
   },
   {
-    name:    'Sophie & Mina',
-    cities:  'Costa Mesa · Newport',
-    vibes:   ['Coffee', 'Beach', 'Pilates'],
-    members: [
-      { name: 'Sophie', bg: '#FFF3E0' },
-      { name: 'Mina',   bg: '#E8F5E9' },
-    ],
+    side: 'left',  letter: 'OC', cardBg: '#f0f5e8',
+    badgeLabel: 'OC only',     badgeSub: 'Real local plans',
+    tag: 'Local',
+    heading: ['Plans in OC.', 'Actual places.'],
+    body: 'From Newport to Fullerton. Real spots, real times, real people around Orange County.',
   },
   {
-    name:    'Ryan & Kai',
-    cities:  'Irvine',
-    vibes:   ['UCI', 'Boba', 'Music'],
-    members: [
-      { name: 'Ryan', bg: '#F0FDF4' },
-      { name: 'Kai',  bg: '#FFF7ED' },
-    ],
-  },
-  {
-    name:    'Mia & Chloe',
-    cities:  'Newport · Costa Mesa',
-    vibes:   ['Beach', 'Coffee', 'Social'],
-    members: [
-      { name: 'Mia',   bg: '#FFF7ED' },
-      { name: 'Chloe', bg: '#E8F5E9' },
-    ],
-  },
-  {
-    name:    'Daniel & Chris',
-    cities:  'Anaheim · Fullerton',
-    vibes:   ['Gym', 'KBBQ', 'Cars'],
-    members: [
-      { name: 'Daniel', bg: '#F0FDF4' },
-      { name: 'Chris',  bg: '#FFF3E0' },
-    ],
+    side: 'right', letter: '18', cardBg: '#f5e8f0',
+    badgeLabel: '18 – 25 only', badgeSub: 'Verified age range',
+    tag: 'Your crowd',
+    heading: ['Everyone here', 'is your age.'],
+    body: 'No filtering through the wrong crowd. Every duo on DUO OC is age-verified and local to OC.',
   },
 ];
 
-const N = PREVIEW_DUOS.length;
-const PORTRAIT_H = 188;
-const SPRING = { type: 'spring', stiffness: 320, damping: 28, mass: 0.9 };
+// ── Social proof avatars ──────────────────────────────────────────────────
+const AVATARS = [
+  { letter: 'A', bg: '#FDECEA', color: '#C0392B' },
+  { letter: 'S', bg: '#EDE7F6', color: '#6A1B9A' },
+  { letter: 'M', bg: '#E8F5E9', color: '#2E7D32' },
+  { letter: 'J', bg: '#FFF8E1', color: '#F57F17' },
+  { letter: 'R', bg: '#E3F2FD', color: '#1565C0' },
+];
 
-const item = (delay) => ({
-  initial: { opacity: 0, y: 18 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94], delay },
+// ── Global CSS keyframes ──────────────────────────────────────────────────
+const GLOBAL_CSS = `
+  @keyframes lp-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.2; transform: scale(0.72); }
+  }
+  @keyframes lp-shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+  .lp-pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: ${ORANGE}; flex-shrink: 0;
+    animation: lp-pulse 1.4s ease-in-out infinite;
+    display: inline-block;
+  }
+  .lp-shimmer-sweep {
+    position: absolute; inset: 0; pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%);
+    background-size: 200% 100%;
+    animation: lp-shimmer 3s linear infinite;
+    animation-delay: 2s;
+  }
+  .lp-hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+    padding: 60px 0;
+  }
+  .lp-feature-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    margin-bottom: 80px;
+  }
+  .lp-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  @media (max-width: 860px) {
+    .lp-hero-grid { grid-template-columns: 1fr; min-height: auto; padding: 40px 0; }
+    .lp-card-col  { display: none !important; }
+    .lp-feature-row { grid-template-columns: 1fr; gap: 24px; margin-bottom: 56px; }
+    .lp-stats-grid  { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 540px) {
+    .lp-pad { padding-left: 20px !important; padding-right: 20px !important; }
+  }
+`;
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function CTAButton({ label, onClick, style: extra = {} }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', overflow: 'hidden',
+        background: ORANGE, color: '#fff',
+        fontFamily: FONT_H, fontWeight: 700, fontSize: 15,
+        border: 'none', borderRadius: 9999,
+        padding: '14px 36px', cursor: 'pointer',
+        boxShadow: 'rgba(255,92,0,.28) 0 8px 24px',
+        ...extra,
+      }}
+    >
+      {label}
+      <span className="lp-shimmer-sweep" aria-hidden="true" />
+    </button>
+  );
+}
+
+// ── Card face (shared by front + back cards) ──────────────────────────────
+function CardFace({ card, bg }) {
+  return (
+    <div style={{
+      width: '100%', height: '100%', borderRadius: 28,
+      background: bg || card.bg || '#fff0e8',
+      position: 'relative', overflow: 'hidden', userSelect: 'none',
+    }}>
+      {/* Giant faded initial */}
+      <div style={{
+        position: 'absolute', top: '50%', left: '50%',
+        transform: 'translate(-50%, -56%)',
+        fontFamily: FONT_H, fontWeight: 800, fontSize: 120,
+        color: 'rgba(0,0,0,0.05)',
+        lineHeight: 1, pointerEvents: 'none', userSelect: 'none',
+      }}>
+        {card.letter}
+      </div>
+      {/* Gradient overlay */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: '55%',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)',
+        borderRadius: '0 0 28px 28px', pointerEvents: 'none',
+      }} />
+      {/* Info */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px 20px 24px' }}>
+        <div style={{ fontFamily: FONT_H, fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 4, lineHeight: 1.2 }}>
+          {card.name}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginBottom: 12 }}>
+          {card.location}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {card.tags.map(tag => (
+            <span key={tag} style={{
+              background: 'rgba(255,255,255,0.18)',
+              backdropFilter: 'blur(8px)',
+              border: '0.5px solid rgba(255,255,255,0.25)',
+              borderRadius: 9999, padding: '4px 10px',
+              fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: 500,
+            }}>{tag}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Swipeable front card ──────────────────────────────────────────────────
+const SwipeCard = forwardRef(function SwipeCard({ card, onSwiped }, ref) {
+  const controls   = useAnimation();
+  const x          = useMotionValue(0);
+  const rotateVal  = useMotionValue(0);
+  const [label, setLabel] = useState(null); // 'duo' | 'nope' | null
+
+  // Keep rotation in sync with drag x
+  useEffect(() => {
+    const unsub = x.on('change', v => rotateVal.set(v * 0.07));
+    return unsub;
+  }, [x, rotateVal]);
+
+  // Expose swipe(dir) to parent for Pass/Like buttons
+  useImperativeHandle(ref, () => ({
+    swipe: async (dir) => {
+      setLabel(dir > 0 ? 'duo' : 'nope');
+      await controls.start({ x: dir * 680, opacity: 0, transition: { duration: 0.38, ease: 'easeIn' } });
+      onSwiped();
+    },
+  }), [controls, onSwiped]);
+
+  const handleDrag = () => {
+    const curr = x.get();
+    if (curr > 28)       setLabel('duo');
+    else if (curr < -28) setLabel('nope');
+    else                 setLabel(null);
+  };
+
+  const handleDragEnd = async (_, info) => {
+    if (Math.abs(info.offset.x) > 90) {
+      const dir = info.offset.x > 0 ? 1 : -1;
+      setLabel(dir > 0 ? 'duo' : 'nope');
+      await controls.start({ x: dir * 680, opacity: 0, transition: { duration: 0.38, ease: 'easeIn' } });
+      onSwiped();
+    } else {
+      await controls.start({ x: 0, transition: { type: 'spring', stiffness: 420, damping: 32 } });
+      rotateVal.set(0);
+      setLabel(null);
+    }
+  };
+
+  return (
+    <motion.div
+      style={{ x, rotate: rotateVal, position: 'absolute', inset: 0, zIndex: 3, cursor: 'grab', touchAction: 'none' }}
+      animate={controls}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.15}
+      onDrag={handleDrag}
+      onDragEnd={handleDragEnd}
+      whileTap={{ cursor: 'grabbing' }}
+    >
+      {/* DUO label */}
+      <AnimatePresence>
+        {label === 'duo' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+            style={{
+              position: 'absolute', top: 28, left: 20, zIndex: 20,
+              transform: 'rotate(-14deg)',
+              background: '#4cd964', color: '#fff',
+              fontFamily: FONT_H, fontWeight: 800, fontSize: 20,
+              padding: '5px 14px', borderRadius: 8,
+              border: '2.5px solid rgba(255,255,255,0.7)', letterSpacing: 2,
+            }}
+          >DUO</motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* NOPE label */}
+      <AnimatePresence>
+        {label === 'nope' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+            style={{
+              position: 'absolute', top: 28, right: 20, zIndex: 20,
+              transform: 'rotate(14deg)',
+              background: '#e24b4a', color: '#fff',
+              fontFamily: FONT_H, fontWeight: 800, fontSize: 20,
+              padding: '5px 14px', borderRadius: 8,
+              border: '2.5px solid rgba(255,255,255,0.7)', letterSpacing: 2,
+            }}
+          >NOPE</motion.div>
+        )}
+      </AnimatePresence>
+
+      <CardFace card={card} />
+    </motion.div>
+  );
 });
 
-function LandingDeckCard({ duo }) {
+// ── Lock overlay (appears after swipe) ────────────────────────────────────
+function LockOverlay({ onSignUp }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
       style={{
-        background:   C.bg2,
-        border:       '0.5px solid rgba(255,255,255,0.09)',
-        borderRadius: 24,
-        overflow:     'hidden',
-        boxShadow:    '0 20px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)',
-        userSelect:   'none',
+        position: 'absolute', inset: 0, zIndex: 10, borderRadius: 28,
+        background: BG,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: 28, textAlign: 'center',
       }}
     >
-      {/* Accent bar */}
-      <div style={{ height: 3, background: C.gradientCTA }} />
+      <div style={{
+        width: 56, height: 56, borderRadius: '50%', background: '#fff5f0',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18,
+      }}>
+        <Lock size={22} color={ORANGE} strokeWidth={2.2} />
+      </div>
+      <div style={{ fontFamily: FONT_H, fontWeight: 700, fontSize: 17, color: '#111', marginBottom: 8 }}>
+        Sign up to keep swiping
+      </div>
+      <div style={{ fontSize: 13, color: '#aaa', marginBottom: 22, lineHeight: 1.5 }}>
+        There are duos in OC waiting to meet yours.
+      </div>
+      <CTAButton label="Get started" onClick={onSignUp} />
+    </motion.div>
+  );
+}
 
-      <div style={{ display: 'flex', height: PORTRAIT_H }}>
-        {duo.members.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              flex:           1,
-              background:     m.bg,
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              position:       'relative',
-              borderRight:    i === 0 ? '0.5px solid rgba(0,0,0,0.5)' : 'none',
-            }}
-          >
-            <span
-              style={{
-                fontSize:      64,
-                fontWeight:    800,
-                color:         'rgba(255,255,255,0.15)',
-                letterSpacing: '-2px',
-                lineHeight:    1,
-                position:      'relative',
-                zIndex:        1,
-              }}
-            >
-              {m.name[0].toUpperCase()}
-            </span>
-            <div
-              style={{
-                position:      'absolute',
-                inset:         0,
-                background:    'linear-gradient(to bottom, transparent 25%, rgba(0,0,0,0.64) 100%)',
-                pointerEvents: 'none',
-              }}
-            />
-            <span
-              style={{
-                position:      'absolute',
-                bottom:        14,
-                left:          0,
-                right:         0,
-                textAlign:     'center',
-                fontSize:      12,
-                fontWeight:    700,
-                color:         'rgba(255,255,255,0.72)',
-                zIndex:        1,
-                letterSpacing: '0.3px',
-              }}
-            >
-              {m.name}
-            </span>
-          </div>
-        ))}
+// ── Card stack (right column) ─────────────────────────────────────────────
+function CardStack({ onSignUp }) {
+  const [locked, setLocked] = useState(false);
+  const cardRef = useRef(null);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+      {/* 300 × 420 stack */}
+      <div style={{ position: 'relative', width: 300, height: 420 }}>
+        {/* Back card 2 */}
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
+          transform: 'rotate(7deg) translateY(12px) scale(0.94)',
+          transformOrigin: 'center bottom',
+        }}>
+          <CardFace card={CARDS[2]} />
+        </div>
+        {/* Back card 1 */}
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none',
+          transform: 'rotate(-4deg) translateY(6px) scale(0.97)',
+          transformOrigin: 'center bottom',
+        }}>
+          <CardFace card={CARDS[1]} />
+        </div>
+        {/* Front card or lock overlay */}
+        {!locked
+          ? <SwipeCard ref={cardRef} card={CARDS[0]} onSwiped={() => setLocked(true)} />
+          : <LockOverlay onSignUp={onSignUp} />
+        }
       </div>
 
-      <div
-        style={{
-          padding:        '13px 16px 15px',
-          display:        'flex',
-          alignItems:     'flex-start',
-          justifyContent: 'space-between',
-          gap:            12,
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p
+      {/* Pass / Like buttons */}
+      {!locked && (
+        <div style={{ display: 'flex', gap: 16 }}>
+          <motion.button
+            type="button" aria-label="Pass"
+            onClick={() => cardRef.current?.swipe(-1)}
+            whileTap={{ scale: 0.88 }}
             style={{
-              fontSize:      16,
-              fontWeight:    800,
-              color:         C.white,
-              margin:        '0 0 3px',
-              letterSpacing: '-0.3px',
-              overflow:      'hidden',
-              textOverflow:  'ellipsis',
-              whiteSpace:    'nowrap',
+              width: 52, height: 52, borderRadius: '50%',
+              background: BG, border: '1px solid #eee',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
             }}
           >
-            {duo.name}
-          </p>
-          <p
+            <X size={20} color="#e24b4a" strokeWidth={2.5} />
+          </motion.button>
+          <motion.button
+            type="button" aria-label="Like"
+            onClick={() => cardRef.current?.swipe(1)}
+            whileTap={{ scale: 0.88 }}
             style={{
-              fontSize:     11,
-              color:        C.muted,
-              margin:       '0 0 10px',
-              overflow:     'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace:   'nowrap',
+              width: 52, height: 52, borderRadius: '50%',
+              background: BG, border: '1px solid #eee',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
             }}
           >
-            {duo.cities}
-          </p>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {duo.vibes.slice(0, 3).map((v) => (
-              <span
-                key={v}
-                style={{
-                  background:    C.amberT08,
-                  color:         C.amber,
-                  borderRadius:  9999,
-                  padding:       '3px 9px',
-                  fontSize:      11,
-                  fontWeight:    600,
-                }}
-              >
-                {v}
-              </span>
-            ))}
-          </div>
+            <Heart size={20} color={ORANGE} strokeWidth={2.5} />
+          </motion.button>
         </div>
-
-        <div
-          style={{
-            flexShrink:    0,
-            background:    C.amberT08,
-            border:        `0.5px solid ${C.amberT35}`,
-            borderRadius:  8,
-            padding:       '4px 9px',
-            fontSize:      10,
-            fontWeight:    800,
-            color:         C.amber,
-            letterSpacing: '0.5px',
-            marginTop:     1,
-          }}
-        >
-          2v2
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function StackShell({ duo }) {
-  return (
-    <div
-      style={{
-        background:   C.bg2,
-        border:       '0.5px solid rgba(255,255,255,0.07)',
-        borderRadius: 24,
-        overflow:     'hidden',
-      }}
-    >
-      <div style={{ display: 'flex', height: PORTRAIT_H }}>
-        {duo.members.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              flex:        1,
-              background:  m.bg,
-              borderRight: i === 0 ? '0.5px solid rgba(0,0,0,0.5)' : 'none',
-            }}
-          />
-        ))}
+// ── Feature row (alternating) ─────────────────────────────────────────────
+function FeatureRow({ feat }) {
+  const isLeft = feat.side === 'left';
+
+  const Visual = (
+    <div style={{
+      background: feat.cardBg, borderRadius: 24,
+      aspectRatio: '4/3', position: 'relative',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden',
+    }}>
+      <div style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 96, color: 'rgba(0,0,0,0.07)', userSelect: 'none', lineHeight: 1 }}>
+        {feat.letter}
       </div>
-      <div style={{ height: 70, background: C.bg2 }} />
+      {/* Floating badge */}
+      <div style={{
+        position: 'absolute', bottom: 20, left: 20,
+        background: BG, borderRadius: 14,
+        padding: '10px 14px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: ORANGE, flexShrink: 0 }} />
+        <div>
+          <div style={{ fontFamily: FONT_H, fontWeight: 700, fontSize: 12, color: '#111', lineHeight: 1.2 }}>
+            {feat.badgeLabel}
+          </div>
+          <div style={{ fontSize: 11, color: '#aaa', marginTop: 1 }}>{feat.badgeSub}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const Copy = (
+    <div style={{ padding: '0 8px' }}>
+      <div style={{
+        display: 'inline-block',
+        background: '#fff5f0', border: '1px solid rgba(255,92,0,0.2)',
+        borderRadius: 9999, padding: '4px 12px',
+        fontSize: 11, fontWeight: 500, color: ORANGE, marginBottom: 16,
+      }}>
+        {feat.tag}
+      </div>
+      <h3 style={{
+        fontFamily: FONT_H, fontWeight: 800, fontSize: 30, letterSpacing: -1.2,
+        color: '#111', lineHeight: 1.15, margin: '0 0 16px',
+      }}>
+        {feat.heading[0]}<br />{feat.heading[1]}
+      </h3>
+      <p style={{ fontFamily: FONT_B, fontSize: 14, fontWeight: 300, color: '#aaa', lineHeight: 1.85, margin: 0 }}>
+        {feat.body}
+      </p>
+    </div>
+  );
+
+  return (
+    <div className="lp-feature-row">
+      {isLeft ? Visual : Copy}
+      {isLeft ? Copy : Visual}
     </div>
   );
 }
 
+// ── Toast ─────────────────────────────────────────────────────────────────
+function ToastContent() {
+  return (
+    <motion.div
+      initial={{ y: 10, opacity: 0 }}
+      animate={{ y: 0,  opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+      style={{
+        position: 'fixed', bottom: 28,
+        left: '50%', x: '-50%',
+        zIndex: 100, pointerEvents: 'none',
+      }}
+    >
+      <div style={{
+        background: BG, border: '1px solid #eee', borderRadius: 9999,
+        padding: '11px 20px', boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+        display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap',
+      }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%', background: '#fff5f0', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: ORANGE }} />
+        </div>
+        <span style={{ fontFamily: FONT_B, fontSize: 13, color: '#111' }}>
+          <strong style={{ fontWeight: 500 }}>Brianna & Jade</strong> just joined DUO OC
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+function Toast() {
+  const [show, setShow] = useState(false);
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    const t1 = setTimeout(() => setShow(true),  3500);
+    const t2 = setTimeout(() => setGone(true),  9000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  return (
+    <AnimatePresence>
+      {show && !gone && <ToastContent />}
+    </AnimatePresence>
+  );
+}
+
+// ── Main landing page ─────────────────────────────────────────────────────
 export default function LandingPage({ go }) {
-  const [currentIndex,  setCurrentIndex]  = useState(0);
-  const [inviterName,   setInviterName]   = useState(null);
+  const [inviterName, setInviterName] = useState(null);
 
+  // Preserve invite-link flow
   useEffect(() => {
     const token = sessionStorage.getItem('duo_oc_invite_token');
     if (!token) return;
@@ -256,350 +495,237 @@ export default function LandingPage({ go }) {
       });
     });
   }, []);
-  const advance = () => setCurrentIndex((i) => (i + 1) % N);
-  const next1 = PREVIEW_DUOS[(currentIndex + 1) % N];
-  const next2 = PREVIEW_DUOS[(currentIndex + 2) % N];
 
-  const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-18, 18]);
+  const PAD = { maxWidth: 1100, margin: '0 auto', padding: '0 48px' };
 
   return (
-    <div
-      style={{
-        minHeight:     '100vh',
-        background:    C.bg,
-        color:         C.white,
-        display:       'flex',
-        flexDirection: 'column',
-        padding:       '32px 20px 40px',
-        boxSizing:     'border-box',
-        position:      'relative',
-        overflow:      'hidden',
-      }}
-    >
-      {/* Dual background glows */}
-      <div
-        aria-hidden="true"
-        style={{
-          position:      'absolute',
-          top:           -120,
-          left:          '50%',
-          transform:     'translateX(-50%)',
-          width:         560,
-          height:        400,
-          background:    'none',
-          pointerEvents: 'none',
-          zIndex:        0,
-        }}
-      />
-      <div
-        aria-hidden="true"
-        style={{
-          position:      'absolute',
-          bottom:        -80,
-          right:         -80,
-          width:         360,
-          height:        360,
-          background:    'none',
-          pointerEvents: 'none',
-          zIndex:        0,
-        }}
-      />
+    <>
+      <style>{GLOBAL_CSS}</style>
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <div style={{ background: BG, color: '#111', minHeight: '100vh', fontFamily: FONT_B }}>
+
+        {/* ── Invite banner ── */}
         {inviterName && (
-          <div style={{
-            background:   C.amberT08,
-            border:       `0.5px solid ${C.brownBorder}`,
-            borderRadius: 14,
-            padding:      '14px 16px',
-            marginBottom: 20,
-            textAlign:    'center',
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.amber, marginBottom: 4 }}>
-              {inviterName} wants you as their duo
-            </div>
-            <div style={{ fontSize: 12, color: C.muted }}>
-              Sign up to become their duo partner in OC
-            </div>
+          <div style={{ background: '#fff5f0', borderBottom: '1px solid rgba(255,92,0,0.15)', padding: '12px 24px', textAlign: 'center' }}>
+            <span style={{ fontFamily: FONT_B, fontSize: 13, color: ORANGE, fontWeight: 500 }}>
+              {inviterName} invited you to join their duo on DUO OC
+            </span>
           </div>
         )}
 
-        {/* Logo */}
-        <motion.div
-          {...item(0)}
-          style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 36 }}
-        >
-          <span className="gradient-text">DUO OC</span>
-        </motion.div>
-
-        <motion.span
-          {...item(0.05)}
-          style={{
-            fontSize:      10,
-            fontWeight:    700,
-            letterSpacing: '1.3px',
-            color:         C.muted,
-            textTransform: 'uppercase',
-            display:       'block',
-            marginBottom:  14,
-          }}
-        >
-          Orange County · 18–25
-        </motion.span>
-
-        <motion.h1
-          {...item(0.1)}
-          style={{
-            fontSize:      40,
-            lineHeight:    1.0,
-            margin:        '0 0 12px',
-          }}
-        >
-          <span style={{ fontWeight: 900, letterSpacing: -2, color: C.white }}>2v2 hangouts.</span>
-          <br />
-          <span style={{ fontWeight: 300, letterSpacing: -1, color: C.muted }}>No pressure.</span>
-        </motion.h1>
-
-        <motion.p
-          {...item(0.15)}
-          style={{
-            color:      C.muted,
-            fontSize:   14,
-            lineHeight: 1.6,
-            margin:     '0 0 24px',
-            maxWidth:   300,
-          }}
-        >
-          Bring your friend, meet another duo, and make plans around OC.
-        </motion.p>
-
-        {/* Trust pills */}
-        <motion.div {...item(0.2)} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-          {[
-            { Icon: Lock,   text: 'Instagram unlocked on match' },
-            { Icon: MapPin, text: 'Orange County only' },
-            { Icon: Shield, text: '18–25 only' },
-          ].map(({ Icon, text }) => (
-            <div key={text} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(255,255,255,0.04)',
-              border: '0.5px solid rgba(255,255,255,0.08)',
-              borderRadius: 9999, padding: '6px 12px',
-            }}>
-              <Icon size={12} color={C.muted} strokeWidth={2} />
-              <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>{text}</span>
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Card stack */}
-        <motion.div {...item(0.25)} style={{ marginBottom: 10 }}>
-          <div style={{ perspective: 1100, perspectiveOrigin: '50% 40%' }}>
-            <div style={{ position: 'relative', paddingBottom: 42 }}>
-              <div
-                aria-hidden="true"
+        {/* ── Nav ── */}
+        <nav style={{
+          position: 'sticky', top: 0, zIndex: 50, height: 60,
+          background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid #f2f2f2',
+        }}>
+          <div style={{ ...PAD, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 20, color: ORANGE, letterSpacing: -0.3 }}>
+              DUO OC
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <span style={{ fontFamily: FONT_B, fontSize: 13, color: '#bbb', fontWeight: 400 }}>
+                18 – 25 · OC only
+              </span>
+              <button
+                type="button"
+                onClick={() => go('login')}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fff5f0'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = BG; }}
                 style={{
-                  position:        'absolute',
-                  top:             0, left: 0, right: 0,
-                  zIndex:          1,
-                  opacity:         0.18,
-                  transform:       'scale(0.88) translateY(38px)',
-                  transformOrigin: 'center top',
-                  pointerEvents:   'none',
+                  fontFamily: FONT_H, fontWeight: 700, fontSize: 13,
+                  color: ORANGE, background: BG,
+                  border: '1.5px solid #ffd4ba', borderRadius: 9999,
+                  padding: '7px 18px', cursor: 'pointer', transition: 'background 0.15s',
                 }}
               >
-                <StackShell duo={next2} />
-              </div>
-              <div
-                aria-hidden="true"
-                style={{
-                  position:        'absolute',
-                  top:             0, left: 0, right: 0,
-                  zIndex:          2,
-                  opacity:         0.4,
-                  transform:       'scale(0.94) translateY(20px)',
-                  transformOrigin: 'center top',
-                  pointerEvents:   'none',
-                }}
-              >
-                <StackShell duo={next1} />
-              </div>
-              <div style={{ position: 'relative', zIndex: 3 }}>
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={currentIndex}
-                    style={{ x, rotate, cursor: 'pointer' }}
-                    initial={{ opacity: 0, rotateY: 12, scale: 0.95 }}
-                    animate={{ opacity: 1, rotateY: 0,  scale: 1    }}
-                    exit={{    opacity: 0, rotateY: -14, scale: 0.96 }}
-                    transition={SPRING}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.12}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x < -50 || info.velocity.x < -250) advance();
-                    }}
-                    onClick={advance}
-                    whileTap={{ scale: 0.985 }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && advance()}
-                    aria-label={`Preview: ${PREVIEW_DUOS[currentIndex].name}. Tap to see next.`}
-                  >
-                    <LandingDeckCard duo={PREVIEW_DUOS[currentIndex]} />
-                  </motion.div>
-                </AnimatePresence>
-              </div>
+                Log in
+              </button>
             </div>
           </div>
-          <p
-            style={{
-              fontSize:      11,
-              color:         'rgba(255,255,255,0.26)',
-              textAlign:     'center',
-              margin:        '8px 0 0',
-              letterSpacing: '0.2px',
-              userSelect:    'none',
-            }}
-          >
-            Tap or swipe to discover another duo
+        </nav>
+
+        {/* ── Hero ── */}
+        <section className="lp-pad" style={PAD}>
+          <div className="lp-hero-grid">
+
+            {/* Left — copy */}
+            <div>
+              {/* Live pill badge */}
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: '#fff5f0', border: '1px solid #ffd4ba',
+                borderRadius: 9999, padding: '6px 14px',
+                fontSize: 12, color: ORANGE, fontWeight: 500, marginBottom: 28,
+              }}>
+                <span className="lp-pulse-dot" aria-hidden="true" />
+                Orange County · 18 – 25
+              </div>
+
+              {/* H1 */}
+              <h1 style={{
+                fontFamily: FONT_H, fontWeight: 800, fontSize: 62,
+                letterSpacing: -3.5, lineHeight: 0.9, color: '#111', margin: '0 0 24px',
+              }}>
+                Bring<br />a <span style={{ color: ORANGE }}>friend.</span><br />
+                <span style={{ color: '#ddd' }}>Meet a duo.</span>
+              </h1>
+
+              {/* Subtext */}
+              <p style={{ fontFamily: FONT_B, fontSize: 15, fontWeight: 300, color: '#aaa', lineHeight: 1.7, margin: '0 0 32px', maxWidth: 360 }}>
+                2v2 hangouts around OC. Match first — then Instagram unlocks. No awkward one-on-ones.
+              </p>
+
+              {/* Primary CTA */}
+              <div style={{ marginBottom: 14 }}>
+                <CTAButton label="Find my duo" onClick={() => go('auth')} />
+              </div>
+
+              {/* Secondary */}
+              <button
+                type="button"
+                onClick={() => go('login')}
+                style={{ fontFamily: FONT_B, background: 'none', border: 'none', color: '#bbb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 32, display: 'block' }}
+              >
+                Already have an account
+              </button>
+
+              {/* Social proof */}
+              <div style={{ borderTop: '1px solid #f5f5f5', paddingTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex' }}>
+                  {AVATARS.map((av, i) => (
+                    <div key={i} style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: av.bg, color: av.color,
+                      border: '2px solid #fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      marginLeft: i === 0 ? 0 : -8,
+                      fontFamily: FONT_H, fontWeight: 800, fontSize: 10,
+                      position: 'relative', zIndex: AVATARS.length - i,
+                    }}>
+                      {av.letter}
+                    </div>
+                  ))}
+                </div>
+                <span style={{ fontFamily: FONT_B, fontSize: 12, color: '#bbb' }}>
+                  847 duos matched this week · 22 new today
+                </span>
+              </div>
+            </div>
+
+            {/* Right — card stack (hidden on mobile) */}
+            <div className="lp-card-col" style={{ display: 'flex', justifyContent: 'center' }}>
+              <CardStack onSignUp={() => go('auth')} />
+            </div>
+
+          </div>
+        </section>
+
+        {/* ── Divider ── */}
+        <div style={{ height: 1, background: '#f5f5f5', margin: '0 48px' }} />
+
+        {/* ── Features ── */}
+        <section className="lp-pad" style={{ ...PAD, paddingTop: 100, paddingBottom: 20 }}>
+          <div style={{ marginBottom: 56 }}>
+            <div style={{ fontFamily: FONT_B, fontSize: 11, fontWeight: 500, color: ORANGE, letterSpacing: 2.5, textTransform: 'uppercase', marginBottom: 16 }}>
+              How it works
+            </div>
+            <h2 style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 42, letterSpacing: -2, lineHeight: 1.1, color: '#111', margin: 0, maxWidth: 560 }}>
+              Designed to make meeting people{' '}
+              <span style={{ color: ORANGE }}>actually fun.</span>
+            </h2>
+          </div>
+          {FEATURES.map((feat, i) => <FeatureRow key={i} feat={feat} />)}
+        </section>
+
+        {/* ── Stats strip ── */}
+        <section style={{ borderTop: '1px solid #f5f5f5', borderBottom: '1px solid #f5f5f5' }}>
+          <div className="lp-stats-grid">
+            {[
+              {
+                display: <><span style={{ color: '#111' }}>847</span><span style={{ color: ORANGE }}>+</span></>,
+                label: 'Duos matched this week',
+              },
+              {
+                display: <><span style={{ color: ORANGE }}>2</span><span style={{ color: '#111' }}>v</span><span style={{ color: ORANGE }}>2</span></>,
+                label: 'Always with a friend',
+              },
+              {
+                display: <><span style={{ color: '#111' }}>0</span><span style={{ color: ORANGE }}>%</span></>,
+                label: 'Awkward cold DMs',
+              },
+            ].map((stat, i) => (
+              <div key={i} style={{
+                padding: '40px 36px', textAlign: 'center',
+                borderLeft: i > 0 ? '1px solid #f5f5f5' : 'none',
+              }}>
+                <div style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 52, letterSpacing: -3, lineHeight: 1, marginBottom: 8 }}>
+                  {stat.display}
+                </div>
+                <div style={{ fontFamily: FONT_B, fontSize: 13, fontWeight: 400, color: '#bbb' }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── CTA section ── */}
+        <section className="lp-pad" style={{ ...PAD, paddingTop: 100, paddingBottom: 100, textAlign: 'center' }}>
+          <h2 style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 52, letterSpacing: -2.5, lineHeight: 0.95, color: '#111', margin: '0 0 20px' }}>
+            There are duos in OC<br />
+            waiting <span style={{ color: ORANGE }}>right now.</span>
+          </h2>
+          <p style={{ fontFamily: FONT_B, fontSize: 15, fontWeight: 300, color: '#bbb', margin: '0 0 36px' }}>
+            You just can&apos;t see them yet.
           </p>
-        </motion.div>
+          <div style={{ marginBottom: 20 }}>
+            <CTAButton label="Find my duo" onClick={() => go('auth')} />
+          </div>
+          <div style={{ marginBottom: 32 }}>
+            <button
+              type="button"
+              onClick={() => go('login')}
+              style={{ fontFamily: FONT_B, background: 'none', border: 'none', color: '#bbb', fontSize: 13, cursor: 'pointer', padding: 0 }}
+            >
+              Already have an account?{' '}
+              <span style={{ textDecoration: 'underline' }}>Log in</span>
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {['Instagram unlocks on match', 'OC only', '18 – 25', 'Public places first'].map((item, i) => (
+              <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {i > 0 && <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#ddd', display: 'inline-block' }} />}
+                <span style={{ fontFamily: FONT_B, fontSize: 12, color: '#ccc' }}>{item}</span>
+              </span>
+            ))}
+          </div>
+        </section>
 
-        {/* CTAs */}
-        <motion.div {...item(0.3)} style={{ marginTop: 'auto', paddingTop: 32 }}>
-          <motion.button
-            type="button"
-            onClick={() => go('auth')}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.1 }}
-            style={{
-              width:         '100%',
-              height:        54,
-              borderRadius:  16,
-              border:        'none',
-              background:    C.gradientCTA,
-              color:         '#fff',
-              fontSize:      16,
-              fontWeight:    800,
-              cursor:        'pointer',
-              marginBottom:  10,
-              letterSpacing: '-0.2px',
-              boxShadow:     `0 4px 20px ${C.amberT35}`,
-            }}
-          >
-            I'm new — Get Started
-          </motion.button>
-
-          <button
-            type="button"
-            onClick={() => go('login')}
-            style={{
-              background:   'none',
-              border:       'none',
-              color:        C.muted,
-              fontSize:     14,
-              fontWeight:   500,
-              cursor:       'pointer',
-              width:        '100%',
-              padding:      '12px 0',
-              marginBottom: 16,
-              textAlign:    'center',
-            }}
-          >
-            Already have an account?{' '}
-            <span style={{ color: C.amber, fontWeight: 700 }}>Log in</span>
-          </button>
-
-          <p
-            style={{
-              color:         C.muted,
-              fontSize:      11,
-              textAlign:     'center',
-              letterSpacing: '0.3px',
-              opacity:       0.55,
-            }}
-          >
-            18–25 only · Orange County · Public places first
-          </p>
-        </motion.div>
-
-        {/* FAQ — SEO + natural discovery */}
-        <motion.div
-          {...item(0.4)}
-          style={{ marginTop: 48, paddingBottom: 8 }}
-          aria-label="Frequently asked questions about DUO OC"
-        >
-          <p style={{
-            fontSize:      11,
-            fontWeight:    700,
-            color:         C.muted,
-            letterSpacing: '1px',
-            textTransform: 'uppercase',
-            marginBottom:  20,
-            opacity:       0.6,
-          }}>
+        {/* ── SEO FAQ ── */}
+        <section className="lp-pad" style={{ maxWidth: 720, margin: '0 auto', padding: '60px 48px 80px', borderTop: '1px solid #f5f5f5' }}>
+          <p style={{ fontFamily: FONT_B, fontSize: 10, fontWeight: 500, color: '#ccc', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 24 }}>
             About DUO OC
           </p>
-
           {[
-            {
-              q: 'What is DUO OC?',
-              a: 'DUO OC, also searched as OC DUO, is a 2v2 social hangout app for Orange County. It helps young adults meet new people in OC by bringing a friend and matching with another duo.',
-            },
-            {
-              q: 'Is DUO OC a dating app?',
-              a: 'DUO OC is not a traditional dating app. It\'s a social discovery and casual hangout app built around 2v2 plans, friend groups, and low-pressure meetups around Orange County.',
-            },
-            {
-              q: 'Who is DUO OC for?',
-              a: 'DUO OC is for young adults in Orange County who want to make friends, meet new people, and find casual plans without the pressure of one-on-one dating apps.',
-            },
-            {
-              q: 'How does a 2v2 hangout work?',
-              a: 'You bring a friend, create or join a duo, discover another duo, and make a casual plan around OC. It\'s a friend-based way to meet people with less awkwardness.',
-            },
-            {
-              q: 'Where does DUO OC work?',
-              a: 'DUO OC is built for Orange County — Irvine, Fullerton, Anaheim, Costa Mesa, Huntington Beach, Garden Grove, Buena Park, and nearby OC communities.',
-            },
-            {
-              q: 'What should I search to find DUO OC?',
-              a: 'People find DUO OC by searching DUO OC, OC DUO, OC social app, Orange County social app, OC hangout app, 2v2 hangout app, or meet new people in Orange County.',
-            },
+            { q: 'What is DUO OC?', a: 'DUO OC, also searched as OC DUO, is a 2v2 social hangout app for Orange County. It helps young adults meet new people in OC by bringing a friend and matching with another duo.' },
+            { q: 'Is DUO OC a dating app?', a: "DUO OC is not a traditional dating app. It's a social discovery and casual hangout app built around 2v2 plans, friend groups, and low-pressure meetups around Orange County." },
+            { q: 'Who is DUO OC for?', a: 'DUO OC is for young adults aged 18–25 in Orange County who want to meet new people and find casual plans without the pressure of one-on-one apps.' },
+            { q: 'How does a 2v2 hangout work?', a: "You bring a friend, create a duo, discover other duos, and propose a casual plan around OC. Everyone shows up with backup — no cold one-on-ones." },
+            { q: 'Where does DUO OC work?', a: 'DUO OC is built for Orange County — Irvine, Fullerton, Anaheim, Costa Mesa, Huntington Beach, Newport Beach, and nearby OC communities.' },
+            { q: 'What should I search to find DUO OC?', a: 'People find DUO OC by searching DUO OC, OC DUO, OC social app, Orange County social app, OC hangout app, 2v2 hangout app, or meet new people in Orange County.' },
           ].map(({ q, a }, i) => (
-            <details
-              key={i}
-              style={{
-                borderBottom:  `0.5px solid rgba(255,255,255,0.07)`,
-                padding:       '14px 0',
-                listStyle:     'none',
-              }}
-            >
-              <summary style={{
-                fontSize:   13,
-                fontWeight: 600,
-                color:      C.white,
-                cursor:     'pointer',
-                listStyle:  'none',
-                userSelect: 'none',
-                opacity:    0.85,
-              }}>
-                {q}
-              </summary>
-              <p style={{
-                fontSize:   13,
-                color:      C.muted,
-                lineHeight: 1.65,
-                margin:     '10px 0 0',
-              }}>
-                {a}
-              </p>
+            <details key={i} style={{ borderBottom: '1px solid #f5f5f5', padding: '14px 0' }}>
+              <summary style={{ fontFamily: FONT_B, fontSize: 13, fontWeight: 500, color: '#999', cursor: 'pointer', listStyle: 'none' }}>{q}</summary>
+              <p style={{ fontFamily: FONT_B, fontSize: 13, color: '#bbb', lineHeight: 1.65, margin: '8px 0 0', fontWeight: 300 }}>{a}</p>
             </details>
           ))}
-        </motion.div>
+        </section>
+
       </div>
-    </div>
+
+      {/* ── Toast ── */}
+      <Toast />
+    </>
   );
 }
