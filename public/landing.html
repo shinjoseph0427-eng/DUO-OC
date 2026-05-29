@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DUO OC — Find your people. Plan something real.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #FF5C00;
+      --orange-light: #FFF5F0;
+      --text: #111111;
+      --muted: #6B7280;
+      --border: rgba(0,0,0,0.08);
+      --white: #FFFFFF;
+      --bg: #FFFFFF;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-weight: 400;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, .syne {
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+    }
+
+    /* ── Keyframes ─────────────────────────────────────── */
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%       { transform: scale(1.55); opacity: 0.55; }
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+
+    @keyframes toast-in {
+      from { transform: translateY(24px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    @keyframes toast-out {
+      from { opacity: 1; }
+      to   { opacity: 0; pointer-events: none; }
+    }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    /* ── Layout ────────────────────────────────────────── */
+    .container {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Nav ───────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+
+    .nav-logo {
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 20px;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo span { color: var(--orange); }
+
+    .nav-login {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text);
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .nav-login:hover { color: var(--orange); }
+
+    /* ── Hero ──────────────────────────────────────────── */
+    .hero {
+      padding: 80px 0 64px;
+      text-align: center;
+      animation: fade-up 0.55s ease both;
+    }
+
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1.5px solid var(--orange);
+      border-radius: 9999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--orange);
+      margin-bottom: 28px;
+      background: var(--white);
+      letter-spacing: 0.01em;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--orange);
+      flex-shrink: 0;
+      animation: pulse-dot 1.6s ease-in-out infinite;
+    }
+
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 62px);
+      line-height: 1.08;
+      letter-spacing: -1.5px;
+      color: var(--text);
+      max-width: 720px;
+      margin: 0 auto 20px;
+    }
+
+    .hero p {
+      font-size: 17px;
+      font-weight: 400;
+      color: var(--muted);
+      max-width: 400px;
+      margin: 0 auto;
+      line-height: 1.65;
+    }
+
+    /* ── Cards ─────────────────────────────────────────── */
+    .cards-section {
+      padding: 16px 0 48px;
+    }
+
+    .cards-track-wrapper {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cards-track-wrapper::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 120px;
+      background: linear-gradient(to right, transparent, var(--bg));
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .cards-track {
+      display: flex;
+      gap: 14px;
+      padding: 8px 24px 16px;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      cursor: grab;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      user-select: none;
+    }
+
+    .cards-track::-webkit-scrollbar { display: none; }
+    .cards-track.dragging { cursor: grabbing; scroll-behavior: auto; }
+
+    .duo-card {
+      flex-shrink: 0;
+      width: 220px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+    }
+
+    .card-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      margin-bottom: 14px;
+      letter-spacing: -0.5px;
+    }
+
+    .card-name {
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 4px;
+      letter-spacing: -0.2px;
+    }
+
+    .card-location {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      background: #F5F5F5;
+      border-radius: 9999px;
+      padding: 4px 10px;
+      white-space: nowrap;
+    }
+
+    /* Locked cards */
+    .duo-card.locked {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .duo-card.blur-4 { filter: blur(4px); }
+    .duo-card.blur-8 { filter: blur(8px); }
+
+    .locked-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      border-radius: 16px;
+    }
+
+    .locked-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--orange);
+      text-align: center;
+      line-height: 1.5;
+      padding: 0 12px;
+    }
+
+    /* ── Social proof ──────────────────────────────────── */
+    .social-proof {
+      padding: 8px 0 64px;
+      text-align: center;
+    }
+
+    .proof-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .avatar-stack {
+      display: flex;
+      align-items: center;
+    }
+
+    .avatar-stack .av {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 11px;
+    }
+
+    .avatar-stack .av + .av { margin-left: -8px; }
+
+    .proof-text {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .proof-text strong {
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    /* ── Reveal mechanic ───────────────────────────────── */
+    .mechanic-section {
+      padding: 0 0 80px;
+    }
+
+    .mechanic-box {
+      background: var(--orange-light);
+      border: 1.5px solid var(--orange);
+      border-radius: 14px;
+      padding: 32px;
+    }
+
+    .mechanic-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--orange);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .mechanic-heading {
+      font-size: clamp(22px, 3.5vw, 30px);
+      letter-spacing: -0.5px;
+      color: var(--text);
+      margin-bottom: 28px;
+      max-width: 520px;
+    }
+
+    .mechanic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .mechanic-step {
+      background: var(--white);
+      border-radius: 10px;
+      padding: 18px 16px;
+      border: 1px solid rgba(255,92,0,0.15);
+    }
+
+    .mechanic-num {
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 26px;
+      color: var(--orange);
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+
+    .mechanic-step-title {
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .mechanic-step-desc {
+      font-size: 12px;
+      font-weight: 300;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── How it works ──────────────────────────────────── */
+    .hiw-section {
+      padding: 0 0 96px;
+    }
+
+    .hiw-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--orange);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .hiw-heading {
+      font-size: clamp(26px, 4vw, 38px);
+      letter-spacing: -0.7px;
+      color: var(--text);
+      margin-bottom: 56px;
+      max-width: 440px;
+    }
+
+    .hiw-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+    }
+
+    .hiw-step {
+      display: flex;
+      gap: 28px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .step-num-bg {
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 96px;
+      line-height: 1;
+      color: rgba(0,0,0,0.05);
+      position: absolute;
+      left: -10px;
+      top: -22px;
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: -4px;
+    }
+
+    .step-content {
+      position: relative;
+      z-index: 1;
+      padding-left: 72px;
+    }
+
+    .step-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--orange);
+      border: 1px solid rgba(255,92,0,0.35);
+      border-radius: 9999px;
+      padding: 3px 10px;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+
+    .step-title {
+      font-size: 18px;
+      letter-spacing: -0.3px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .step-desc {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 480px;
+    }
+
+    /* ── CTA ───────────────────────────────────────────── */
+    .cta-section {
+      padding: 80px 0 100px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .cta-heading {
+      font-size: clamp(30px, 5vw, 52px);
+      letter-spacing: -1.2px;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .cta-sub {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-bottom: 36px;
+      max-width: 360px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.6;
+    }
+
+    .cta-btn {
+      display: inline-block;
+      position: relative;
+      overflow: hidden;
+      background: var(--orange);
+      color: var(--white);
+      font-family: 'Syne', system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -0.2px;
+      border: none;
+      border-radius: 9999px;
+      padding: 16px 44px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.15s;
+      margin-bottom: 20px;
+    }
+
+    .cta-btn:hover { opacity: 0.92; }
+
+    .cta-btn::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(
+        105deg,
+        transparent 30%,
+        rgba(255,255,255,0.28) 50%,
+        transparent 70%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 2.2s linear infinite;
+    }
+
+    .cta-login {
+      display: block;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      text-decoration: none;
+      margin-bottom: 36px;
+      transition: color 0.15s;
+      cursor: pointer;
+    }
+
+    .cta-login:hover { color: var(--orange); }
+    .cta-login a { color: inherit; text-decoration: underline; }
+
+    .trust-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .trust-item {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .trust-dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--border);
+      display: inline-block;
+    }
+
+    /* ── Toast ─────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 24px;
+      z-index: 200;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      opacity: 0;
+      pointer-events: none;
+      max-width: 280px;
+    }
+
+    #toast.visible {
+      animation: toast-in 0.38s cubic-bezier(0.34,1.56,0.64,1) forwards;
+      pointer-events: auto;
+    }
+
+    #toast.hidden {
+      animation: toast-out 0.4s ease forwards;
+    }
+
+    .toast-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--orange);
+      flex-shrink: 0;
+    }
+
+    .toast-text {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .toast-text strong { font-weight: 500; }
+
+    /* ── Responsive ────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .container { padding: 0 18px; }
+      .hero { padding: 56px 0 48px; }
+      .mechanic-grid { grid-template-columns: 1fr; }
+      .hiw-section { padding: 0 0 64px; }
+      .cta-section { padding: 64px 0 80px; }
+      #toast { bottom: 20px; right: 16px; left: 16px; max-width: none; }
+      .step-num-bg { font-size: 72px; top: -16px; }
+      .step-content { padding-left: 52px; }
+    }
+
+    @media (max-width: 420px) {
+      .proof-row { flex-direction: column; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Nav ──────────────────────────────────────────── -->
+  <nav>
+    <div class="container">
+      <div class="nav-inner">
+        <a href="#" class="nav-logo">DUO <span>OC</span></a>
+        <a href="#" class="nav-login">Log in</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero ─────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="container">
+      <div class="live-pill">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        143 duos waiting in OC right now
+      </div>
+      <h1>Find your people.<br>Plan something real.</h1>
+      <p>Two friends meet two friends. No swiping, no small talk — just real hangouts in Orange County.</p>
+    </div>
+  </section>
+
+  <!-- ── Duo Cards ─────────────────────────────────────── -->
+  <section class="cards-section" aria-label="Active duos">
+    <div class="cards-track-wrapper">
+      <div class="cards-track" id="cardsTrack" role="list">
+
+        <!-- Card 1 -->
+        <div class="duo-card" role="listitem">
+          <div class="card-avatar" style="background:#FDECEA; color:#C0392B;">J</div>
+          <div class="card-name">Jess &amp; Marco</div>
+          <div class="card-location">Irvine, CA</div>
+          <div class="card-tags">
+            <span class="tag">coffee runs</span>
+            <span class="tag">hiking</span>
+            <span class="tag">thrift finds</span>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="duo-card" role="listitem">
+          <div class="card-avatar" style="background:#EDE7F6; color:#6A1B9A;">S</div>
+          <div class="card-name">Sofia &amp; Tyler</div>
+          <div class="card-location">Newport Beach, CA</div>
+          <div class="card-tags">
+            <span class="tag">beach days</span>
+            <span class="tag">live music</span>
+            <span class="tag">tacos</span>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="duo-card" role="listitem">
+          <div class="card-avatar" style="background:#E8F5E9; color:#2E7D32;">A</div>
+          <div class="card-name">Aiden &amp; Nour</div>
+          <div class="card-location">Anaheim, CA</div>
+          <div class="card-tags">
+            <span class="tag">skate spots</span>
+            <span class="tag">art walks</span>
+          </div>
+        </div>
+
+        <!-- Card 4 — locked, blur-4 -->
+        <div style="position:relative; flex-shrink:0; width:220px;">
+          <div class="duo-card blur-4" aria-hidden="true">
+            <div class="card-avatar" style="background:#FFF8E1; color:#F57F17;">M</div>
+            <div class="card-name">Maya &amp; Luca</div>
+            <div class="card-location">Costa Mesa, CA</div>
+            <div class="card-tags">
+              <span class="tag">rooftop dinners</span>
+              <span class="tag">yoga</span>
+            </div>
+          </div>
+          <div class="locked-overlay">
+            <div class="locked-text">Sign up<br>to unlock</div>
+          </div>
+        </div>
+
+        <!-- Card 5 — locked, blur-8 -->
+        <div style="position:relative; flex-shrink:0; width:220px; margin-right:24px;">
+          <div class="duo-card blur-8" aria-hidden="true">
+            <div class="card-avatar" style="background:#E3F2FD; color:#1565C0;">R</div>
+            <div class="card-name">Riley &amp; Dev</div>
+            <div class="card-location">Fullerton, CA</div>
+            <div class="card-tags">
+              <span class="tag">night drives</span>
+              <span class="tag">boba</span>
+            </div>
+          </div>
+          <div class="locked-overlay">
+            <div class="locked-text">Sign up<br>to unlock</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Social Proof ──────────────────────────────────── -->
+  <section class="social-proof" aria-label="Social proof">
+    <div class="container">
+      <div class="proof-row">
+        <div class="avatar-stack" aria-hidden="true">
+          <div class="av" style="background:#FDECEA; color:#C0392B;">J</div>
+          <div class="av" style="background:#EDE7F6; color:#6A1B9A;">S</div>
+          <div class="av" style="background:#E8F5E9; color:#2E7D32;">A</div>
+          <div class="av" style="background:#FFF8E1; color:#F57F17;">M</div>
+          <div class="av" style="background:#E3F2FD; color:#1565C0;">R</div>
+        </div>
+        <p class="proof-text"><strong>847 duos matched</strong> · 24 new today</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Reveal Mechanic ───────────────────────────────── -->
+  <section class="mechanic-section">
+    <div class="container">
+      <div class="mechanic-box">
+        <p class="mechanic-label">How matching works</p>
+        <h2 class="mechanic-heading">Your Instagram unlocks when you match</h2>
+        <div class="mechanic-grid">
+          <div class="mechanic-step">
+            <div class="mechanic-num">01</div>
+            <div class="mechanic-step-title">Both duos say yes</div>
+            <p class="mechanic-step-desc">Two friends agree on a hangout request together</p>
+          </div>
+          <div class="mechanic-step">
+            <div class="mechanic-num">02</div>
+            <div class="mechanic-step-title">A chat opens</div>
+            <p class="mechanic-step-desc">A private group thread appears for all four of you</p>
+          </div>
+          <div class="mechanic-step">
+            <div class="mechanic-num">03</div>
+            <div class="mechanic-step-title">Instagrams revealed</div>
+            <p class="mechanic-step-desc">Profiles unlock so you can actually connect outside the app</p>
+          </div>
+          <div class="mechanic-step">
+            <div class="mechanic-num">04</div>
+            <div class="mechanic-step-title">Go live your life</div>
+            <p class="mechanic-step-desc">Lock in a real plan and go do something worth posting</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How It Works ──────────────────────────────────── -->
+  <section class="hiw-section">
+    <div class="container">
+      <p class="hiw-label">The playbook</p>
+      <h2 class="hiw-heading">Simple by design</h2>
+
+      <div class="hiw-steps">
+
+        <div class="hiw-step">
+          <div class="step-num-bg" aria-hidden="true">1</div>
+          <div class="step-content">
+            <span class="step-pill">Duos only</span>
+            <h3 class="step-title">Join with a friend</h3>
+            <p class="step-desc">Create a duo with one person you already know. Your DUO OC profile is both of yours — pick a name, add your vibe, and you're live.</p>
+          </div>
+        </div>
+
+        <div class="hiw-step">
+          <div class="step-num-bg" aria-hidden="true">2</div>
+          <div class="step-content">
+            <span class="step-pill">2v2</span>
+            <h3 class="step-title">Browse other duos</h3>
+            <p class="step-desc">Scroll through duos in Orange County. Filter by vibe, see their open plans, send a hangout request if the energy matches.</p>
+          </div>
+        </div>
+
+        <div class="hiw-step">
+          <div class="step-num-bg" aria-hidden="true">3</div>
+          <div class="step-content">
+            <span class="step-pill">Real plans</span>
+            <h3 class="step-title">Lock in a plan together</h3>
+            <p class="step-desc">Propose a spot, a day, and a vibe. When the other duo accepts, a four-person chat opens automatically with Instagram handles revealed.</p>
+          </div>
+        </div>
+
+        <div class="hiw-step">
+          <div class="step-num-bg" aria-hidden="true">4</div>
+          <div class="step-content">
+            <span class="step-pill">No DMs</span>
+            <h3 class="step-title">No cold messages ever</h3>
+            <p class="step-desc">You can only chat after both duos agree. Zero awkward intros. Every conversation starts from a shared yes.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ───────────────────────────────────────────── -->
+  <section class="cta-section">
+    <div class="container">
+      <h2 class="cta-heading">Your duo is already<br>out there.</h2>
+      <p class="cta-sub">Thousands of people in OC looking for the same thing. Start for free.</p>
+      <a href="#" class="cta-btn">Find my duo</a>
+      <p class="cta-login">Already have an account? <a href="#">Log in</a></p>
+      <div class="trust-row">
+        <span class="trust-item">No credit card</span>
+        <span class="trust-dot" aria-hidden="true"></span>
+        <span class="trust-item">OC only</span>
+        <span class="trust-dot" aria-hidden="true"></span>
+        <span class="trust-item">Free forever</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Toast ─────────────────────────────────────────── -->
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true">
+    <div class="toast-dot" aria-hidden="true"></div>
+    <div class="toast-text"><strong>Brianna</strong> just joined DUO OC</div>
+  </div>
+
+  <script>
+    (function () {
+
+      /* ── Drag-to-scroll cards ───────────────────────── */
+      const track = document.getElementById('cardsTrack');
+      let isDragging = false, startX = 0, scrollStart = 0;
+
+      track.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX;
+        scrollStart = track.scrollLeft;
+        track.classList.add('dragging');
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        track.scrollLeft = scrollStart - (e.pageX - startX);
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+        track.classList.remove('dragging');
+      });
+
+      track.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].pageX;
+        scrollStart = track.scrollLeft;
+      }, { passive: true });
+
+      track.addEventListener('touchmove', (e) => {
+        track.scrollLeft = scrollStart - (e.touches[0].pageX - startX);
+      }, { passive: true });
+
+      /* ── Auto-scroll hint ───────────────────────────── */
+      setTimeout(() => {
+        const original = track.scrollLeft;
+        track.style.scrollBehavior = 'smooth';
+        track.scrollLeft = original + 60;
+        setTimeout(() => {
+          track.scrollLeft = original;
+          setTimeout(() => { track.style.scrollBehavior = ''; }, 600);
+        }, 520);
+      }, 1800);
+
+      /* ── Toast notification ─────────────────────────── */
+      const toast = document.getElementById('toast');
+
+      setTimeout(() => {
+        toast.classList.add('visible');
+      }, 2500);
+
+      setTimeout(() => {
+        toast.classList.remove('visible');
+        toast.classList.add('hidden');
+      }, 7000);
+
+    })();
+  </script>
+
+</body>
+</html>
