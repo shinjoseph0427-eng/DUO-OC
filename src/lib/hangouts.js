@@ -191,7 +191,8 @@ export async function approveHangoutInternal(hangoutId, currentUserId, approve) 
     .eq('id', hangoutId)
     .single()
   if (fetchErr || !h) throw new Error('Hangout not found')
-  if (h.status !== 'pending_internal') throw new Error('This hangout is no longer awaiting partner approval')
+  // Already advanced (approved/sent/cancelled) — not an error, just a no-op.
+  if (h.status !== 'pending_internal') return { alreadyProcessed: true }
 
   // Caller must be a member of the proposing duo.
   const { data: membership } = await supabase

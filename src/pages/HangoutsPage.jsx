@@ -313,13 +313,18 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const handlePartnerApproval = async (hangoutId, approve) => {
     if (busyApprovalId) return;
     setBusyApprovalId(hangoutId);
+    // Optimistically drop the card so it can't be clicked twice: partnerApprovals
+    // only keeps status === 'pending_internal' rows, so flipping it removes it.
+    setHangouts((prev) => prev.map((h) => (h.id === hangoutId ? { ...h, status: 'processing' } : h)));
     try {
       const res = await approveHangoutInternal(hangoutId, currentUser?.id, approve);
       load();
+      if (res?.alreadyProcessed) return; // already handled elsewhere — silent
       if (!approve) showToast?.('Declined. Your partner was notified.', 'info');
       else if (res?.sent) showToast?.('Sent to the other duo!', 'success');
       else showToast?.('You’re in — waiting on your partner.', 'success');
     } catch (err) {
+      load(); // resync local state with the server
       showToast?.(err?.message ?? 'Could not update.', 'error');
     } finally {
       setBusyApprovalId(null);
