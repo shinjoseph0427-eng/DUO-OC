@@ -238,6 +238,7 @@ export async function acceptHomieRequest(requestId) {
   if (receiverCount >= 3) throw new Error("You've reached your 3 Duo limit.")
 
   const existingDuoId = await findSharedActiveDuo(senderId, receiverId)
+  const createdNewDuo = !existingDuoId
   const finalDuoId = existingDuoId ?? await createDuoWithMembers(senderProfile, receiverProfile)
 
   const { data: acceptedRequest, error: acceptError } = await supabase
@@ -247,7 +248,15 @@ export async function acceptHomieRequest(requestId) {
     .select()
     .single()
 
-  if (acceptError) throwStep('request update failed', acceptError)
+  if (acceptError) {
+    // Roll back the duo we just created so we don't leave an orphan with no
+    // accepted request behind it. (Only if WE created it this call.)
+    if (createdNewDuo && finalDuoId) {
+      await supabase.from('duo_members').delete().eq('duo_id', finalDuoId)
+      await supabase.from('duos').delete().eq('id', finalDuoId)
+    }
+    throwStep('request update failed', acceptError)
+  }
 
   const { error: notificationError } = await supabase.rpc(
     'notify_homie_request_accepted',
@@ -354,6 +363,14 @@ export async function leaveDuo(duoId) {
   } catch (e) {
     console.warn('leaveDuo: hangout cancellation/notify failed (non-fatal)', e);
   }
+
+  // Remove the now-orphaned membership rows for the dissolved duo. Done last so
+  // the STEP C notifications above (which look up duoId's members) still fire.
+  const { error: membersDeleteError } = await supabase
+    .from('duo_members')
+    .delete()
+    .eq('duo_id', duoId);
+  if (membersDeleteError) throw membersDeleteError;
 
   return { success: true };
 }

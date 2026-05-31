@@ -17,6 +17,7 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
   const [msgFocus, setMsgFocus]         = useState(false);
   const [sent, setSent]                 = useState(false);
   const [alreadyRequested, setAlreadyRequested] = useState(false);
+  const [timeConflict, setTimeConflict] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
 
@@ -52,12 +53,14 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
             <span style={{ fontSize: 28 }}>✓</span>
           </div>
           <p style={{ fontSize: 24, fontWeight: 800, color: C.white, marginBottom: 12, letterSpacing: '-0.5px' }}>
-            {alreadyRequested ? 'Already requested! 👋' : 'Request sent! 🎉'}
+            {timeConflict ? 'Time conflict! ⏰' : alreadyRequested ? 'Already requested! 👋' : 'Request sent! 🎉'}
           </p>
           <p style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 1.6 }}>
-            {alreadyRequested
-              ? `You already have a pending hangout with ${duo.name}.`
-              : `We'll let you know when ${duo.name} responds.`}
+            {timeConflict
+              ? 'Your duo already has a hangout at that time. Pick a different time.'
+              : alreadyRequested
+                ? `You already have a pending hangout with ${duo.name}.`
+                : `We'll let you know when ${duo.name} responds.`}
           </p>
           <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
         </div>
@@ -82,6 +85,7 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
         message:    message || '',
       });
       setAlreadyRequested(Boolean(res?.alreadySent));
+      setTimeConflict(Boolean(res?.timeConflict));
       setSent(true);
     } catch (err) {
       console.error('hangout propose error:', err);

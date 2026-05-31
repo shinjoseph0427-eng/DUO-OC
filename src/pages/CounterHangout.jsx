@@ -56,7 +56,7 @@ export default function CounterHangout({ currentUser, hangout, go, goBack }) {
     if (!canSubmit || !hangout) return;
     try {
       setLoading(true);
-      await counterHangout(hangout.id, { date, timeSlot, place });
+      await counterHangout(hangout.id, { date, timeSlot, place }, currentUser?.id);
       setSent(true);
     } catch (err) {
       logError('counter hangout failed', err);

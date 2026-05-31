@@ -130,6 +130,30 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
   await assertDuoIsNotRestricted(fromDuoId)
   await assertDuoIsNotRestricted(toDuoId)
 
+  // Block check — duo-level (blocks) in either direction.
+  const { data: duoBlock } = await supabase
+    .from('blocks')
+    .select('blocker_duo_id')
+    .or(`and(blocker_duo_id.eq.${fromDuoId},blocked_duo_id.eq.${toDuoId}),and(blocker_duo_id.eq.${toDuoId},blocked_duo_id.eq.${fromDuoId})`)
+    .limit(1)
+  if (duoBlock && duoBlock.length > 0) throw new Error('Cannot send request to this duo')
+
+  // Block check — member-level (user_blocks) between the two duos, either way.
+  const { data: bothMembers } = await supabase
+    .from('duo_members')
+    .select('duo_id, user_id')
+    .in('duo_id', [fromDuoId, toDuoId])
+  const fromUserIds = (bothMembers ?? []).filter((m) => m.duo_id === fromDuoId).map((m) => m.user_id).filter(Boolean)
+  const toUserIds   = (bothMembers ?? []).filter((m) => m.duo_id === toDuoId).map((m) => m.user_id).filter(Boolean)
+  if (fromUserIds.length && toUserIds.length) {
+    const { data: userBlock } = await supabase
+      .from('user_blocks')
+      .select('blocker_id')
+      .or(`and(blocker_id.in.(${fromUserIds.join(',')}),blocked_id.in.(${toUserIds.join(',')})),and(blocker_id.in.(${toUserIds.join(',')}),blocked_id.in.(${fromUserIds.join(',')}))`)
+      .limit(1)
+    if (userBlock && userBlock.length > 0) throw new Error('Cannot send request to this duo')
+  }
+
   // Block duplicates: an active request already exists between these two duos
   // (either direction). Mirrors the DB partial unique index.
   const { data: existing } = await supabase
@@ -140,6 +164,19 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
     .limit(1)
 
   if (existing && existing.length > 0) return { alreadySent: true }
+
+  // Time conflict: my duo already has a hangout at the same date + time slot.
+  if (date && timeSlot) {
+    const { data: conflict } = await supabase
+      .from('hangouts')
+      .select('id')
+      .or(`duo_a_id.eq.${fromDuoId},duo_b_id.eq.${fromDuoId}`)
+      .eq('date', date)
+      .eq('time_slot', timeSlot)
+      .in('status', ['pending', 'confirmed', 'countered'])
+      .limit(1)
+    if (conflict && conflict.length > 0) return { timeConflict: true }
+  }
 
   const { data: hangout, error } = await supabase
     .from('hangouts')
@@ -157,7 +194,11 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
     .select()
     .single()
 
-  if (error) throw error
+  // 23505 = the DB partial unique index caught a concurrent duplicate request.
+  if (error) {
+    if (error.code === '23505') return { alreadySent: true }
+    throw error
+  }
 
   // Notify the receiving duo directly (best-effort — never block the proposal).
   const { data: fromDuo } = await supabase
@@ -275,10 +316,16 @@ export async function getMyHangouts(duoIds) {
 export async function acceptHangout(hangoutId, currentUserId) {
   const { data: h, error: fetchErr } = await supabase
     .from('hangouts')
-    .select('duo_a_id, duo_b_id, status')
+    .select('duo_a_id, duo_b_id, status, date, time_slot')
     .eq('id', hangoutId)
     .single()
   if (fetchErr || !h) throw new Error('Hangout not found')
+
+  // Only an open request can be accepted. Anything else (already confirmed,
+  // declined, cancelled) means it was handled — prevents double-accept from a
+  // button re-click or two members accepting at once. ('countered' is valid:
+  // the proposer accepting the counter-proposal.)
+  if (h.status !== 'pending' && h.status !== 'countered') return { alreadyProcessed: true }
 
   // Countered: duo_a is accepting the counter.
   const verifyDuoId = h.status === 'countered' ? h.duo_a_id : h.duo_b_id
@@ -287,9 +334,31 @@ export async function acceptHangout(hangoutId, currentUserId) {
     .eq('duo_id', verifyDuoId).eq('user_id', currentUserId).maybeSingle()
   if (!membership) throw new Error('You are not a member of this duo')
 
-  const { error } = await supabase
-    .from('hangouts').update({ status: 'confirmed' }).eq('id', hangoutId)
+  // Time conflict: either duo already has a different CONFIRMED hangout at this
+  // date + time slot — confirming would double-book them.
+  if (h.date && h.time_slot) {
+    const { data: conflict } = await supabase
+      .from('hangouts')
+      .select('id')
+      .or(`duo_a_id.eq.${h.duo_a_id},duo_b_id.eq.${h.duo_a_id},duo_a_id.eq.${h.duo_b_id},duo_b_id.eq.${h.duo_b_id}`)
+      .eq('date', h.date)
+      .eq('time_slot', h.time_slot)
+      .eq('status', 'confirmed')
+      .neq('id', hangoutId)
+      .limit(1)
+    if (conflict && conflict.length > 0) return { timeConflict: true }
+  }
+
+  // Conditional update guarded on the still-open status, so two members
+  // accepting at once can't both succeed (the loser updates 0 rows).
+  const { data: updated, error } = await supabase
+    .from('hangouts')
+    .update({ status: 'confirmed' })
+    .eq('id', hangoutId)
+    .in('status', ['pending', 'countered'])
+    .select('id')
   if (error) throw error
+  if (!updated || updated.length === 0) return { alreadyProcessed: true }
 
   const { data: duoB } = await supabase.from('duos').select('name').eq('id', h.duo_b_id).single()
   await createNotificationsForDuo(h.duo_a_id, 'hangout_accepted', {
@@ -308,6 +377,12 @@ export async function declineHangout(hangoutId, currentUserId) {
     .single()
   if (!h) throw new Error('Hangout not found')
 
+  // Caller must be a member of one of the two duos.
+  const { data: membership } = await supabase
+    .from('duo_members').select('duo_id')
+    .in('duo_id', [h.duo_a_id, h.duo_b_id]).eq('user_id', currentUserId).maybeSingle()
+  if (!membership) throw new Error('Not authorized')
+
   const { error } = await supabase
     .from('hangouts').update({ status: 'declined' }).eq('id', hangoutId)
   if (error) throw error
@@ -319,7 +394,19 @@ export async function declineHangout(hangoutId, currentUserId) {
   })
 }
 
-export async function counterHangout(hangoutId, newData) {
+export async function counterHangout(hangoutId, newData, currentUserId) {
+  // Caller must be a member of one of the two duos on this hangout.
+  const { data: h } = await supabase
+    .from('hangouts')
+    .select('duo_a_id, duo_b_id')
+    .eq('id', hangoutId)
+    .single()
+  if (!h) throw new Error('Hangout not found')
+  const { data: membership } = await supabase
+    .from('duo_members').select('duo_id')
+    .in('duo_id', [h.duo_a_id, h.duo_b_id]).eq('user_id', currentUserId).maybeSingle()
+  if (!membership) throw new Error('Not authorized')
+
   const { error } = await supabase
     .from('hangouts')
     .update({

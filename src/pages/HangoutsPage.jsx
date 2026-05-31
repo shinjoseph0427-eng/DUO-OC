@@ -222,6 +222,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const [acceptedPlanReqId, setAcceptedPlanReqId] = useState(null);
   const [busyPlanReqId,     setBusyPlanReqId]     = useState(null);
   const [confirmCancelId,   setConfirmCancelId]   = useState(null);
+  const [busyHangoutId,     setBusyHangoutId]     = useState(null);
   // Reviews
   const [reviewMap,           setReviewMap]           = useState(new Map()); // hangoutId → review
   const [reviewingHangoutId,  setReviewingHangoutId]  = useState(null);
@@ -289,22 +290,40 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
   const handleAccept = async (id) => {
+    if (busyHangoutId) return false; // re-entry guard against double/stale clicks
+    setBusyHangoutId(id);
+    // Optimistically drop it from the incoming/countered lists so it can't be
+    // clicked again while the request is in flight.
+    setHangouts((prev) => prev.map((h) => (h.id === id ? { ...h, status: 'processing' } : h)));
     try {
-      await acceptHangout(id, currentUser?.id);
+      const res = await acceptHangout(id, currentUser?.id);
       load();
+      if (res?.timeConflict) {
+        showToast?.('Time conflict — your duo already has a hangout then.', 'error');
+        return false;
+      }
       return true;
     } catch (err) {
+      load(); // resync (revert the optimistic change)
       showToast?.(err?.message ?? 'Could not accept hangout.', 'error');
       return false;
+    } finally {
+      setBusyHangoutId(null);
     }
   };
 
   const handleDecline = async (id) => {
+    if (busyHangoutId) return;
+    setBusyHangoutId(id);
+    setHangouts((prev) => prev.map((h) => (h.id === id ? { ...h, status: 'processing' } : h)));
     try {
       await declineHangout(id, currentUser?.id);
       load();
     } catch (err) {
+      load();
       showToast?.(err?.message ?? 'Could not decline hangout.', 'error');
+    } finally {
+      setBusyHangoutId(null);
     }
   };
 
