@@ -4,7 +4,7 @@ import { AtSign, ChevronLeft, MapPin } from 'lucide-react';
 import { C, F } from '../tokens';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
-import { getSentHomieRequests, sendHomieRequest } from '../lib/homie.js';
+import { getSentHomieRequests, sendHomieRequest, getMyHomieIds } from '../lib/homie.js';
 import { blockUser } from '../lib/safety.js';
 
 function PromptBlock({ question, answer }) {
@@ -59,9 +59,17 @@ export default function HomieProfilePage({ homie, currentUser, go, showToast }) 
     }
 
     setLoadingStatus(true);
-    getSentHomieRequests(currentUser.id)
-      .then((requests) => {
+    Promise.all([
+      getMyHomieIds(currentUser.id),
+      getSentHomieRequests(currentUser.id),
+    ])
+      .then(([homieIds, requests]) => {
         if (cancelled) return;
+        // Bidirectional accepted check takes priority over a one-way sent request.
+        if (homieIds.includes(homie.id)) {
+          setRequestStatus('accepted');
+          return;
+        }
         const existing = requests.find((request) => request.to_user_id === homie.id);
         setRequestStatus(existing?.status ?? null);
       })
@@ -92,8 +100,8 @@ export default function HomieProfilePage({ homie, currentUser, go, showToast }) 
     if (!currentUser?.id || !homie?.id || sending || requestStatus) return;
     setSending(true);
     try {
-      await sendHomieRequest(currentUser.id, homie.id);
-      setRequestStatus('pending');
+      const res = await sendHomieRequest(currentUser.id, homie.id);
+      setRequestStatus(res?.alreadyHomies ? 'accepted' : 'pending');
     } catch {
       setRequestStatus(null);
     } finally {

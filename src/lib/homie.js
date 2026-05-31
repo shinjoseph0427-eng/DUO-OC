@@ -81,6 +81,39 @@ async function createDuoWithMembers(senderProfile, receiverProfile) {
 }
 
 export async function findHomies(currentUser, myProfile) {
+  // Build the exclusion set: self, existing homies (either direction), anyone
+  // with a pending request either direction, and my duo co-members.
+  const [homieIds, pendingRowsRes, myMembershipsRes] = await Promise.all([
+    getMyHomieIds(currentUser.id),
+    supabase
+      .from('homie_requests')
+      .select('from_user_id, to_user_id')
+      .eq('status', 'pending')
+      .or(`from_user_id.eq.${currentUser.id},to_user_id.eq.${currentUser.id}`),
+    supabase
+      .from('duo_members')
+      .select('duo_id')
+      .eq('user_id', currentUser.id),
+  ])
+
+  const pendingIds = (pendingRowsRes.data ?? []).map(
+    (r) => (r.from_user_id === currentUser.id ? r.to_user_id : r.from_user_id),
+  )
+
+  let coMemberIds = []
+  const myDuoIds = (myMembershipsRes.data ?? []).map((m) => m.duo_id).filter(Boolean)
+  if (myDuoIds.length) {
+    const { data: coMembers } = await supabase
+      .from('duo_members')
+      .select('user_id')
+      .in('duo_id', myDuoIds)
+    coMemberIds = (coMembers ?? []).map((m) => m.user_id)
+  }
+
+  const excluded = new Set(
+    [currentUser.id, ...homieIds, ...pendingIds, ...coMemberIds].filter(Boolean),
+  )
+
   let query = supabase
     .from('profiles')
     .select('*')
@@ -92,21 +125,41 @@ export async function findHomies(currentUser, myProfile) {
       .lte('age', myProfile.age + 3)
   }
 
-  const { data, error } = await query.limit(20)
+  // Over-fetch then filter client-side, since the exclusion set is dynamic.
+  const { data, error } = await query.limit(50)
   if (error) return []
-  return data
+  return (data ?? []).filter((p) => !excluded.has(p.id)).slice(0, 20)
+}
+
+// Returns the user ids of everyone the user is already homies with (accepted
+// homie_requests in either direction).
+export async function getMyHomieIds(userId) {
+  if (!userId) return []
+  const { data, error } = await supabase
+    .from('homie_requests')
+    .select('from_user_id, to_user_id')
+    .eq('status', 'accepted')
+    .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
+  if (error) return []
+  return [...new Set(
+    (data ?? []).map((r) => (r.from_user_id === userId ? r.to_user_id : r.from_user_id)),
+  )].filter(Boolean)
 }
 
 export async function sendHomieRequest(fromUserId, toUserId) {
-  const { data: existing } = await supabase
-    .from('homie_requests')
-    .select('id, status')
-    .eq('from_user_id', fromUserId)
-    .eq('to_user_id', toUserId)
-    .in('status', ['pending', 'accepted'])
-    .maybeSingle()
+  // Already homies (either direction)?
+  const homieIds = await getMyHomieIds(fromUserId)
+  if (homieIds.includes(toUserId)) return { alreadyHomies: true }
 
-  if (existing) return { alreadySent: true }
+  // Pending request already exists in either direction?
+  const { data: pendingRows } = await supabase
+    .from('homie_requests')
+    .select('id')
+    .eq('status', 'pending')
+    .or(`and(from_user_id.eq.${fromUserId},to_user_id.eq.${toUserId}),and(from_user_id.eq.${toUserId},to_user_id.eq.${fromUserId})`)
+    .limit(1)
+
+  if (pendingRows && pendingRows.length > 0) return { alreadySent: true }
 
   const { data: request, error } = await supabase
     .from('homie_requests')
