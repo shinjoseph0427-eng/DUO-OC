@@ -12,6 +12,7 @@ import {
   getMyHangouts, acceptHangout, declineHangout,
   getMyActivePlan, getIncomingPlanRequests,
   acceptPlanRequest, declinePlanRequest, cancelOpenPlan,
+  cancelHangoutRequest,
   isPastHangoutTime, formatPlanDateLabel,
 } from '../lib/hangouts.js';
 import { getMyChats } from '../lib/messages.js';
@@ -327,6 +328,22 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
     }
   };
 
+  const handleCancelRequest = async (id) => {
+    if (busyHangoutId) return;
+    setBusyHangoutId(id);
+    // Optimistically drop the sent card.
+    setHangouts((prev) => prev.map((h) => (h.id === id ? { ...h, status: 'processing' } : h)));
+    try {
+      await cancelHangoutRequest(id, currentUser?.id);
+      load();
+    } catch (err) {
+      load();
+      showToast?.(err?.message ?? 'Could not cancel request.', 'error');
+    } finally {
+      setBusyHangoutId(null);
+    }
+  };
+
   const handleAcceptPlanRequest = async (reqId) => {
     if (busyPlanReqId) return;
     setBusyPlanReqId(reqId);
@@ -602,6 +619,24 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                       Waiting for reply…
                     </p>
                     <HangoutMeta h={h} />
+                    <button
+                      type="button"
+                      onClick={() => handleCancelRequest(h.id)}
+                      disabled={busyHangoutId === h.id}
+                      style={{
+                        marginTop:  4,
+                        background:  'transparent',
+                        border:      'none',
+                        padding:     0,
+                        fontSize:    12,
+                        fontWeight:  600,
+                        color:       C.danger,
+                        cursor:      busyHangoutId === h.id ? 'wait' : 'pointer',
+                        opacity:     busyHangoutId === h.id ? 0.6 : 1,
+                      }}
+                    >
+                      Cancel request
+                    </button>
                   </div>
                 ))}
               </>

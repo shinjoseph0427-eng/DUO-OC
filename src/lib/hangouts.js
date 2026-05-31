@@ -394,6 +394,42 @@ export async function declineHangout(hangoutId, currentUserId) {
   })
 }
 
+// The proposing duo cancels its own outstanding request (pending/countered).
+export async function cancelHangoutRequest(hangoutId, currentUserId) {
+  const { data: h, error: fetchErr } = await supabase
+    .from('hangouts')
+    .select('duo_a_id, duo_b_id, status')
+    .eq('id', hangoutId)
+    .single()
+  if (fetchErr || !h) throw new Error('Hangout not found')
+  if (h.status !== 'pending' && h.status !== 'countered') return { alreadyProcessed: true }
+
+  // Caller must be a member of the proposing duo (duo_a).
+  const { data: membership } = await supabase
+    .from('duo_members').select('duo_id')
+    .eq('duo_id', h.duo_a_id).eq('user_id', currentUserId).maybeSingle()
+  if (!membership) throw new Error('Not authorized')
+
+  const { data: updated, error } = await supabase
+    .from('hangouts')
+    .update({ status: 'cancelled' })
+    .eq('id', hangoutId)
+    .in('status', ['pending', 'countered'])
+    .select('id')
+  if (error) throw error
+  if (!updated || updated.length === 0) return { alreadyProcessed: true }
+
+  // Notify the receiving duo (best-effort).
+  const { data: fromDuo } = await supabase.from('duos').select('name').eq('id', h.duo_a_id).single()
+  await createNotificationsForDuo(h.duo_b_id, 'hangout_cancelled', {
+    hangout_id:         hangoutId,
+    reason:             'requester_cancelled',
+    cancelled_duo_name: fromDuo?.name ?? 'A duo',
+  }).catch((err) => console.error('hangout_cancelled notification failed:', err))
+
+  return { success: true }
+}
+
 export async function counterHangout(hangoutId, newData, currentUserId) {
   // Caller must be a member of one of the two duos on this hangout.
   const { data: h } = await supabase
