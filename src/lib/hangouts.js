@@ -419,6 +419,13 @@ export async function cancelHangoutRequest(hangoutId, currentUserId) {
   if (error) throw error
   if (!updated || updated.length === 0) return { alreadyProcessed: true }
 
+  // Remove the original 'hangout_request' notification(s) so the receiving duo
+  // no longer sees a request that no longer exists. SECURITY DEFINER RPC because
+  // notifications has no DELETE RLS policy. Best-effort.
+  await supabase
+    .rpc('delete_hangout_notifications', { p_hangout_id: hangoutId })
+    .then(({ error: delErr }) => { if (delErr) console.error('delete notifications failed:', delErr) })
+
   // Notify the receiving duo (best-effort).
   const { data: fromDuo } = await supabase.from('duos').select('name').eq('id', h.duo_a_id).single()
   await createNotificationsForDuo(h.duo_b_id, 'hangout_cancelled', {
