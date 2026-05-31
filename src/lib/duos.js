@@ -2,6 +2,12 @@ import { supabase } from './supabaseClient.js'
 import { getHiddenUserIds } from './safety.js'
 
 export async function createDuo(userId, duoData) {
+  // Duos are 2-person only. A duo must be formed with a partner (via an accepted
+  // homie request / invite → createDuoWithMembers), never created solo.
+  if (!duoData?.partnerUserId) {
+    throw new Error('A duo needs a partner. Invite your homie to create a Duo together.')
+  }
+
   const { data: duo, error } = await supabase
     .from('duos')
     .insert({

@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient.js'
-import { createNotificationsForDuo } from './notifications.js'
+import { createNotificationsForDuo, createNotificationForUser } from './notifications.js'
 import { assertDuoIsNotRestricted } from './safety.js'
 
 export async function getWeeklyConfirmedCount() {
@@ -130,6 +130,16 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
   await assertDuoIsNotRestricted(fromDuoId)
   await assertDuoIsNotRestricted(toDuoId)
 
+  // Members of the proposing duo, minus the proposer = the partner(s) who must
+  // approve before the request is ever sent to the other duo.
+  const { data: members } = await supabase
+    .from('duo_members')
+    .select('user_id')
+    .eq('duo_id', fromDuoId)
+  const partnerIds = (members ?? [])
+    .map((m) => m.user_id)
+    .filter((id) => id && id !== proposedBy)
+
   const { data: hangout, error } = await supabase
     .from('hangouts')
     .insert({
@@ -141,22 +151,95 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
       place:       place ?? '',
       vibe,
       message:     message ?? '',
-      status:      'pending',
+      status:      'pending_internal',
+      proposer_approved_by: [proposedBy],
     })
     .select()
     .single()
 
   if (error) throw error
 
-  // Notify the receiving duo
-  const { data: fromDuo } = await supabase
-    .from('duos').select('name').eq('id', fromDuoId).single()
-  await createNotificationsForDuo(toDuoId, 'hangout_request', {
-    hangout_id: hangout.id,
-    duo_name:   fromDuo?.name ?? 'a duo',
-  })
+  // Ask the partner(s) to agree before it ever reaches the other duo.
+  const { data: proposer } = await supabase
+    .from('profiles').select('name').eq('id', proposedBy).single()
+  const { data: toDuo } = await supabase
+    .from('duos').select('name').eq('id', toDuoId).single()
+  await Promise.all(
+    partnerIds.map((uid) =>
+      createNotificationForUser(uid, 'partner_approval_needed', {
+        hangout_id:        hangout.id,
+        requested_by_name: proposer?.name ?? 'Your partner',
+        target_duo_name:   toDuo?.name ?? 'another duo',
+      }).catch(() => {}),
+    ),
+  )
 
   return hangout
+}
+
+// Records a proposing-duo member's vote on a 'pending_internal' hangout.
+//   approve = true  → add the user to proposer_approved_by; once every member of
+//                     the proposing duo has approved, flip to 'pending' and send
+//                     the request to the receiving duo.
+//   approve = false → cancel the hangout and notify the original proposer.
+export async function approveHangoutInternal(hangoutId, currentUserId, approve) {
+  if (!hangoutId || !currentUserId) throw new Error('hangoutId and currentUserId are required')
+
+  const { data: h, error: fetchErr } = await supabase
+    .from('hangouts')
+    .select('id, duo_a_id, duo_b_id, status, proposed_by, proposer_approved_by')
+    .eq('id', hangoutId)
+    .single()
+  if (fetchErr || !h) throw new Error('Hangout not found')
+  if (h.status !== 'pending_internal') throw new Error('This hangout is no longer awaiting partner approval')
+
+  // Caller must be a member of the proposing duo.
+  const { data: membership } = await supabase
+    .from('duo_members').select('duo_id')
+    .eq('duo_id', h.duo_a_id).eq('user_id', currentUserId).maybeSingle()
+  if (!membership) throw new Error('You are not a member of the proposing duo')
+
+  // Partner declined → cancel and tell the proposer.
+  if (!approve) {
+    const { error } = await supabase
+      .from('hangouts').update({ status: 'cancelled' }).eq('id', hangoutId)
+    if (error) throw error
+    const { data: toDuo } = await supabase.from('duos').select('name').eq('id', h.duo_b_id).single()
+    await createNotificationForUser(h.proposed_by, 'hangout_cancelled', {
+      hangout_id:     hangoutId,
+      other_duo_name: toDuo?.name ?? 'the other duo',
+      reason:         'partner_declined',
+    }).catch(() => {})
+    return { approved: false, cancelled: true }
+  }
+
+  // Approve → add this user (deduped) and check whether the whole duo has agreed.
+  const approvedBy = [...new Set([...(h.proposer_approved_by ?? []), currentUserId])]
+  const { data: duoMembers } = await supabase
+    .from('duo_members').select('user_id').eq('duo_id', h.duo_a_id)
+  const memberIds = (duoMembers ?? []).map((m) => m.user_id).filter(Boolean)
+  const allApproved = memberIds.length > 0 && memberIds.every((id) => approvedBy.includes(id))
+
+  if (!allApproved) {
+    const { error } = await supabase
+      .from('hangouts').update({ proposer_approved_by: approvedBy }).eq('id', hangoutId)
+    if (error) throw error
+    return { approved: true, sent: false }
+  }
+
+  // Everyone agreed → send it to the receiving duo.
+  const { error } = await supabase
+    .from('hangouts')
+    .update({ status: 'pending', proposer_approved_by: approvedBy })
+    .eq('id', hangoutId)
+  if (error) throw error
+
+  const { data: fromDuo } = await supabase.from('duos').select('name').eq('id', h.duo_a_id).single()
+  await createNotificationsForDuo(h.duo_b_id, 'hangout_request', {
+    hangout_id: hangoutId,
+    duo_name:   fromDuo?.name ?? 'a duo',
+  })
+  return { approved: true, sent: true }
 }
 
 // Accepts a single duoId (string) or an array of duoIds.
@@ -173,11 +256,11 @@ export async function getMyHangouts(duoIds) {
         *,
         duo_a:duos!hangouts_duo_a_id_fkey(
           id, name, city,
-          duo_members(instagram, profiles(name, instagram, photos))
+          duo_members(user_id, instagram, profiles(name, instagram, photos))
         ),
         duo_b:duos!hangouts_duo_b_id_fkey(
           id, name, city,
-          duo_members(instagram, profiles(name, instagram, photos))
+          duo_members(user_id, instagram, profiles(name, instagram, photos))
         )
       `)
       .or(orFilter)

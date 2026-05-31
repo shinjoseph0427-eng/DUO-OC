@@ -1,0 +1,16 @@
+-- Enforce "a duo must have a partner" (no solo duos).
+--
+-- DECISION: this is enforced at the CODE level for now, not in the database:
+--   * src/lib/duos.js  createDuo()  — throws unless a partner is provided
+--   * src/lib/hangouts.js proposeHangout() — always routes through partner approval
+--   * OnboardingFlow Step 4 — invite-only; the duo is created when the partner
+--     accepts (createDuoWithMembers), so it always has 2 members
+--
+-- A real DB constraint (a trigger checking duo_members count, since a row-level
+-- CHECK cannot count sibling rows) is intentionally deferred to a later
+-- migration. No schema change in this file — it documents the decision and
+-- reserves the migration slot.
+--
+-- Deferred for later (do NOT enable yet):
+--   CREATE OR REPLACE FUNCTION public.assert_duo_has_partner() ...
+--   CREATE CONSTRAINT TRIGGER duo_min_members ...

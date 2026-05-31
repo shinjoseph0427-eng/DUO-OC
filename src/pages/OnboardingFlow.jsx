@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Check } from 'lucide-react';
+import { ChevronLeft, Check, Users } from 'lucide-react';
 import { C } from '../tokens';
 import { createDuo } from '../lib/duos.js';
 import { updateProfile } from '../lib/profile.js';
@@ -125,12 +125,16 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
   const [uploadingIndex,setUploadingIndex]= useState(null);
   const [photoError,    setPhotoError]    = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteSent,    setInviteSent]    = useState(false);
+  const [inviteUrl,     setInviteUrl]     = useState('');
 
   const name      = useField('');
   const age       = useField('');
   const city      = useField('');
   const instagram = useField('');
   const duoName   = useField('');
+  const partnerName    = useField('');
+  const partnerContact = useField('');
   const [vibes, setVibes] = useState([]);
 
   useEffect(() => {
@@ -270,6 +274,40 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     }
   };
 
+  // Step 4 — generate an invite link for the partner, then show the waiting view.
+  // The duo itself is only created once the partner accepts (createDuoWithMembers).
+  const handleSendInvite = async () => {
+    if (!currentUser || inviteLoading) return;
+    setInviteLoading(true);
+    try {
+      const token = await createInvite(currentUser.id);
+      const url = `${window.location.origin}?invite=${token}`;
+      setInviteUrl(url);
+      const shareText = partnerName.value.trim()
+        ? `Hey ${partnerName.value.trim()}, be my duo partner on DUO OC.`
+        : 'Be my duo partner on DUO OC.';
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: 'Join me on DUO OC', text: shareText, url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          showToast?.('Invite link copied!', 'success');
+        }
+      } catch (shareErr) {
+        if (shareErr?.name !== 'AbortError') {
+          await navigator.clipboard.writeText(url).catch(() => {});
+          showToast?.('Invite link copied!', 'success');
+        }
+      }
+      setInviteSent(true);
+    } catch (err) {
+      logError('invite create error', err);
+      showToast?.('Could not create invite link.', 'error');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   // Done → Find Homie
   const handleInviteHomie = async () => {
     if (!currentUser || inviteLoading) return;
@@ -323,11 +361,11 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     : step === 3
     ? 'Step 3 of 4 - Duo setup'
     : step === 4
-    ? 'Step 4 of 4 — Duo profile'
+    ? 'Step 4 of 4 — Invite your homie'
     : null;
 
   const showBackBtn = step <= 4;
-  const showFooterCTA = step === 1 || step === 2 || step === 4;
+  const showFooterCTA = step === 1 || step === 2;
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white, paddingBottom: 32 }}>
@@ -578,7 +616,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                 </p>
               </div>
 
-              {/* Choice buttons */}
+              {/* Single path forward — duos are always built with a partner */}
               <motion.button
                 type="button"
                 onClick={hasPendingInvite ? handleJoinPendingInvite : handleCreateYourDuo}
@@ -595,78 +633,138 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                   fontSize:     16,
                   fontWeight:   800,
                   cursor:       loading ? 'not-allowed' : 'pointer',
-                  marginBottom: 12,
                   letterSpacing:'-0.2px',
                   boxShadow:    `0 4px 20px ${C.amberT35}`,
                   opacity:      loading ? 0.6 : 1,
                 }}
               >
-                {loading ? 'Saving...' : hasPendingInvite ? 'Join your Duo' : 'Create your Duo'}
-              </motion.button>
-
-              <motion.button
-                type="button"
-                onClick={handleInviteFriend}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.1 }}
-                style={{
-                  width:        '100%',
-                  height:       52,
-                  borderRadius: 16,
-                  border:       '0.5px solid rgba(255,255,255,0.1)',
-                  background:   'rgba(255,255,255,0.04)',
-                  color:        C.white,
-                  fontSize:     15,
-                  fontWeight:   600,
-                  cursor:       'pointer',
-                }}
-              >
-                {hasPendingInvite ? 'Create a different Duo' : 'Invite your homie after setup'}
+                {loading ? 'Saving...' : hasPendingInvite ? 'Join your Duo' : 'Continue'}
               </motion.button>
 
               <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-                Invite links are available after your Duo profile exists.
+                Next, invite your homie to form your Duo together.
               </p>
             </>
           )}
 
-          {/* ── Step 4: Duo profile ── */}
+          {/* ── Step 4: Invite your homie ── */}
           {step === 4 && (
             <>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
                 {stepLabel}
               </p>
-              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
-                Create your duo
-              </h1>
-              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
-                This is what other duos see when browsing. Keep it simple.
-              </p>
 
-              <FieldLabel>Duo name</FieldLabel>
-              <TextInput
-                value={duoName.value}
-                onChange={(e) => { duoName.set(e.target.value); clearErr('duoName'); }}
-                onFocus={duoName.onFocus}
-                onBlur={duoName.onBlur}
-                focused={duoName.focused}
-                placeholder={name.value ? `${name.value.trim()} & friend` : 'e.g. Jae & Miles'}
-                error={errors.duoName}
-              />
-              <FieldError>{errors.duoName}</FieldError>
+              {!inviteSent ? (
+                <>
+                  <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
+                    Who's your duo partner?
+                  </h1>
+                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
+                    DUO OC is 2v2. Invite your homie to build your Duo Card together.
+                  </p>
 
-              <FieldLabel>Vibes</FieldLabel>
-              <p style={{ fontSize: 12, color: C.muted, margin: '-4px 0 14px', lineHeight: 1.4 }}>
-                Pick everything that sounds like you.
-              </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                {VIBES.map((v) => (
-                  <VibePill key={v} selected={vibes.includes(v)} onClick={() => toggleVibe(v)}>
-                    {v}
-                  </VibePill>
-                ))}
-              </div>
-              <FieldError>{errors.vibes}</FieldError>
+                  <FieldLabel>Partner's name</FieldLabel>
+                  <TextInput
+                    value={partnerName.value}
+                    onChange={(e) => partnerName.set(e.target.value)}
+                    onFocus={partnerName.onFocus}
+                    onBlur={partnerName.onBlur}
+                    focused={partnerName.focused}
+                    placeholder="e.g. Miles"
+                  />
+                  <div style={{ height: 16 }} />
+                  <FieldLabel>Their email or phone</FieldLabel>
+                  <TextInput
+                    value={partnerContact.value}
+                    onChange={(e) => partnerContact.set(e.target.value)}
+                    onFocus={partnerContact.onFocus}
+                    onBlur={partnerContact.onBlur}
+                    focused={partnerContact.focused}
+                    placeholder="email@example.com or (000) 000-0000"
+                  />
+                  <p style={{ fontSize: 12, color: C.muted, margin: '8px 0 24px', lineHeight: 1.5 }}>
+                    We'll create a private invite link for you to send them.
+                  </p>
+
+                  <motion.button
+                    type="button"
+                    onClick={handleSendInvite}
+                    disabled={inviteLoading}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      width: '100%', height: 58, borderRadius: 16, border: 'none',
+                      background: C.gradientCTA, color: '#fff', fontSize: 16, fontWeight: 800,
+                      cursor: inviteLoading ? 'not-allowed' : 'pointer',
+                      boxShadow: `0 4px 20px ${C.amberT35}`, opacity: inviteLoading ? 0.6 : 1,
+                      letterSpacing: '-0.2px',
+                    }}
+                  >
+                    {inviteLoading ? 'Creating link…' : 'Invite your homie'}
+                  </motion.button>
+
+                  <button
+                    type="button"
+                    onClick={handleFindDuos}
+                    style={{
+                      display: 'block', margin: '18px auto 0', background: 'none', border: 'none',
+                      color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline',
+                    }}
+                  >
+                    Already sent the invite?
+                  </button>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px 8px' }}>
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%', background: C.amberT08,
+                    border: `0.5px solid ${C.brownBorder}`, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+                  }}>
+                    <Users size={32} color={C.amber} strokeWidth={2.2} />
+                  </div>
+                  <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.6px', margin: '0 0 10px' }}>
+                    Waiting for your homie…
+                  </h1>
+                  <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, margin: '0 auto 24px', maxWidth: 300 }}>
+                    {partnerName.value.trim()
+                      ? `${partnerName.value.trim()} just needs to tap your invite link.`
+                      : 'Your homie just needs to tap your invite link.'}{' '}
+                    Your Duo is created the moment they accept.
+                  </p>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(inviteUrl)
+                        .then(() => showToast?.('Invite link copied!', 'success'))
+                        .catch(() => {});
+                    }}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      width: '100%', height: 52, borderRadius: 16, border: '0.5px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(255,255,255,0.04)', color: C.white, fontSize: 15, fontWeight: 700,
+                      cursor: 'pointer', marginBottom: 12,
+                    }}
+                  >
+                    Copy invite link again
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={handleFindDuos}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ duration: 0.1 }}
+                    style={{
+                      width: '100%', height: 58, borderRadius: 16, border: 'none',
+                      background: C.gradientCTA, color: '#fff', fontSize: 16, fontWeight: 800,
+                      cursor: 'pointer', boxShadow: `0 4px 20px ${C.amberT35}`,
+                    }}
+                  >
+                    Done
+                  </motion.button>
+                </div>
+              )}
             </>
           )}
 
@@ -791,8 +889,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
             type="button"
             onClick={
               step === 1 ? handleNextFromStep1
-              : step === 2 ? () => setStep(3)
-              : handleCreateDuo
+              : () => setStep(3)
             }
             disabled={
               loading ||
@@ -815,10 +912,9 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
             }}
           >
             {loading
-              ? (step === 4 ? 'Creating duo…' : 'Saving…')
+              ? 'Saving…'
               : step === 1 ? 'Next'
-              : step === 2 ? 'Continue →'
-              : 'Create Duo'}
+              : 'Continue →'}
           </motion.button>
         </footer>
       )}

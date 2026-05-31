@@ -637,7 +637,7 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
               Find a homie first, then create a duo together.
             </p>
             <PremiumButton fullWidth onClick={handleCreateDuo}>
-              Find a homie
+              Invite a homie to start a new Duo
             </PremiumButton>
           </div>
         ) : (
@@ -683,7 +683,7 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
                 <>
                   <PremiumButton fullWidth variant="ghost" onClick={handleCreateDuo} style={{ gap: 7 }}>
                     <Plus size={15} strokeWidth={2.2} />
-                    Create another duo
+                    Invite a homie to start a new Duo
                   </PremiumButton>
                   <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', lineHeight: 1.45, margin: '8px 0 0' }}>
                     Start by finding or inviting a homie.

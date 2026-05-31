@@ -155,9 +155,11 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           </div>
           <motion.p variants={popIn} initial="initial" animate="animate"
             style={{ fontSize: 36, fontWeight: 900, color: C.white, letterSpacing: -1, margin: '0 0 8px' }}>
-            Request sent.
+            Sent to your partner! 🤝
           </motion.p>
-          <p style={{ fontSize: 14, color: C.muted }}>Waiting for {duo.name} to respond.</p>
+          <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6 }}>
+            If they're in, we'll send the request to {duo.name}.
+          </p>
           <div style={{ marginTop: 16, width: '100%', maxWidth: 280 }}>
             <PremiumButton fullWidth onClick={() => go('home')}>
               Back to Home
