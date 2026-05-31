@@ -190,6 +190,7 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
       vibe,
       message:     message ?? '',
       status:      'pending',
+      expires_at:  new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     })
     .select()
     .single()
@@ -302,9 +303,20 @@ export async function getMyHangouts(duoIds) {
       .order('created_at', { ascending: false })
 
     if (error) return []
-    // Drop rows whose duo_a/duo_b join resolved to null (orphaned reference to
-    // a deleted duo) — they would render as broken/empty cards.
-    return (data ?? []).filter((h) => h.duo_a && h.duo_b)
+    const cancelledHideBefore = Date.now() - 24 * 60 * 60 * 1000
+    return (data ?? []).filter((h) => {
+      // Drop rows whose duo_a/duo_b join resolved to null (orphaned reference to
+      // a deleted duo) — they would render as broken/empty cards.
+      if (!h.duo_a || !h.duo_b) return false
+      // 'expired' rows are never shown in the UI.
+      if (h.status === 'expired') return false
+      // 'cancelled' rows are shown for 24h after cancellation, then hidden.
+      if (h.status === 'cancelled') {
+        const ts = new Date(h.updated_at ?? h.created_at).getTime()
+        if (!isNaN(ts) && ts < cancelledHideBefore) return false
+      }
+      return true
+    })
   } catch {
     return []
   }
