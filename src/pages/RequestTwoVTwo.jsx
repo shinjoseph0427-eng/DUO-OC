@@ -16,6 +16,7 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
   const [message, setMessage]           = useState('Down for a chill 2v2?');
   const [msgFocus, setMsgFocus]         = useState(false);
   const [sent, setSent]                 = useState(false);
+  const [alreadyRequested, setAlreadyRequested] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
 
@@ -51,10 +52,12 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
             <span style={{ fontSize: 28 }}>✓</span>
           </div>
           <p style={{ fontSize: 24, fontWeight: 800, color: C.white, marginBottom: 12, letterSpacing: '-0.5px' }}>
-            Request sent! 🎉
+            {alreadyRequested ? 'Already requested! 👋' : 'Request sent! 🎉'}
           </p>
           <p style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 1.6 }}>
-            We'll let you know when {duo.name} responds.
+            {alreadyRequested
+              ? `You already have a pending hangout with ${duo.name}.`
+              : `We'll let you know when ${duo.name} responds.`}
           </p>
           <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
         </div>
@@ -69,7 +72,7 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
     setError(null);
     setLoading(true);
     try {
-      await proposeHangout({
+      const res = await proposeHangout({
         fromDuoId:  myDuo.id,
         toDuoId:    duo.id,
         proposedBy: currentUser.id,
@@ -78,6 +81,7 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
         place:      '',
         message:    message || '',
       });
+      setAlreadyRequested(Boolean(res?.alreadySent));
       setSent(true);
     } catch (err) {
       console.error('hangout propose error:', err);

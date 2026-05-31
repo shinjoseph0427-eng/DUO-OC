@@ -130,6 +130,17 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
   await assertDuoIsNotRestricted(fromDuoId)
   await assertDuoIsNotRestricted(toDuoId)
 
+  // Block duplicates: an active request already exists between these two duos
+  // (either direction). Mirrors the DB partial unique index.
+  const { data: existing } = await supabase
+    .from('hangouts')
+    .select('id')
+    .or(`and(duo_a_id.eq.${fromDuoId},duo_b_id.eq.${toDuoId}),and(duo_a_id.eq.${toDuoId},duo_b_id.eq.${fromDuoId})`)
+    .in('status', ['pending', 'pending_internal', 'countered'])
+    .limit(1)
+
+  if (existing && existing.length > 0) return { alreadySent: true }
+
   const { data: hangout, error } = await supabase
     .from('hangouts')
     .insert({

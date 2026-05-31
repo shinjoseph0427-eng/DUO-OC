@@ -49,6 +49,7 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
   const [message,  setMessage]  = useState('');
   const [loading,  setLoading]  = useState(false);
   const [sent,     setSent]     = useState(false);
+  const [alreadyRequested, setAlreadyRequested] = useState(false);
   const [error,    setError]    = useState('');
 
   // ── Fix 4: duo null guard ────────────────────────────────────────────────
@@ -103,13 +104,14 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
     setError('');
     try {
       setLoading(true);
-      await proposeHangout({
+      const res = await proposeHangout({
         fromDuoId:  myDuo.id,
         toDuoId:    duo.id,
         proposedBy: currentUser.id,
         date, timeSlot, place, vibe,
         message: cleanMessage,
       });
+      setAlreadyRequested(Boolean(res?.alreadySent));
       setSent(true);
     } catch (err) {
       // ── Fix 3: visible error instead of silent catch ─────────────────────
@@ -155,10 +157,12 @@ export default function ProposeHangout({ currentUser, duo, myDuo, go, goBack }) 
           </div>
           <motion.p variants={popIn} initial="initial" animate="animate"
             style={{ fontSize: 36, fontWeight: 900, color: C.white, letterSpacing: -1, margin: '0 0 8px' }}>
-            Request sent! 🎉
+            {alreadyRequested ? 'Already requested! 👋' : 'Request sent! 🎉'}
           </motion.p>
           <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6 }}>
-            We'll let you know when {duo.name} responds.
+            {alreadyRequested
+              ? `You already have a pending hangout with ${duo.name}.`
+              : `We'll let you know when ${duo.name} responds.`}
           </p>
           <div style={{ marginTop: 16, width: '100%', maxWidth: 280 }}>
             <PremiumButton fullWidth onClick={() => go('home')}>
