@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js'
 import { sendPushForNotification, createNotificationsForDuo } from './notifications.js'
+import { MAX_DUOS_PER_USER, assertUUID } from './constants.js'
 
 function throwStep(message, error) {
   const detail = error?.message ?? error?.details ?? error?.hint ?? null
@@ -147,6 +148,9 @@ export async function getMyHomieIds(userId) {
 }
 
 export async function sendHomieRequest(fromUserId, toUserId) {
+  assertUUID(fromUserId, 'fromUserId')
+  assertUUID(toUserId, 'toUserId')
+
   // Already homies (either direction)?
   const homieIds = await getMyHomieIds(fromUserId)
   if (homieIds.includes(toUserId)) return { alreadyHomies: true }
@@ -172,12 +176,9 @@ export async function sendHomieRequest(fromUserId, toUserId) {
   const { data: notification, error: notificationError } = await supabase
     .rpc('notify_homie_request', { p_request_id: request.id })
     .single()
-  console.log('notification RPC result', { notification, notificationError })
   if (notificationError) throwStep('homie request notification failed', notificationError)
 
   if (notification?.id) await sendPushForNotification(notification.id)
-  console.log('notification id check', notification?.id)
-  console.log('push sent for notification', notification?.id)
 
   return { success: true }
 }
@@ -234,8 +235,8 @@ export async function acceptHomieRequest(requestId) {
     countActiveDuos(receiverId),
   ])
 
-  if (senderCount >= 3) throw new Error("You've reached your 3 Duo limit.")
-  if (receiverCount >= 3) throw new Error("You've reached your 3 Duo limit.")
+  if (senderCount >= MAX_DUOS_PER_USER) throw new Error(`You've reached your ${MAX_DUOS_PER_USER} Duo limit.`)
+  if (receiverCount >= MAX_DUOS_PER_USER) throw new Error(`You've reached your ${MAX_DUOS_PER_USER} Duo limit.`)
 
   const existingDuoId = await findSharedActiveDuo(senderId, receiverId)
   const createdNewDuo = !existingDuoId

@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient.js'
 import { createNotificationsForDuo, createNotificationForUser } from './notifications.js'
 import { assertDuoIsNotRestricted } from './safety.js'
+import { HANGOUT_EXPIRES_MS, assertUUID } from './constants.js'
 
 export async function getWeeklyConfirmedCount() {
   const { data, error } = await supabase.rpc('get_weekly_confirmed_count')
@@ -126,6 +127,9 @@ async function assertCanPropose(fromDuoId, toDuoId, proposedBy) {
 }
 
 export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, timeSlot, place, vibe, message }) {
+  assertUUID(fromDuoId, 'fromDuoId')
+  assertUUID(toDuoId, 'toDuoId')
+  assertUUID(proposedBy, 'proposedBy')
   await assertCanPropose(fromDuoId, toDuoId, proposedBy)
   await assertDuoIsNotRestricted(fromDuoId)
   await assertDuoIsNotRestricted(toDuoId)
@@ -190,7 +194,7 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
       vibe,
       message:     message ?? '',
       status:      'pending',
-      expires_at:  new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+      expires_at:  new Date(Date.now() + HANGOUT_EXPIRES_MS).toISOString(),
     })
     .select()
     .single()

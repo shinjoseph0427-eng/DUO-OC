@@ -34,7 +34,7 @@ export function useReviewPrompt() {
 
       if (error || cancelled) return; // column/migration missing → safe no-op
 
-      for (const p of plans ?? []) {
+      await Promise.all((plans ?? []).map(async (p) => {
         if (cancelled) return;
 
         // A matched plan has exactly one accepted join request — the requester
@@ -63,7 +63,7 @@ export function useReviewPrompt() {
         } catch {
           /* fire-and-forget */
         }
-      }
+      }));
 
       // ── Requester side ──────────────────────────────────────────────────────
       // Accepted requests this user's duo sent, whose plan has elapsed to 'past'.
@@ -78,7 +78,7 @@ export function useReviewPrompt() {
 
       if (reqErr || cancelled) return; // column/migration missing → safe no-op
 
-      for (const r of requests ?? []) {
+      await Promise.all((requests ?? []).map(async (r) => {
         if (cancelled) return;
         const creatorName = r.plan?.creator_duo?.name ?? 'the other duo';
         try {
@@ -95,7 +95,7 @@ export function useReviewPrompt() {
         } catch {
           /* fire-and-forget */
         }
-      }
+      }));
     };
 
     run();

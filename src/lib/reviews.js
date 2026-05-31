@@ -17,6 +17,10 @@ export async function createPostHangoutReview({
     throw new Error('Cannot review your own duo')
   }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  if (user.id !== reviewerUserId) throw new Error('Not authorized')
+
   const { data, error } = await supabase
     .from('post_hangout_reviews')
     .insert({

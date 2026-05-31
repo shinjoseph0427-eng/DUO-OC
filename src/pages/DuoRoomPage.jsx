@@ -8,8 +8,7 @@ import {
   sendDuoMessage,
   subscribeDuoMessages,
 } from '../lib/duoRoomMessages.js';
-
-const MAX_MESSAGE_LENGTH = 500;
+import { MAX_MESSAGE_LENGTH } from '../lib/constants.js';
 
 function formatMsgTime(dateStr) {
   if (!dateStr) return '';

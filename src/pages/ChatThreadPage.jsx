@@ -6,8 +6,7 @@ import DuoAvatarStack from '../components/DuoAvatarStack.jsx';
 import PlanContextBar from '../components/PlanContextBar.jsx';
 import ChatMessageBubble from '../components/MessageBubble.jsx';
 import { getMessages, sendMessage, subscribeMessages } from '../lib/messages.js';
-
-const MAX_MESSAGE_LENGTH = 500;
+import { MAX_MESSAGE_LENGTH } from '../lib/constants.js';
 
 const DATE_LABELS = {
   today: 'Today',

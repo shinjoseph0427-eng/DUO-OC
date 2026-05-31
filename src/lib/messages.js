@@ -1,17 +1,22 @@
 import { supabase } from './supabaseClient.js'
+import { MAX_MESSAGE_LENGTH } from './constants.js'
+import { getMyDuoIds } from './duos.js'
 
-const MAX_MESSAGE_LENGTH = 500
+// Maps a duo's embedded duo_members rows to the lightweight member shape the
+// chat/room UIs consume. Shared by getMyChats and getMyDuoRooms.
+function mapDuoMembers(members) {
+  return (members ?? []).map((m) => ({
+    userId:    m.user_id ?? null,
+    name:      m.profiles?.name ?? 'Member',
+    avatarUrl: m.profiles?.photos?.[0] ?? null,
+  }))
+}
 
 // Resolves all caller duo_ids then verifies at least one belongs to the hangout.
 async function assertHangoutMember(hangoutId, currentUserId) {
   if (!currentUserId) throw new Error('Unauthorized')
 
-  const { data: memberships } = await supabase
-    .from('duo_members')
-    .select('duo_id')
-    .eq('user_id', currentUserId)
-
-  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  const duoIds = await getMyDuoIds(currentUserId)
   if (duoIds.length === 0) throw new Error('Unauthorized')
 
   const { data: hangout, error } = await supabase
@@ -26,12 +31,7 @@ async function assertHangoutMember(hangoutId, currentUserId) {
 }
 
 export async function getMyChats(userId) {
-  const { data: memberships } = await supabase
-    .from('duo_members')
-    .select('duo_id')
-    .eq('user_id', userId)
-
-  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  const duoIds = await getMyDuoIds(userId)
   if (duoIds.length === 0) return []
 
   const orFilter = duoIds.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
@@ -55,13 +55,6 @@ export async function getMyChats(userId) {
 
   if (error || !hangouts) return []
 
-  const mapMembers = (duo) =>
-    (duo?.duo_members ?? []).map((m) => ({
-      userId:    m.user_id   ?? null,
-      name:      m.profiles?.name ?? 'Member',
-      avatarUrl: m.profiles?.photos?.[0] ?? null,
-    }))
-
   const results = await Promise.all(
     hangouts.map(async (h) => {
       const myDuoId  = duoIds.find((id) => id === h.duo_a_id || id === h.duo_b_id) ?? duoIds[0]
@@ -84,9 +77,9 @@ export async function getMyChats(userId) {
       return {
         hangoutId:   h.id,
         myDuoId,
-        duoA:        { id: h.duo_a?.id, name: h.duo_a?.name ?? 'Duo', status: h.duo_a?.status, members: mapMembers(h.duo_a) },
-        duoB:        { id: h.duo_b?.id, name: h.duo_b?.name ?? 'Duo', status: h.duo_b?.status, members: mapMembers(h.duo_b) },
-        otherDuo:    { name: otherDuo?.name ?? 'Duo', members: mapMembers(otherDuo) },
+        duoA:        { id: h.duo_a?.id, name: h.duo_a?.name ?? 'Duo', status: h.duo_a?.status, members: mapDuoMembers(h.duo_a?.duo_members) },
+        duoB:        { id: h.duo_b?.id, name: h.duo_b?.name ?? 'Duo', status: h.duo_b?.status, members: mapDuoMembers(h.duo_b?.duo_members) },
+        otherDuo:    { name: otherDuo?.name ?? 'Duo', members: mapDuoMembers(otherDuo?.duo_members) },
         vibe:        h.vibe ?? null,
         date:        h.date ?? null,
         timeSlot:    h.time_slot ?? null,
@@ -114,6 +107,10 @@ export async function getMessages(hangoutId, currentUserId) {
 }
 
 export async function sendMessage({ hangoutId, senderDuoId, senderUserId, content }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  if (user.id !== senderUserId) throw new Error('Not authorized')
+
   await assertHangoutMember(hangoutId, senderUserId)
 
   const text = content?.trim() ?? ''
@@ -139,11 +136,7 @@ export async function sendMessage({ hangoutId, senderDuoId, senderUserId, conten
 // Lightweight count of confirmed hangout chats for the nav badge.
 export async function getConfirmedChatCount(userId) {
   if (!userId) return 0
-  const { data: memberships } = await supabase
-    .from('duo_members')
-    .select('duo_id')
-    .eq('user_id', userId)
-  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  const duoIds = await getMyDuoIds(userId)
   if (duoIds.length === 0) return 0
   const orFilter = duoIds.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
   const { count } = await supabase
@@ -155,12 +148,7 @@ export async function getConfirmedChatCount(userId) {
 }
 
 export async function getMyDuoRooms(userId) {
-  const { data: memberships } = await supabase
-    .from('duo_members')
-    .select('duo_id')
-    .eq('user_id', userId)
-
-  const duoIds = (memberships ?? []).map((m) => m.duo_id).filter(Boolean)
+  const duoIds = await getMyDuoIds(userId)
   if (duoIds.length === 0) return []
 
   const { data: duos } = await supabase
@@ -187,11 +175,7 @@ export async function getMyDuoRooms(userId) {
         // duo_messages query failed; room still renders without last message
       }
 
-      const members = (duo.duo_members ?? []).map((m) => ({
-        userId: m.user_id,
-        name:   m.profiles?.name ?? 'Member',
-        avatarUrl: m.profiles?.photos?.[0] ?? null,
-      }))
+      const members = mapDuoMembers(duo.duo_members)
 
       return {
         duoId:       duo.id,

@@ -1,6 +1,5 @@
 import { supabase } from './supabaseClient.js'
-
-const MAX_MESSAGE_LENGTH = 500
+import { MAX_MESSAGE_LENGTH } from './constants.js'
 
 async function assertDuoMember(duoId, currentUserId) {
   if (!duoId || !currentUserId) throw new Error('Unauthorized')
@@ -37,6 +36,10 @@ export async function getDuoMessages(duoId, currentUserId) {
 }
 
 export async function sendDuoMessage({ duoId, senderUserId, content }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  if (user.id !== senderUserId) throw new Error('Not authorized')
+
   await assertDuoMember(duoId, senderUserId)
 
   const text = content?.trim() ?? ''

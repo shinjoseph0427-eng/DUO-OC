@@ -3,8 +3,6 @@ import BottomNav from './components/BottomNav.jsx';
 import Toast from './components/Toast.jsx';
 import HomePage from './pages/HomePage.jsx';
 import DuoDetailPage from './pages/DuoDetailPage.jsx';
-import RequestTwoVTwo from './pages/RequestTwoVTwo.jsx';
-import MatchScreen from './pages/MatchScreen.jsx';
 import ChatListPage from './pages/ChatListPage.jsx';
 import ChatThreadPage from './pages/ChatThreadPage.jsx';
 import DuoRoomPage from './pages/DuoRoomPage.jsx';
@@ -39,7 +37,7 @@ import { useReviewPrompt } from './hooks/useReviewPrompt';
 
 const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
-  'duo_detail', 'request', 'match', 'hangouts', 'chat', 'chat_thread', 'duo_room',
+  'duo_detail', 'hangouts', 'chat', 'chat_thread', 'duo_room',
   'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
   'create_plan', 'privacy',
 ];
@@ -48,7 +46,7 @@ const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy'];
 const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'explore', 'hangouts', 'chat', 'me'];
 const ONBOARDED_PAGES = [
-  'home', 'explore', 'duo_detail', 'request', 'match', 'hangouts', 'chat',
+  'home', 'explore', 'duo_detail', 'hangouts', 'chat',
   'chat_thread', 'duo_room', 'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
   'edit_profile', 'edit_duo_profile', 'create_plan',
 ];
@@ -57,7 +55,6 @@ export default function App() {
   const [page,            setPage]            = useState('landing');
   const [pageStack,       setPageStack]       = useState([]);
   const [selectedDuo,     setSelectedDuo]     = useState(null);
-  const [requestData,     setRequestData]     = useState({});
   const [selectedChat,    setSelectedChat]    = useState(null);
   const [currentUser,     setCurrentUser]     = useState(null);
   const [myDuo,           setMyDuo]           = useState(null);
@@ -281,12 +278,6 @@ export default function App() {
         {page === 'duo_detail'  && (selectedDuo
           ? <DuoDetailPage duo={selectedDuo} go={go} goBack={goBack} onLogout={handleLogout} currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} showToast={showToast} />
           : fallback('Duo not found'))}
-        {page === 'request'     && (selectedDuo
-          ? <RequestTwoVTwo duo={selectedDuo} myDuo={myDuo} currentUser={currentUser} go={go} goBack={goBack} />
-          : fallback('Duo not found'))}
-        {page === 'match'       && (selectedDuo
-          ? <MatchScreen duo={selectedDuo} requestData={requestData} go={go} goBack={goBack} />
-          : fallback('Match not found'))}
         {page === 'hangouts'    && <HangoutsPage currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} go={go} onLogout={handleLogout} showToast={showToast} />}
         {page === 'create_plan' && <CreatePlanPage currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} selectedDuo={selectedDuo} go={go} goBack={goBack} />}
         {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}

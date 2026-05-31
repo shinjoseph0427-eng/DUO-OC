@@ -16,14 +16,15 @@ import {
 } from '../lib/hangouts.js';
 import { getConfirmedChatCount } from '../lib/messages.js';
 import { isDuoRestricted } from '../lib/safety.js';
+import { STORAGE_BASE_URL } from '../lib/constants.js';
 
 const OC_LOCATIONS = [
-  { url: 'https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/oc_01.jpg', label: 'Irvine Spectrum' },
-  { url: 'https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/oc_02.jpg', label: 'Brea Mall' },
-  { url: 'https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/oc_03.jpg', label: 'Laguna Beach' },
-  { url: 'https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/oc_04.jpg', label: 'Huntington Beach Pier' },
-  { url: 'https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/oc_05.jpg', label: 'Newport Beach Pier' },
-  { url: 'https://utfswelaqpannaftfvox.supabase.co/storage/v1/object/public/app-assets/oc_06.jpg', label: 'Dana Point Harbor' },
+  { url: `${STORAGE_BASE_URL}/app-assets/oc_01.jpg`, label: 'Irvine Spectrum' },
+  { url: `${STORAGE_BASE_URL}/app-assets/oc_02.jpg`, label: 'Brea Mall' },
+  { url: `${STORAGE_BASE_URL}/app-assets/oc_03.jpg`, label: 'Laguna Beach' },
+  { url: `${STORAGE_BASE_URL}/app-assets/oc_04.jpg`, label: 'Huntington Beach Pier' },
+  { url: `${STORAGE_BASE_URL}/app-assets/oc_05.jpg`, label: 'Newport Beach Pier' },
+  { url: `${STORAGE_BASE_URL}/app-assets/oc_06.jpg`, label: 'Dana Point Harbor' },
 ];
 
 const PASTEL_BG = ['#F5E6D3', '#D3E6F5', '#D3F5E0', '#F5D3E6', '#E6D3F5'];

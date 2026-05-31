@@ -1,5 +1,17 @@
 import { supabase } from './supabaseClient.js'
 import { getHiddenUserIds } from './safety.js'
+import { MAX_DUOS_PER_USER } from './constants.js'
+
+// Returns the duo_ids of every duo the user belongs to (any status).
+// Shared helper to replace the repeated duo_members → duo_id lookup.
+export async function getMyDuoIds(userId) {
+  const { data, error } = await supabase
+    .from('duo_members')
+    .select('duo_id')
+    .eq('user_id', userId)
+  if (error) throw error
+  return (data ?? []).map((r) => r.duo_id).filter(Boolean)
+}
 
 export async function createDuo(userId, duoData) {
   // Duos are 2-person only. A duo must be formed with a partner (via an accepted
@@ -101,7 +113,7 @@ export async function getMyDuos(userId) {
 
   return filtered
     .sort((a, b) => new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0))
-    .slice(0, 3)
+    .slice(0, MAX_DUOS_PER_USER)
 }
 
 export async function getMyDuoById(userId, duoId) {

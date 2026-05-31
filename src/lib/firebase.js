@@ -1,5 +1,20 @@
 import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken } from 'firebase/messaging';
+
+const requiredEnvs = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+];
+
+const missing = requiredEnvs.filter((k) => !import.meta.env[k]);
+if (missing.length > 0) {
+  // Push notifications won't work, but the app keeps running — do not throw.
+  console.warn('[DUO OC] Firebase env missing:', missing);
+}
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -27,9 +42,3 @@ export async function requestPushPermission() {
     return null;
   }
 }
-
-export function onForegroundMessage(callback) {
-  return onMessage(messaging, callback);
-}
-
-export { messaging };
