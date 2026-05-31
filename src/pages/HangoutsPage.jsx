@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Check } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
@@ -204,8 +204,13 @@ function IncomingCard({ h, go, onAccept, onDecline }) {
 }
 
 export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = [], go, onLogout, showToast }) {
-  // Fall back to [myDuo] if prop not yet populated (e.g. older callers)
-  const myDuos = myDuosProp.length > 0 ? myDuosProp : (myDuo ? [myDuo] : []);
+  // Fall back to [myDuo] if prop not yet populated (e.g. older callers).
+  // Memoized so the reference is stable across renders — otherwise load/loadPlan
+  // (which depend on it) get a new identity each render and loop forever.
+  const myDuos = useMemo(
+    () => (myDuosProp.length > 0 ? myDuosProp : (myDuo ? [myDuo] : [])),
+    [myDuosProp, myDuo],
+  );
 
   const [hangouts,          setHangouts]          = useState([]);
   const [loading,           setLoading]           = useState(true);
@@ -229,9 +234,15 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const [safetyReportReason, setSafetyReportReason] = useState(null);
   const [safetyReportNote,   setSafetyReportNote]   = useState('');
 
+  // Stable list of duo ids (array for render use) + a string key for effect deps.
+  // The key changes only when the actual ids change, so load/loadPlan don't
+  // re-run when the parent hands us a new-but-equivalent myDuos array.
+  const myDuoIds    = useMemo(() => myDuos.map((d) => d?.id).filter(Boolean), [myDuos]);
+  const myDuoIdsKey = useMemo(() => myDuoIds.join(','), [myDuoIds]);
+
   const load = useCallback(() => {
     if (!currentUser) { setLoading(false); return; }
-    const ids = myDuos.map((d) => d?.id).filter(Boolean);
+    const ids = myDuoIds;
     setLoading(true);
     Promise.all([
       getMyHangouts(ids),
@@ -251,7 +262,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
           .catch(() => {});
       }
     }).catch(() => setLoading(false));
-  }, [currentUser, myDuos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUser, myDuoIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPlan = useCallback(() => {
     if (!myDuos.length) {
@@ -272,7 +283,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
     ).then((results) => {
       setPlanData(results);
     }).finally(() => setPlanLoading(false));
-  }, [myDuos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [myDuoIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadPlan(); }, [loadPlan]);
@@ -422,7 +433,6 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
     }
   };
 
-  const myDuoIds       = myDuos.map((d) => d?.id).filter(Boolean);
   const activePlanItems = planData.filter((item) => item.plan !== null);
   const totalPlanReqs   = planData.reduce((sum, item) => sum + item.requests.length, 0);
   const planSectionLabel = myDuos.length > 1 ? 'My Plans' : 'My Plan';
