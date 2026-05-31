@@ -170,7 +170,7 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
         hangout_id:        hangout.id,
         requested_by_name: proposer?.name ?? 'Your partner',
         target_duo_name:   toDuo?.name ?? 'another duo',
-      }).catch(() => {}),
+      }).catch((err) => console.error('partner notification failed:', err)),
     ),
   )
 
@@ -209,7 +209,7 @@ export async function approveHangoutInternal(hangoutId, currentUserId, approve) 
       hangout_id:     hangoutId,
       other_duo_name: toDuo?.name ?? 'the other duo',
       reason:         'partner_declined',
-    }).catch(() => {})
+    }).catch((err) => console.error('partner notification failed:', err))
     return { approved: false, cancelled: true }
   }
 

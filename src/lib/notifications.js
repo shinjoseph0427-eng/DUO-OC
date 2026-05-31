@@ -84,16 +84,17 @@ export async function sendPushForNotification(notificationId) {
 }
 
 export async function createNotificationForUser(userId, type, payload) {
-  const { data: notif, error } = await supabase
+  // No .select()/.single() here: the row's user_id is usually NOT auth.uid()
+  // (we notify another user), and the notifications SELECT RLS policy
+  // (user_id = auth.uid()) would filter the RETURNING row out, making .single()
+  // throw on 0 rows. INSERT itself is allowed (WITH CHECK true), so we just
+  // insert and check the error.
+  const { error } = await supabase
     .from('notifications')
-    .insert({ user_id: userId, type, payload })
-    .select()
-    .single();
+    .insert({ user_id: userId, type, payload });
   if (error) throw error;
 
-  await sendPushForNotification(notif.id);
-
-  return notif;
+  return { user_id: userId, type, payload };
 }
 
 export async function createNotificationsForDuo(duoId, type, payload) {
