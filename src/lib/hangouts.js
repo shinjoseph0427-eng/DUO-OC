@@ -130,16 +130,6 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
   await assertDuoIsNotRestricted(fromDuoId)
   await assertDuoIsNotRestricted(toDuoId)
 
-  // Members of the proposing duo, minus the proposer = the partner(s) who must
-  // approve before the request is ever sent to the other duo.
-  const { data: members } = await supabase
-    .from('duo_members')
-    .select('user_id')
-    .eq('duo_id', fromDuoId)
-  const partnerIds = (members ?? [])
-    .map((m) => m.user_id)
-    .filter((id) => id && id !== proposedBy)
-
   const { data: hangout, error } = await supabase
     .from('hangouts')
     .insert({
@@ -151,28 +141,20 @@ export async function proposeHangout({ fromDuoId, toDuoId, proposedBy, date, tim
       place:       place ?? '',
       vibe,
       message:     message ?? '',
-      status:      'pending_internal',
-      proposer_approved_by: [proposedBy],
+      status:      'pending',
     })
     .select()
     .single()
 
   if (error) throw error
 
-  // Ask the partner(s) to agree before it ever reaches the other duo.
-  const { data: proposer } = await supabase
-    .from('profiles').select('name').eq('id', proposedBy).single()
-  const { data: toDuo } = await supabase
-    .from('duos').select('name').eq('id', toDuoId).single()
-  await Promise.all(
-    partnerIds.map((uid) =>
-      createNotificationForUser(uid, 'partner_approval_needed', {
-        hangout_id:        hangout.id,
-        requested_by_name: proposer?.name ?? 'Your partner',
-        target_duo_name:   toDuo?.name ?? 'another duo',
-      }).catch((err) => console.error('partner notification failed:', err)),
-    ),
-  )
+  // Notify the receiving duo directly (best-effort — never block the proposal).
+  const { data: fromDuo } = await supabase
+    .from('duos').select('name').eq('id', fromDuoId).single()
+  await createNotificationsForDuo(toDuoId, 'hangout_request', {
+    hangout_id: hangout.id,
+    duo_name:   fromDuo?.name ?? 'a duo',
+  }).catch((err) => console.error('hangout_request notification failed:', err))
 
   return hangout
 }
@@ -239,7 +221,7 @@ export async function approveHangoutInternal(hangoutId, currentUserId, approve) 
   await createNotificationsForDuo(h.duo_b_id, 'hangout_request', {
     hangout_id: hangoutId,
     duo_name:   fromDuo?.name ?? 'a duo',
-  })
+  }).catch((err) => console.error('hangout_request notification failed:', err))
   return { approved: true, sent: true }
 }
 

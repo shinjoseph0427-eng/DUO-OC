@@ -12,7 +12,6 @@ import {
   getMyHangouts, acceptHangout, declineHangout,
   getMyActivePlan, getIncomingPlanRequests,
   acceptPlanRequest, declinePlanRequest, cancelOpenPlan,
-  approveHangoutInternal,
   isPastHangoutTime, formatPlanDateLabel,
 } from '../lib/hangouts.js';
 import { getMyChats } from '../lib/messages.js';
@@ -223,7 +222,6 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const [acceptedPlanReqId, setAcceptedPlanReqId] = useState(null);
   const [busyPlanReqId,     setBusyPlanReqId]     = useState(null);
   const [confirmCancelId,   setConfirmCancelId]   = useState(null);
-  const [busyApprovalId,    setBusyApprovalId]    = useState(null);
   // Reviews
   const [reviewMap,           setReviewMap]           = useState(new Map()); // hangoutId → review
   const [reviewingHangoutId,  setReviewingHangoutId]  = useState(null);
@@ -307,27 +305,6 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
       load();
     } catch (err) {
       showToast?.(err?.message ?? 'Could not decline hangout.', 'error');
-    }
-  };
-
-  const handlePartnerApproval = async (hangoutId, approve) => {
-    if (busyApprovalId) return;
-    setBusyApprovalId(hangoutId);
-    // Optimistically drop the card so it can't be clicked twice: partnerApprovals
-    // only keeps status === 'pending_internal' rows, so flipping it removes it.
-    setHangouts((prev) => prev.map((h) => (h.id === hangoutId ? { ...h, status: 'processing' } : h)));
-    try {
-      const res = await approveHangoutInternal(hangoutId, currentUser?.id, approve);
-      load();
-      if (res?.alreadyProcessed) return; // already handled elsewhere — silent
-      if (!approve) showToast?.('Declined. Your partner was notified.', 'info');
-      else if (res?.sent) showToast?.('Sent to the other duo!', 'success');
-      else showToast?.('You’re in — waiting on your partner.', 'success');
-    } catch (err) {
-      load(); // resync local state with the server
-      showToast?.(err?.message ?? 'Could not update.', 'error');
-    } finally {
-      setBusyApprovalId(null);
     }
   };
 
@@ -469,17 +446,10 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   // days after they were created — older ones drop off the list.
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   const cancelled     = hangouts.filter((h) => h.status === 'cancelled' && (Date.now() - new Date(h.created_at ?? 0).getTime()) < SEVEN_DAYS_MS);
-  // Proposals from my own duo that are waiting on MY internal approval (I'm the
-  // partner who hasn't voted yet). The proposer themselves is filtered out.
-  const partnerApprovals = hangouts.filter((h) =>
-    h.status === 'pending_internal' &&
-    myDuoIds.includes(h.duo_a_id) &&
-    !(h.proposer_approved_by ?? []).includes(currentUser?.id),
-  );
   const requestCount  = incoming.length + outgoing.length + countered.length + totalPlanReqs;
   const tabItems = [
     { key: 'upcoming', label: 'Upcoming', count: confirmed.length + activePlanItems.length },
-    { key: 'requests', label: 'Requests', count: requestCount + partnerApprovals.length },
+    { key: 'requests', label: 'Requests', count: requestCount },
     { key: 'past',     label: 'Past',     count: pastConfirmed.length },
   ];
 
@@ -495,71 +465,6 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
           </p>
         ) : (
           <>
-            {/* PARTNER INTERNAL APPROVAL — pinned to the top, visible on every tab */}
-            {partnerApprovals.length > 0 && (
-              <div style={{ marginBottom: 18 }}>
-                <p style={{ ...SECTION_LABEL, marginBottom: 12 }}>Your partner wants to hang out 🤝</p>
-                {partnerApprovals.map((h) => {
-                  const proposerName  = h.duo_a?.duo_members?.find((m) => m.user_id === h.proposed_by)?.profiles?.name ?? 'Your partner';
-                  const targetDuoName = h.duo_b?.name ?? 'another duo';
-                  const busy          = busyApprovalId === h.id;
-                  return (
-                    <div
-                      key={h.id}
-                      style={{
-                        background:   C.cardElevated,
-                        borderLeft:   `3px solid ${C.olive}`,
-                        borderRight:  `0.5px solid ${C.border}`,
-                        borderTop:    `0.5px solid ${C.border}`,
-                        borderBottom: `0.5px solid ${C.border}`,
-                        borderRadius: 14,
-                        padding:      '14px 16px',
-                        marginBottom: 10,
-                      }}
-                    >
-                      <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 2px' }}>
-                        {proposerName} wants to hang out with {targetDuoName}
-                      </p>
-                      <HangoutMeta h={h} />
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <motion.button
-                          type="button"
-                          onClick={() => handlePartnerApproval(h.id, true)}
-                          disabled={busy}
-                          whileTap={{ scale: 0.96 }}
-                          transition={{ duration: 0.1 }}
-                          style={{
-                            flex: 1, background: C.gradientCTA, color: '#fff',
-                            border: 'none', borderRadius: 10, padding: 10,
-                            fontSize: 13, fontWeight: 700,
-                            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
-                            boxShadow: '0 2px 12px rgba(255,107,0,0.15)',
-                          }}
-                        >
-                          {busy ? 'Working…' : "Yes, I'm in ✓"}
-                        </motion.button>
-                        <motion.button
-                          type="button"
-                          onClick={() => handlePartnerApproval(h.id, false)}
-                          disabled={busy}
-                          whileTap={{ scale: 0.96 }}
-                          transition={{ duration: 0.1 }}
-                          style={{
-                            flex: 1, background: 'transparent', color: C.muted,
-                            border: `0.5px solid ${C.border}`, borderRadius: 10, padding: 10,
-                            fontSize: 13, fontWeight: 700,
-                            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1,
-                          }}
-                        >
-                          No thanks ✗
-                        </motion.button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
             <div style={{
               display:      'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
@@ -632,7 +537,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
               />
             )}
 
-            {activeTab === 'requests' && requestCount === 0 && partnerApprovals.length === 0 && activePlanItems.length === 0 && (
+            {activeTab === 'requests' && requestCount === 0 && activePlanItems.length === 0 && (
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
                 No active hangout or plan requests.
               </p>

@@ -51,10 +51,10 @@ export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) 
             <span style={{ fontSize: 28 }}>✓</span>
           </div>
           <p style={{ fontSize: 24, fontWeight: 800, color: C.white, marginBottom: 12, letterSpacing: '-0.5px' }}>
-            Sent to your partner! 🤝
+            Request sent! 🎉
           </p>
           <p style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 1.6 }}>
-            If they're in, we'll send the request to {duo.name}.
+            We'll let you know when {duo.name} responds.
           </p>
           <PremiumButton fullWidth onClick={() => go('home')}>Back to Home</PremiumButton>
         </div>
