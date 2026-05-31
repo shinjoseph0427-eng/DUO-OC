@@ -309,7 +309,7 @@ export default function App() {
         {page === 'edit_profile'     && <EditProfile currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
-        {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} />}
+        {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
       {showGuide && (

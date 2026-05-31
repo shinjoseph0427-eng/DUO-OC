@@ -7,6 +7,7 @@ import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import ReportModal from '../components/ReportModal.jsx';
 import { staggerContainer, staggerItem } from '../lib/motion';
 import { getMyActivePlan, isPastHangoutTime, requestToJoinPlan } from '../lib/hangouts.js';
+import { getDuoById } from '../lib/duos.js';
 import { getMyReviewsForHangouts } from '../lib/reviews.js';
 import { isDuoRestricted, SAFETY_MESSAGES } from '../lib/safety.js';
 import { supabase } from '../lib/supabaseClient.js';
@@ -160,8 +161,28 @@ function MemberCard({ member, index }) {
   );
 }
 
-export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, myDuo, myDuos: myDuosProp, showToast }) {
+export default function DuoDetailPage({ duo: propDuo, go, goBack, onLogout, currentUser, myDuo, myDuos: myDuosProp, showToast }) {
   const allMyDuos = myDuosProp?.length > 0 ? myDuosProp : (myDuo ? [myDuo] : []);
+
+  // Always re-fetch the full duo (members + profiles) on mount. The duo handed
+  // over by navigation can have null embedded profiles under RLS or be stale.
+  const [fetchedDuo, setFetchedDuo] = useState(null);
+  const [duoLoading, setDuoLoading] = useState(true);
+  const [duoError,   setDuoError]   = useState(false);
+  const duo = fetchedDuo ?? propDuo;
+
+  useEffect(() => {
+    const id = propDuo?.id;
+    if (!id) { setDuoLoading(false); setDuoError(true); return undefined; }
+    let cancelled = false;
+    setDuoLoading(true);
+    setDuoError(false);
+    getDuoById(id)
+      .then((d) => { if (!cancelled) { if (d) setFetchedDuo(d); else setDuoError(true); } })
+      .catch(() => { if (!cancelled) setDuoError(true); })
+      .finally(() => { if (!cancelled) setDuoLoading(false); });
+    return () => { cancelled = true; };
+  }, [propDuo?.id]);
 
   const [reportOpen,             setReportOpen]             = useState(false);
   const [openPlan,               setOpenPlan]               = useState(null);
@@ -245,6 +266,30 @@ export default function DuoDetailPage({ duo, go, goBack, onLogout, currentUser, 
       }
     }
   };
+
+  if (duoLoading && !fetchedDuo) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="shimmer" style={{ width: 44, height: 44, borderRadius: '50%', background: C.cardDeep }} />
+      </div>
+    );
+  }
+
+  if (duoError && !fetchedDuo) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.white }}>Failed to load duo</div>
+          <button
+            onClick={() => go('explore')}
+            style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: C.amber, color: C.white, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Find duos &rarr;
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!duo || duo.status === 'dissolved' || duo.status === 'archived') {
     return (

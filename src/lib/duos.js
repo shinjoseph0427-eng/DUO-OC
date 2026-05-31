@@ -30,6 +30,19 @@ export async function createDuo(userId, duoData) {
   return duo
 }
 
+// Fetches one duo with its full members + profiles. Used by DuoDetailPage so it
+// never relies on possibly-stale / RLS-stripped embedded data passed via nav.
+export async function getDuoById(duoId) {
+  if (!duoId) return null
+  const { data, error } = await supabase
+    .from('duos')
+    .select('*, duo_members(*, profiles(*))')
+    .eq('id', duoId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 export async function getMyDuo(userId) {
   const { data, error } = await supabase
     .from('duo_members')

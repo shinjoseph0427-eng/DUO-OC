@@ -11,6 +11,19 @@ export async function getMyProfile(userId) {
   return data
 }
 
+// Fetches a single profile by id. Used by HomieProfilePage so it never relies
+// on possibly-stale / RLS-stripped data passed via navigation.
+export async function getProfileById(userId) {
+  if (!userId) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 export async function updateProfile(userId, updates) {
   const { error } = await supabase
     .from('profiles')

@@ -5,6 +5,7 @@ import { C, F } from '../tokens';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { getSentHomieRequests, sendHomieRequest, getMyHomieIds } from '../lib/homie.js';
+import { getProfileById } from '../lib/profile.js';
 import { blockUser } from '../lib/safety.js';
 
 function PromptBlock({ question, answer }) {
@@ -40,12 +41,31 @@ function PromptBlock({ question, answer }) {
   );
 }
 
-export default function HomieProfilePage({ homie, currentUser, go, showToast }) {
+export default function HomieProfilePage({ homie: propHomie, currentUser, go, showToast }) {
   const [requestStatus,  setRequestStatus]  = useState(null);
   const [loadingStatus,  setLoadingStatus]  = useState(true);
   const [sending,        setSending]        = useState(false);
   const [blockConfirm,   setBlockConfirm]   = useState(false);
   const [blocking,       setBlocking]       = useState(false);
+
+  // Re-fetch the full profile on mount (nav-passed data may be stale / RLS-stripped).
+  const [fetchedHomie, setFetchedHomie] = useState(null);
+  const [homieLoading, setHomieLoading] = useState(true);
+  const [homieError,   setHomieError]   = useState(false);
+  const homie = fetchedHomie ?? propHomie;
+
+  useEffect(() => {
+    const id = propHomie?.id;
+    if (!id) { setHomieLoading(false); setHomieError(true); return undefined; }
+    let cancelled = false;
+    setHomieLoading(true);
+    setHomieError(false);
+    getProfileById(id)
+      .then((p) => { if (!cancelled) { if (p) setFetchedHomie(p); else setHomieError(true); } })
+      .catch(() => { if (!cancelled) setHomieError(true); })
+      .finally(() => { if (!cancelled) setHomieLoading(false); });
+    return () => { cancelled = true; };
+  }, [propHomie?.id]);
 
   const photo = homie?.photos?.[0] ?? null;
   const name = homie?.name ?? 'Anonymous';
@@ -109,9 +129,18 @@ export default function HomieProfilePage({ homie, currentUser, go, showToast }) 
     }
   };
 
-  if (!homie) {
+  if (homieLoading && !fetchedHomie) {
     return (
-      <div style={{ minHeight: '100vh', background: C.bg, padding: '72px 16px 0' }}>
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="shimmer" style={{ width: 44, height: 44, borderRadius: '50%', background: C.cardDeep }} />
+      </div>
+    );
+  }
+
+  if ((homieError && !fetchedHomie) || !homie) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: C.white }}>Failed to load profile</div>
         <PremiumButton fullWidth onClick={() => go('find_homie')}>Back to Find a homie</PremiumButton>
       </div>
     );
