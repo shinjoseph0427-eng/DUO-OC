@@ -490,50 +490,10 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
           </p>
         ) : (
           <>
-            <div style={{
-              display:      'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap:          6,
-              background:   C.cardElevated,
-              border:       `0.5px solid ${C.border}`,
-              borderRadius: 14,
-              padding:      4,
-              marginBottom: 18,
-            }}>
-              {tabItems.map((tab) => {
-                const active = activeTab === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    style={{
-                      minWidth:     0,
-                      border:       'none',
-                      borderRadius: 10,
-                      background:   active ? C.amberT08 : 'transparent',
-                      color:        active ? C.white : C.muted,
-                      padding:      '9px 4px',
-                      fontSize:     12,
-                      fontWeight:   800,
-                      cursor:       'pointer',
-                    }}
-                  >
-                    {tab.label}
-                    {tab.count > 0 && (
-                      <span style={{ marginLeft: 5, color: active ? C.amber : C.muted, fontWeight: 900 }}>
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* PARTNER INTERNAL APPROVAL */}
-            {activeTab === 'requests' && partnerApprovals.length > 0 && (
-              <div style={{ marginBottom: 22 }}>
-                <p style={{ ...SECTION_LABEL, marginBottom: 12 }}>Your partner wants to hang out</p>
+            {/* PARTNER INTERNAL APPROVAL — pinned to the top, visible on every tab */}
+            {partnerApprovals.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <p style={{ ...SECTION_LABEL, marginBottom: 12 }}>Your partner wants to hang out 🤝</p>
                 {partnerApprovals.map((h) => {
                   const proposerName  = h.duo_a?.duo_members?.find((m) => m.user_id === h.proposed_by)?.profiles?.name ?? 'Your partner';
                   const targetDuoName = h.duo_b?.name ?? 'another duo';
@@ -594,6 +554,46 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                 })}
               </div>
             )}
+
+            <div style={{
+              display:      'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap:          6,
+              background:   C.cardElevated,
+              border:       `0.5px solid ${C.border}`,
+              borderRadius: 14,
+              padding:      4,
+              marginBottom: 18,
+            }}>
+              {tabItems.map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    style={{
+                      minWidth:     0,
+                      border:       'none',
+                      borderRadius: 10,
+                      background:   active ? C.amberT08 : 'transparent',
+                      color:        active ? C.white : C.muted,
+                      padding:      '9px 4px',
+                      fontSize:     12,
+                      fontWeight:   800,
+                      cursor:       'pointer',
+                    }}
+                  >
+                    {tab.label}
+                    {tab.count > 0 && (
+                      <span style={{ marginLeft: 5, color: active ? C.amber : C.muted, fontWeight: 900 }}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
             {/* INCOMING PENDING */}
             {activeTab === 'requests' && (
