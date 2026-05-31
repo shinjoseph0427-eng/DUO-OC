@@ -26,6 +26,7 @@ const TYPE_META = {
   plan_accepted:     { label: (p) => `${p.duo_name ?? 'A duo'} accepted your request to join their open plan.`, page: 'hangouts' },
   plan_declined:     { label: () => 'Your request to join an open plan was declined.', page: 'hangouts' },
   plan_cancelled:    { label: () => 'An open plan you requested to join was cancelled.', page: 'hangouts' },
+  hangout_cancelled: { label: (p) => (p.cancelled_duo_name ? `${p.cancelled_duo_name} cancelled the hangout` : 'A hangout was cancelled'), emoji: '❌', page: 'hangouts' },
 };
 
 function timeAgo(isoString) {

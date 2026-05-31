@@ -432,6 +432,10 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const countered     = hangouts.filter((h) => h.status === 'countered' && myDuoIds.includes(h.duo_a_id)  && !isPastHangoutTime(h.date, h.time_slot, h.created_at));
   const confirmed     = hangouts.filter((h) => h.status === 'confirmed'                                    && !isPastHangoutTime(h.date, h.time_slot, h.created_at));
   const pastConfirmed = hangouts.filter((h) => h.status === 'confirmed'                                    &&  isPastHangoutTime(h.date, h.time_slot, h.created_at));
+  // Cancelled hangouts surface in Upcoming with a red badge, but only for 7
+  // days after they were created — older ones drop off the list.
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const cancelled     = hangouts.filter((h) => h.status === 'cancelled' && (Date.now() - new Date(h.created_at ?? 0).getTime()) < SEVEN_DAYS_MS);
   const requestCount  = incoming.length + outgoing.length + countered.length + totalPlanReqs;
   const tabItems = [
     { key: 'upcoming', label: 'Upcoming', count: confirmed.length + activePlanItems.length },
@@ -515,8 +519,10 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
             {activeTab === 'upcoming' && confirmed.length === 0 && activePlanItems.length === 0 && (
               <EmptyState
                 icon={Calendar}
-                title="Quiet in here — send the first one."
-                subtitle="Explore duos or create an open plan to start."
+                title="No hangouts yet."
+                subtitle="Find a Duo to get started."
+                action={() => go('explore')}
+                actionLabel="Explore"
                 style={{ marginBottom: 24 }}
               />
             )}
@@ -690,6 +696,49 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                 </HangoutCard>
               );
             })}
+
+            {/* CANCELLED (recent) */}
+            {activeTab === 'upcoming' && cancelled.length > 0 && (
+              <>
+                <p style={{ ...SECTION_LABEL, marginTop: 20, marginBottom: 12 }}>Cancelled</p>
+                {cancelled.map((h) => {
+                  const otherDuo = myDuoIds.includes(h.duo_a_id) ? h.duo_b : h.duo_a;
+                  return (
+                    <div
+                      key={h.id}
+                      style={{
+                        background:   C.cardElevated,
+                        borderLeft:   `3px solid ${C.danger}`,
+                        borderRight:  `0.5px solid ${C.border}`,
+                        borderTop:    `0.5px solid ${C.border}`,
+                        borderBottom: `0.5px solid ${C.border}`,
+                        borderRadius: 14,
+                        padding:      '14px 16px',
+                        marginBottom: 10,
+                        opacity:      0.85,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.white }}>
+                          {otherDuo?.name ?? 'Duo'}
+                        </span>
+                        <span style={{
+                          background:   'rgba(220,38,38,0.12)',
+                          color:        C.danger,
+                          borderRadius: 9999,
+                          padding:      '2px 10px',
+                          fontSize:     11,
+                          fontWeight:   700,
+                        }}>
+                          Cancelled
+                        </span>
+                      </div>
+                      <HangoutMeta h={h} />
+                    </div>
+                  );
+                })}
+              </>
+            )}
 
             {/* PAST HANGOUTS */}
             {activeTab === 'past' && pastConfirmed.length === 0 && (

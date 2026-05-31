@@ -71,10 +71,11 @@ export async function getMyDuos(userId) {
   const rows = data ?? []
   const mapped = rows.map((membership) => membership.duos)
 
-  // If rows came back but every duo is null, RLS is blocking the duos join
+  // Drop duo_members rows whose duos join returned null — this happens for
+  // orphaned memberships (the duo was deleted) or rows hidden by RLS. We skip
+  // them rather than throwing so the page can still load the user's valid duos.
   if (rows.length > 0 && mapped.every((d) => d == null)) {
-    console.error('[getMyDuos] duo_members rows found but duos join returned null — likely RLS blocking duos SELECT')
-    throw new Error('Could not read Duo data. Check Supabase RLS policies on the duos table.')
+    console.warn('[getMyDuos] all duos joins returned null — orphaned duo_members or RLS blocking duos SELECT')
   }
 
   const filtered = mapped.filter((duo) => duo?.status === 'active')

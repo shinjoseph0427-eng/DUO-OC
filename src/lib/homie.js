@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient.js'
-import { sendPushForNotification } from './notifications.js'
+import { sendPushForNotification, createNotificationsForDuo } from './notifications.js'
 
 function throwStep(message, error) {
   const detail = error?.message ?? error?.details ?? error?.hint ?? null
@@ -244,6 +244,62 @@ export async function leaveDuo(duoId) {
         `and(from_user_id.eq.${userB},to_user_id.eq.${userA})`,
       );
     if (homieError) throw homieError;
+  }
+
+  // Cancel any pending/confirmed hangouts this duo is part of, and notify both
+  // sides. Wrapped in try/catch so a failure here never blocks the dissolve.
+  // (Setting status = 'cancelled' requires the hangouts_status_check migration
+  // that allows the 'cancelled' value; until applied this block no-ops safely.)
+  try {
+    const { data: liveHangouts } = await supabase
+      .from('hangouts')
+      .select('id, duo_a_id, duo_b_id, status')
+      .or(`duo_a_id.eq.${duoId},duo_b_id.eq.${duoId}`)
+      .in('status', ['pending', 'confirmed']);
+
+    if (liveHangouts?.length) {
+      // Resolve names for this (leaving) duo and every other duo involved.
+      const otherDuoIds = [...new Set(
+        liveHangouts.map((h) => (h.duo_a_id === duoId ? h.duo_b_id : h.duo_a_id)),
+      )];
+      const { data: duoRows } = await supabase
+        .from('duos')
+        .select('id, name')
+        .in('id', [duoId, ...otherDuoIds]);
+      const nameById = new Map((duoRows ?? []).map((d) => [d.id, d.name]));
+      const leavingDuoName = nameById.get(duoId) ?? 'A duo';
+
+      // STEP A — cancel them all in one update.
+      const { error: cancelError } = await supabase
+        .from('hangouts')
+        .update({ status: 'cancelled' })
+        .in('id', liveHangouts.map((h) => h.id));
+      if (cancelError) throw cancelError;
+
+      // STEP B & C — notify each side (best-effort; never throws).
+      await Promise.all(
+        liveHangouts.flatMap((h) => {
+          const otherDuoId   = h.duo_a_id === duoId ? h.duo_b_id : h.duo_a_id;
+          const otherDuoName = nameById.get(otherDuoId) ?? 'the other duo';
+          return [
+            // STEP B — the other duo
+            createNotificationsForDuo(otherDuoId, 'hangout_cancelled', {
+              hangout_id:         h.id,
+              cancelled_duo_name: leavingDuoName,
+              reason:             'duo_dissolved',
+            }).catch(() => {}),
+            // STEP C — the leaving (this) duo
+            createNotificationsForDuo(duoId, 'hangout_cancelled', {
+              hangout_id:     h.id,
+              other_duo_name: otherDuoName,
+              reason:         'duo_dissolved',
+            }).catch(() => {}),
+          ];
+        }),
+      );
+    }
+  } catch (e) {
+    console.warn('leaveDuo: hangout cancellation/notify failed (non-fatal)', e);
   }
 
   return { success: true };

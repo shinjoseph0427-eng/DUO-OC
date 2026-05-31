@@ -166,24 +166,30 @@ export async function getMyHangouts(duoIds) {
 
   const orFilter = ids.map((id) => `duo_a_id.eq.${id},duo_b_id.eq.${id}`).join(',')
 
-  const { data, error } = await supabase
-    .from('hangouts')
-    .select(`
-      *,
-      duo_a:duos!hangouts_duo_a_id_fkey(
-        id, name, city,
-        duo_members(instagram, profiles(name, instagram, photos))
-      ),
-      duo_b:duos!hangouts_duo_b_id_fkey(
-        id, name, city,
-        duo_members(instagram, profiles(name, instagram, photos))
-      )
-    `)
-    .or(orFilter)
-    .order('created_at', { ascending: false })
+  try {
+    const { data, error } = await supabase
+      .from('hangouts')
+      .select(`
+        *,
+        duo_a:duos!hangouts_duo_a_id_fkey(
+          id, name, city,
+          duo_members(instagram, profiles(name, instagram, photos))
+        ),
+        duo_b:duos!hangouts_duo_b_id_fkey(
+          id, name, city,
+          duo_members(instagram, profiles(name, instagram, photos))
+        )
+      `)
+      .or(orFilter)
+      .order('created_at', { ascending: false })
 
-  if (error) return []
-  return data
+    if (error) return []
+    // Drop rows whose duo_a/duo_b join resolved to null (orphaned reference to
+    // a deleted duo) — they would render as broken/empty cards.
+    return (data ?? []).filter((h) => h.duo_a && h.duo_b)
+  } catch {
+    return []
+  }
 }
 
 // Any member of the receiving duo can confirm a pending hangout.
