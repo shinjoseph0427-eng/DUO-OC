@@ -16,13 +16,59 @@ type PushRequest = {
   notificationId: string;
 };
 
+// Notification types this function is allowed to deliver a push for.
+const SUPPORTED_TYPES = new Set([
+  "homie_request",
+  "hangout_request",
+  "hangout_accepted",
+  "match",
+]);
+
 const PUSH_TITLES: Record<string, string> = {
   homie_request: "New duo request",
+  hangout_request: "New hangout request",
+  hangout_accepted: "Hangout confirmed",
+  match: "It's a match!",
 };
 
 const PUSH_BODIES: Record<string, string> = {
   homie_request: "Someone wants to be your duo partner.",
+  hangout_request: "A duo wants to hang out with you.",
+  hangout_accepted: "A duo accepted your hangout request.",
+  match: "You matched with a new duo.",
 };
+
+// Builds a friendlier body using the notification payload when available.
+function buildPushBody(
+  type: string,
+  payload: Record<string, unknown>,
+): string {
+  const duoName = typeof payload.duo_name === "string" && payload.duo_name.trim()
+    ? payload.duo_name.trim()
+    : null;
+  const matchedName =
+    typeof payload.matched_duo_name === "string" &&
+      payload.matched_duo_name.trim()
+      ? payload.matched_duo_name.trim()
+      : null;
+
+  switch (type) {
+    case "hangout_request":
+      return duoName
+        ? `${duoName} wants to hang out with you.`
+        : PUSH_BODIES.hangout_request;
+    case "hangout_accepted":
+      return duoName
+        ? `${duoName} accepted your hangout request.`
+        : PUSH_BODIES.hangout_accepted;
+    case "match":
+      return matchedName
+        ? `You matched with ${matchedName}.`
+        : PUSH_BODIES.match;
+    default:
+      return PUSH_BODIES[type] ?? "You have a new notification.";
+  }
+}
 
 function corsHeaders(req: Request): HeadersInit {
   const origin = req.headers.get("Origin");
@@ -254,7 +300,7 @@ serve(async (req) => {
   const notificationPayload = isPlainObject(notification.payload)
     ? notification.payload
     : {};
-  if (notification.type !== "homie_request") {
+  if (!SUPPORTED_TYPES.has(notification.type)) {
     return jsonResponse(req, {
       success: true,
       skipped: true,
@@ -262,48 +308,55 @@ serve(async (req) => {
     }, 200);
   }
 
-  if (notificationPayload.from_user_id !== authData.user.id) {
-    return jsonResponse(req, {
-      error: "Not authorized to send this notification.",
-    }, 403);
-  }
+  // homie_request is special: the caller is the sender, so verify the caller
+  // owns the originating request before pushing to the recipient.
+  if (notification.type === "homie_request") {
+    if (notificationPayload.from_user_id !== authData.user.id) {
+      return jsonResponse(req, {
+        error: "Not authorized to send this notification.",
+      }, 403);
+    }
 
-  if (
-    typeof notificationPayload.homie_request_id !== "string" ||
-    !notificationPayload.homie_request_id.trim()
-  ) {
-    return jsonResponse(req, {
-      success: true,
-      skipped: true,
-      reason: "unverified_notification_event",
-    }, 200);
-  }
+    if (
+      typeof notificationPayload.homie_request_id !== "string" ||
+      !notificationPayload.homie_request_id.trim()
+    ) {
+      return jsonResponse(req, {
+        success: true,
+        skipped: true,
+        reason: "unverified_notification_event",
+      }, 200);
+    }
 
-  const { data: homieRequest, error: homieRequestError } = await adminClient
-    .from("homie_requests")
-    .select("id")
-    .eq("id", notificationPayload.homie_request_id)
-    .eq("from_user_id", authData.user.id)
-    .eq("to_user_id", notification.user_id)
-    .eq("status", "pending")
-    .limit(1)
-    .maybeSingle();
-  if (homieRequestError) {
-    console.error(
-      "Homie request verification failed:",
-      homieRequestError.message,
-    );
-    return jsonResponse(req, {
-      error: "Unable to verify push notification.",
-    }, 500);
+    const { data: homieRequest, error: homieRequestError } = await adminClient
+      .from("homie_requests")
+      .select("id")
+      .eq("id", notificationPayload.homie_request_id)
+      .eq("from_user_id", authData.user.id)
+      .eq("to_user_id", notification.user_id)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+    if (homieRequestError) {
+      console.error(
+        "Homie request verification failed:",
+        homieRequestError.message,
+      );
+      return jsonResponse(req, {
+        error: "Unable to verify push notification.",
+      }, 500);
+    }
+    if (!homieRequest) {
+      return jsonResponse(req, {
+        success: true,
+        skipped: true,
+        reason: "unverified_notification_event",
+      }, 200);
+    }
   }
-  if (!homieRequest) {
-    return jsonResponse(req, {
-      success: true,
-      skipped: true,
-      reason: "unverified_notification_event",
-    }, 200);
-  }
+  // For hangout_request / hangout_accepted / match the notification row itself
+  // is created server-side under RLS for the recipient, so no extra ownership
+  // check is required here — deliver the push to the recipient's device.
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
@@ -350,8 +403,7 @@ serve(async (req) => {
     }
 
     const title = PUSH_TITLES[notification.type] ?? "DUO OC";
-    const body = PUSH_BODIES[notification.type] ??
-      "You have a new notification.";
+    const body = buildPushBody(notification.type, notificationPayload);
     const data = {
       ...toFcmData(notificationPayload),
       type: String(notification.type),

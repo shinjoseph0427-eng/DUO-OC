@@ -24,6 +24,14 @@ const TIME_SLOT_END_HOUR = {
 // Resolve a relative date key to a concrete Date using the record's created_at
 // as the anchor. Returns null if the key is unrecognised.
 function resolveHangoutDate(dateKey, createdAt) {
+  // Concrete calendar dates picked via the Calendar component are stored as
+  // 'YYYY-MM-DD'. Resolve them directly to a local midnight Date.
+  if (typeof dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    const [yy, mm, dd] = dateKey.split('-').map(Number)
+    const concrete = new Date(yy, mm - 1, dd)
+    return isNaN(concrete.getTime()) ? null : concrete
+  }
+
   let base
   try { base = createdAt ? new Date(createdAt) : new Date() } catch { base = new Date() }
   if (isNaN(base.getTime())) base = new Date()
@@ -52,6 +60,31 @@ function resolveHangoutDate(dateKey, createdAt) {
     default:
       return null // unknown key — caller treats as non-expired
   }
+}
+
+// Friendly display labels for the relative date keys.
+const RELATIVE_DATE_LABELS = {
+  today:     'Today',
+  tomorrow:  'Tomorrow',
+  friday:    'This Friday',
+  saturday:  'Saturday',
+  sunday:    'This Sunday',
+  next_week: 'Next week',
+}
+
+// Renders a plan's stored date value for display. Handles both the legacy
+// relative keys ('today', 'friday', …) and concrete 'YYYY-MM-DD' dates picked
+// via the Calendar component (e.g. "Friday, Jun 6").
+export function formatPlanDateLabel(dateValue) {
+  if (!dateValue) return ''
+  if (RELATIVE_DATE_LABELS[dateValue]) return RELATIVE_DATE_LABELS[dateValue]
+  if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    const [yy, mm, dd] = dateValue.split('-').map(Number)
+    const d = new Date(yy, mm - 1, dd)
+    if (isNaN(d.getTime())) return dateValue
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  }
+  return dateValue
 }
 
 // Returns true only when the scheduled date+time slot is definitively in the past.

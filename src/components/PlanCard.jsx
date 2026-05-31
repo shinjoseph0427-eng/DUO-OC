@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Clock, MapPin, Users } from 'lucide-react';
 import { C } from '../tokens';
+import { formatPlanDateLabel } from '../lib/hangouts.js';
 import DuoPhotoSplit from './DuoPhotoSplit.jsx';
 
 const DATE_SHORT = {
@@ -53,7 +54,7 @@ export default function PlanCard({
 }) {
   const hasPlan = Boolean(plan);
   const planType = plan?.vibe ?? duo?.vibes?.[0] ?? 'Hangout';
-  const date = DATE_SHORT[plan?.date] ?? plan?.date ?? null;
+  const date = DATE_SHORT[plan?.date] ?? formatPlanDateLabel(plan?.date) ?? null;
   const time = TIME_SHORT[plan?.time_slot] ?? plan?.time_slot ?? null;
   const posted = timeAgo(plan?.created_at ?? duo?.created_at);
   const location = plan?.place || duo?.city || null;

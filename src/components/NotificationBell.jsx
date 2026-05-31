@@ -9,7 +9,7 @@ import {
   subscribeNotifications,
 } from '../lib/notifications.js';
 import { getMyHomieRequests, acceptHomieRequest } from '../lib/homie.js';
-import { acceptPlanRequest, declinePlanRequest } from '../lib/hangouts.js';
+import { acceptPlanRequest, declinePlanRequest, formatPlanDateLabel } from '../lib/hangouts.js';
 
 function getSender(request) {
   return request?.profiles ?? request?.profile ?? request?.from_profile ?? {};
@@ -173,6 +173,22 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
       showToast?.(err?.message || 'Failed to decline', 'error');
     } finally {
       setPlanBusyId(null);
+    }
+  };
+
+  const handleReview = async (e, n, action) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await markAsRead(n.id);
+      setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    } catch {
+      showToast?.('Could not update notification yet.', 'error');
+      return;
+    }
+    if (action === 'review') {
+      showToast?.('Review flow coming soon.', 'info');
+      setOpen(false);
     }
   };
 
@@ -361,6 +377,62 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
                   </div>
                 )}
                 {notifs.map((n) => {
+                  // ── Review prompt card ──
+                  if (n.type === 'review') {
+                    const duoName  = n.payload?.duo_name ?? 'your duo';
+                    const dateText = formatPlanDateLabel(n.payload?.date);
+                    return (
+                      <div
+                        key={n.id}
+                        style={{
+                          padding:        '12px 14px',
+                          borderLeft:     `3px solid ${C.amber}`,
+                          borderBottom:   `0.5px solid ${C.border}`,
+                          background:     n.read ? 'transparent' : C.amberT08,
+                        }}
+                      >
+                        <p style={{ fontSize: 13, fontWeight: 700, color: C.white, margin: 0, lineHeight: 1.4 }}>
+                          How was your hangout with {duoName}?
+                        </p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0' }}>
+                          {[dateText, timeAgo(n.created_at)].filter(Boolean).join(' · ')}
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => handleReview(e, n, 'review')}
+                            style={{
+                              border:       'none',
+                              background:   C.amber,
+                              color:        '#fff',
+                              borderRadius: 9999,
+                              padding:      '7px 14px',
+                              fontSize:     12,
+                              fontWeight:   700,
+                              cursor:       'pointer',
+                            }}
+                          >
+                            Leave a review
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleReview(e, n, 'skip')}
+                            style={{
+                              border:     'none',
+                              background: 'none',
+                              color:      C.muted,
+                              fontSize:   12,
+                              fontWeight: 600,
+                              cursor:     'pointer',
+                            }}
+                          >
+                            Skip
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const meta      = TYPE_META[n.type] ?? { label: () => n.type };
                   const label     = meta.label(n.payload ?? {});
                   const isPlanReq = n.type === 'plan_request' && n.payload?.request_id;

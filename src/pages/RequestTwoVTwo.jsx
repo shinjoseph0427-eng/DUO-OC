@@ -10,7 +10,7 @@ import { proposeHangout } from '../lib/hangouts.js';
 const VIBES = ['Boba', 'Coffee', 'Beach walk', 'Dinner', 'Gym', 'Night out', 'Anything'];
 const WHENS = ['Tonight', 'Friday', 'Saturday', 'This weekend'];
 
-export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
+export default function RequestTwoVTwo({ duo, myDuo, currentUser, go, goBack }) {
   const [selectedVibe, setSelectedVibe] = useState(null);
   const [selectedWhen, setSelectedWhen] = useState(null);
   const [message, setMessage]           = useState('Down for a chill 2v2?');
@@ -65,14 +65,14 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
   const canSend = Boolean(selectedVibe && selectedWhen) && !loading;
 
   const handleSend = async () => {
-    if (!canSend || !myDuo) return;
+    if (!canSend || !myDuo || !currentUser) return;
     setError(null);
     setLoading(true);
     try {
       await proposeHangout({
         fromDuoId:  myDuo.id,
         toDuoId:    duo.id,
-        proposedBy: myDuo.id,
+        proposedBy: currentUser.id,
         vibe:       selectedVibe,
         timeSlot:   selectedWhen,
         place:      '',
@@ -81,7 +81,7 @@ export default function RequestTwoVTwo({ duo, myDuo, go, goBack }) {
       setSent(true);
     } catch (err) {
       console.error('hangout propose error:', err);
-      setError('요청 전송에 실패했어요. 다시 시도해줘.');
+      setError('Failed to send request. Please try again.');
     } finally {
       setLoading(false);
     }

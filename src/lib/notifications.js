@@ -104,8 +104,17 @@ export async function createNotificationsForDuo(duoId, type, payload) {
   if (membersError) throw membersError
   if (!members?.length) return
 
-  const { error } = await supabase.from('notifications').insert(
-    members.map((m) => ({ user_id: m.user_id, type, payload, read: false })),
-  )
+  const { data: inserted, error } = await supabase
+    .from('notifications')
+    .insert(
+      members.map((m) => ({ user_id: m.user_id, type, payload, read: false })),
+    )
+    .select('id')
   if (error) throw error
+
+  // Fire a push for each recipient (no-op for types the edge function skips).
+  // Best-effort: never let a push failure break notification creation.
+  await Promise.all(
+    (inserted ?? []).map((n) => sendPushForNotification(n.id).catch(() => {})),
+  )
 }

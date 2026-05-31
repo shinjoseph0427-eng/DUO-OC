@@ -695,8 +695,8 @@ export default function ExplorePage({ currentUser, go, showToast }) {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 6, padding: '12px 16px 0' }}>
           {[
-            { key: 'duos',       label: 'Duos' },
-            { key: 'find_homie', label: 'Find Homie' },
+            { key: 'duos',       label: 'Find a Duo' },
+            { key: 'find_homie', label: 'Make a Duo' },
           ].map(({ key, label }) => (
             <motion.button
               key={key}

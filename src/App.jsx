@@ -34,6 +34,8 @@ import { getConfirmedChatCount } from './lib/messages.js';
 import { acceptInvite } from './lib/invites.js';
 import { supabase } from './lib/supabaseClient.js';
 import { requestPushPermission } from './lib/firebase.js';
+import { usePlanStatus } from './hooks/usePlanStatus';
+import { useReviewPrompt } from './hooks/useReviewPrompt';
 
 const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
@@ -69,6 +71,10 @@ export default function App() {
   const [profile,         setProfile]         = useState(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [showGuide,          setShowGuide]          = useState(false);
+
+  // Auto-expire elapsed plans and fire post-hangout review prompts.
+  usePlanStatus();
+  useReviewPrompt();
 
   const showToast = (msg, type = 'info') => {
     setToast({ msg, type });
@@ -276,7 +282,7 @@ export default function App() {
           ? <DuoDetailPage duo={selectedDuo} go={go} goBack={goBack} onLogout={handleLogout} currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} showToast={showToast} />
           : fallback('Duo not found'))}
         {page === 'request'     && (selectedDuo
-          ? <RequestTwoVTwo duo={selectedDuo} myDuo={myDuo} go={go} goBack={goBack} />
+          ? <RequestTwoVTwo duo={selectedDuo} myDuo={myDuo} currentUser={currentUser} go={go} goBack={goBack} />
           : fallback('Duo not found'))}
         {page === 'match'       && (selectedDuo
           ? <MatchScreen duo={selectedDuo} requestData={requestData} go={go} goBack={goBack} />

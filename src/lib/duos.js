@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient.js'
+import { getHiddenUserIds } from './safety.js'
 
 export async function createDuo(userId, duoData) {
   const { data: duo, error } = await supabase
@@ -166,11 +167,14 @@ export async function getExploreDuos(userId) {
     .select('duo_id, duos(status)')
     .eq('user_id', userId)
   // Collect ALL active duo IDs so every duo the user belongs to is excluded.
-  const myDuoIds = new Set(
-    (myMembers ?? [])
-      .filter((m) => m.duos?.status === 'active')
-      .map((m) => m.duo_id),
-  )
+  const myDuoIdList = (myMembers ?? [])
+    .filter((m) => m.duos?.status === 'active')
+    .map((m) => m.duo_id)
+  const myDuoIds = new Set(myDuoIdList)
+
+  // Users hidden by safety: members of duos this user blocked, members of
+  // restricted/sanctioned duos, and individually blocked users.
+  const hiddenUserIds = await getHiddenUserIds(myDuoIdList, userId).catch(() => new Set())
 
   const { data: duos, error } = await supabase
     .from('duos')
@@ -187,6 +191,10 @@ export async function getExploreDuos(userId) {
   return duos
     .filter((d) => !myDuoIds.has(d.id))
     .filter((duo) => duo?.status === 'active')
+    // Drop any duo that has a hidden/blocked member.
+    .filter((duo) =>
+      !(duo?.duo_members ?? []).some((m) => m.user_id && hiddenUserIds.has(m.user_id)),
+    )
 }
 
 export async function getDiscoveryDuos(userId) {

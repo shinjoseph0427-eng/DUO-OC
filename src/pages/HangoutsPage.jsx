@@ -12,7 +12,7 @@ import {
   getMyHangouts, acceptHangout, declineHangout,
   getMyActivePlan, getIncomingPlanRequests,
   acceptPlanRequest, declinePlanRequest, cancelOpenPlan,
-  isPastHangoutTime,
+  isPastHangoutTime, formatPlanDateLabel,
 } from '../lib/hangouts.js';
 import { getMyChats } from '../lib/messages.js';
 import { createPostHangoutReview, getMyReviewsForHangouts } from '../lib/reviews.js';
@@ -84,7 +84,7 @@ function SpotCard({ spot }) {
 }
 
 function HangoutMeta({ h }) {
-  const dateLabel = DATE_LABELS[h.date] ?? h.date ?? '';
+  const dateLabel = DATE_LABELS[h.date] ?? formatPlanDateLabel(h.date) ?? '';
   const timeLabel = TIME_LABELS[h.time_slot] ?? h.time_slot ?? '';
   return (
     <>

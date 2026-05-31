@@ -366,9 +366,9 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
   );
 
   const progressSteps = [
-    { label: '프로필 완성', done: !!(profile?.name && profile?.birth_year) },
-    { label: 'Duo 만들기',  done: !!myDuo },
-    { label: '첫 만남',     done: confirmed.length > 0 },
+    { label: 'Complete profile', done: !!(profile?.name && profile?.birth_year) },
+    { label: 'Create a duo',  done: !!myDuo },
+    { label: 'First hangout',     done: confirmed.length > 0 },
   ];
   const progressCompleted  = progressSteps.filter((s) => s.done).length;
   const progressPct        = Math.round((progressCompleted / 3) * 100);
@@ -833,17 +833,17 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               </div>
             </div>
 
-            {/* ── 근처 duo ──────────────────────────────────────────── */}
+            {/* ── Nearby duos ──────────────────────────────────────────── */}
             {nearbyDuos.length > 0 && (
               <div style={{ padding: '20px 16px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>근처 duo</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Nearby duos</span>
                   <button
                     type="button"
                     onClick={() => go('explore')}
                     style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: C.amber, cursor: 'pointer', padding: 0 }}
                   >
-                    전체 보기
+                    See all
                   </button>
                 </div>
                 <div style={{ background: C.cardElevated, borderRadius: 14, border: `0.5px solid ${C.border}` }}>
@@ -888,7 +888,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                                 transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: dotDelay }}
                                 style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e' }}
                               />
-                              <span style={{ fontSize: 11, color: C.muted }}>활성</span>
+                              <span style={{ fontSize: 11, color: C.muted }}>Active</span>
                             </div>
                           ) : isNew ? (
                             <span style={{ fontSize: 10, fontWeight: 500, color: C.amber }}>NEW</span>
@@ -901,12 +901,12 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               </div>
             )}
 
-            {/* ── 통계 한 줄 ────────────────────────────────────────── */}
+            {/* ── Stats line ────────────────────────────────────────── */}
             {currentUser?.id && (nearbyCount !== false || weeklyMatchCount !== false) && (
               <p style={{ fontSize: 11, color: '#BBBBBB', padding: '12px 18px 4px', margin: 0, lineHeight: 1 }}>
                 {nearbyCount !== false && (
                   <>
-                    근처{' '}
+                    Nearby{' '}
                     <motion.span
                       initial={false}
                       animate={{ opacity: 1 }}
@@ -914,17 +914,17 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                     >
                       {nearbyCount === null ? '—' : displayNearby}
                     </motion.span>
-                    팀
+                    {' '}teams
                   </>
                 )}
                 {nearbyCount !== false && weeklyMatchCount !== false && ' · '}
                 {weeklyMatchCount !== false && (
-                  <>이번 주 {weeklyMatchCount === null ? '—' : weeklyMatchCount} 매칭</>
+                  <>This week {weeklyMatchCount === null ? '—' : weeklyMatchCount} matches</>
                 )}
               </p>
             )}
 
-            {/* ── 진행 상황 ─────────────────────────────────────────── */}
+            {/* ── Progress ─────────────────────────────────────────── */}
             {!allProgressDone && (
               <div style={{ padding: '8px 16px 0' }}>
                 <div style={{ background: C.cardElevated, border: `0.5px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
@@ -932,7 +932,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                   {/* Header */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                     <div>
-                      <p style={{ fontSize: 15, fontWeight: 500, color: C.white, margin: '0 0 3px' }}>시작했어요</p>
+                      <p style={{ fontSize: 15, fontWeight: 500, color: C.white, margin: '0 0 3px' }}>Getting started</p>
                       <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{progressCompleted} / 3</p>
                     </div>
                     <p style={{ fontSize: 32, fontWeight: 500, color: C.amber, margin: 0, lineHeight: 1 }}>
