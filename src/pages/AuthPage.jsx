@@ -16,15 +16,19 @@ function friendlySignupError(err) {
   if (msg.includes('password') && (msg.includes('6') || msg.includes('weak') || msg.includes('short') || msg.includes('least'))) {
     return 'Your password needs to be at least 6 characters.';
   }
-  return 'Something went wrong. Check your connection and try again.';
+  // Surface the real Supabase error instead of burying it behind a generic line.
+  return err?.message || 'Something went wrong. Check your connection and try again.';
 }
 
 function friendlyLoginError(err) {
   const msg = (err?.message ?? '').toLowerCase();
+  if (msg.includes('confirm')) {
+    return 'Confirm your email first — check your inbox for the confirmation link.';
+  }
   if (msg.includes('invalid') || msg.includes('credentials') || msg.includes('not found') || msg.includes('wrong')) {
     return "We couldn't find an account with that email and password. Try again.";
   }
-  return 'Something went wrong. Check your connection and try again.';
+  return err?.message || 'Something went wrong. Check your connection and try again.';
 }
 
 function FieldLabel({ children }) {
@@ -40,6 +44,25 @@ function HelperText({ children }) {
     <p style={{ fontSize: 12, color: C.muted, margin: '8px 0 24px', lineHeight: 1.4 }}>
       {children}
     </p>
+  );
+}
+
+function InfoBox({ children }) {
+  return (
+    <div
+      style={{
+        fontSize:     13,
+        color:        '#16A34A',
+        marginBottom: 16,
+        lineHeight:   1.5,
+        background:   'rgba(22,163,74,0.08)',
+        border:       '0.5px solid rgba(22,163,74,0.22)',
+        borderRadius: 10,
+        padding:      '10px 14px',
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -72,6 +95,7 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
   const [showPw,     setShowPw]     = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
+  const [info,       setInfo]       = useState('');
   const [emailFocus, setEmailFocus] = useState(false);
   const [pwFocus,    setPwFocus]    = useState(false);
 
@@ -91,10 +115,10 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
     transition:   'border-color 0.15s, box-shadow 0.15s',
   });
 
-  const switchMode = (m) => { setMode(m); setError(''); };
+  const switchMode = (m) => { setMode(m); setError(''); setInfo(''); };
 
   const handleSignUp = async () => {
-    setError('');
+    setError(''); setInfo('');
     if (!email.trim() || !EMAIL_RE.test(email.trim())) {
       setError('Check your email address — it should look like name@gmail.com');
       return;
@@ -105,7 +129,14 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
     }
     try {
       setLoading(true);
-      const user = await signUp(email.trim(), password);
+      const { user, session } = await signUp(email.trim(), password);
+      if (!session) {
+        // Email confirmation is ON — no session yet. Don't set a session-less
+        // currentUser (that would dead-end onboarding). Guide them to confirm.
+        setMode('login');
+        setInfo('Check your email to confirm your account, then log in.');
+        return;
+      }
       onLogin?.(user);
     } catch (err) {
       setError(friendlySignupError(err));
@@ -115,7 +146,7 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
   };
 
   const handleLogin = async () => {
-    setError('');
+    setError(''); setInfo('');
     if (!email.trim() || !password) {
       setError('Please enter your email and password.');
       return;
@@ -210,9 +241,10 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
           {isSignup && <HelperText>At least 6 characters. Keep it safe.</HelperText>}
         </div>
 
+        {info && <InfoBox>{info}</InfoBox>}
         {error && <ErrorBox>{error}</ErrorBox>}
 
-        <div style={{ marginTop: error ? 0 : 8 }}>
+        <div style={{ marginTop: (error || info) ? 0 : 8 }}>
           <PremiumButton fullWidth disabled={loading} onClick={isSignup ? handleSignUp : handleLogin}>
             {loading
               ? (isSignup ? 'Creating account…' : 'Logging in…')

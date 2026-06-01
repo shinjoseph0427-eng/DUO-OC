@@ -1,349 +1,94 @@
-# meet oc. — Developer Handoff
+# DUO OC — Handoff
 
-> 2v2 social hangout app for 18–25s in Orange County.
-> "Bring your friend. Match with another duo. Meet in public."
+_Last updated: 2026-06-01_
 
----
-
-## Current Status
-
-Frontend MVP is complete. Backend foundation (Supabase helpers + schema) is written but not yet connected to the UI. The app runs fully on mock data.
-
-```
-npm install
-npm run dev     → http://localhost:5173
-npm run build   → passes, 0 errors
-```
+2v2 social hangout app for 18–25 year olds in Orange County. Bring a friend → form a duo → match with another duo → hang out.
 
 ---
 
-## Tech Stack
+## Stack
+- **React 18 + Vite 5** SPA. **No react-router** — routing is `useState('page')` + a `go()` function in `src/App.jsx`. Pages are conditionally rendered inside `<div key={page} className="page-enter">` (remount on nav). Back stack via `pageStack`.
+- **Supabase** (Postgres + Auth + Realtime + Storage + Edge Functions). Client uses the **anon key**; everything is gated by **RLS** (all policies are `TO authenticated`).
+- **Firebase FCM** web push. **html2canvas** for image export. framer-motion, lucide-react, canvas-confetti.
+- Deploy: **Vercel** (`duo-oc.com`). `vercel.json` SPA-fallbacks all paths → `/index.html` (so `/duo/[id]` loads the app).
+- GitHub: `shinjoseph0427-eng/DUO-OC`, branch `main`. Working dir: `c:\Users\jiseo\Documents\DUO OC`.
+- No TypeScript, no tests, no ESLint config. Single bundle (~1.16 MB after html2canvas).
 
-| Layer | Choice | Notes |
-|-------|--------|-------|
-| Frontend | React 18 + Vite 5 | No react-router. useState routing. |
-| Styling | Inline styles only | No Tailwind. Tokens in `src/tokens.js`. |
-| Font | DM Sans (Google Fonts) | Loaded in `index.html` |
-| Icons | Tabler Icons (CDN) | `<i className="ti ti-*">` |
-| Routing | `useState` + `go()` | See App.jsx |
-| Data | Hardcoded mock | `src/data/duos.js` |
-| Backend (ready, not wired) | Supabase | `src/lib/` |
-| Deploy | Vercel | No config needed beyond env vars |
+## Key files
+- `src/App.jsx` — routing, global state, auth/onboarding guards, deep-link parsing.
+- `src/tokens.js` — design tokens. **Light theme**; names are legacy (`C.white = #111` text, `C.bg = #FFF`). Accent `C.amber = #FF6B00`.
+- `src/lib/` — `auth, profile, duos, homie, hangouts, messages, duoRoomMessages, notifications, reviews, safety, invites, firebase, publicDuo, upload, constants`.
+- `src/hooks/` — `usePlanStatus, useReviewPrompt, useOnboardingGuide`.
+- `supabase/migrations/` — schema source of truth (the old `src/database/schema.sql` is STALE "meet oc" design, ignore it).
+- `supabase/functions/send-push-notification/` — FCM v1 sender edge function.
+
+## Real Supabase tables (from app code, not schema.sql)
+`profiles, duos, duo_members, homie_requests, hangouts, hangout_plans, hangout_plan_requests, messages, duo_messages, notifications, post_hangout_reviews, blocks, user_blocks, duo_sanctions, duo_invites`
+- FCM token stored in `profiles.fcm_token` (single device).
+- `profiles.deleted_at` added for soft-delete (account deletion) — **migration pending push**.
 
 ---
 
-## File Structure
+## ⚠️ PENDING DEPLOYS (blocked on Supabase auth token)
 
-```
-meet-oc/
-├── index.html                        ← DM Sans + Tabler Icons CDN
-├── vite.config.js
-├── .env.example                      ← Copy to .env.local, add Supabase keys
-│
-├── src/
-│   ├── main.jsx                      ← React root
-│   ├── App.jsx                       ← Router + global state
-│   ├── index.css                     ← Reset + .page-enter animation
-│   ├── tokens.js                     ← ALL design tokens (C / F / R / S)
-│   │
-│   ├── data/
-│   │   └── duos.js                   ← DUOS[], SECTIONS[], OC_SPOTS[] mock data
-│   │
-│   ├── components/
-│   │   ├── Button.jsx                ← primary | ghost | disabled
-│   │   ├── Tag.jsx                   ← vibe pill, selected/unselected
-│   │   ├── TopBar.jsx                ← sticky 56px header
-│   │   ├── BottomNav.jsx             ← 5-tab nav (home/explore/hangouts/chat/me)
-│   │   ├── DuoBoxCard.jsx            ← home grid card, featured/regular
-│   │   └── InstagramButton.jsx       ← <a> link to instagram.com/@handle
-│   │
-│   ├── pages/
-│   │   ├── LandingPage.jsx           ← Marketing page (not logged in)
-│   │   ├── OnboardingFlow.jsx        ← 4-step sign-up (mock, not wired to DB)
-│   │   ├── HomePage.jsx              ← Duo discovery grid (mock data)
-│   │   ├── DuoDetailPage.jsx         ← Duo profile + Request button
-│   │   ├── RequestTwoVTwo.jsx        ← Pick vibe/time/message → send
-│   │   ├── MatchScreen.jsx           ← Match confirmed + Instagram buttons ★
-│   │   ├── HangoutsPage.jsx          ← Pending + Confirmed + OC Spots
-│   │   ├── ChatListPage.jsx          ← Dark theme chat list
-│   │   ├── ChatThreadPage.jsx        ← Bright (#FAFAF7) chat thread
-│   │   └── PlaceholderPage.jsx       ← Stub for unbuilt pages (Explore, Me)
-│   │
-│   ├── lib/                          ← Supabase helpers (written, NOT connected to UI)
-│   │   ├── supabaseClient.js         ← null-safe client + requireSupabase()
-│   │   ├── auth.js                   ← signUp / signIn / signOut / getSession
-│   │   ├── profile.js                ← createUserProfile / getUserProfile / updateUserProfile
-│   │   ├── duos.js                   ← createDuo / getActiveDuos / getDuoById / invitePartner
-│   │   ├── matches.js                ← sendMatchRequest / accept / reject / getMatchesForDuo
-│   │   ├── chats.js                  ← getMessages / sendMessage / subscribeToMessages
-│   │   └── safety.js                 ← blockUser / reportUser / getBlockedUserIds
-│   │
-│   ├── database/
-│   │   ├── schema.sql                ← Full Postgres schema — NOT yet applied to Supabase
-│   │   └── rls_notes.md              ← RLS risk analysis + policy design notes
-│   │
-│   └── docs/
-│       └── REAL_PRODUCT_PLAN.md      ← Full product/backend/growth plan
+`npx supabase` is installed (v2.103.0) and the project is linked (`utfswelaqpannaftfvox`), but there is **no access token** in this environment, so the CLI can't run. `supabase login` is interactive (can't be done from the agent shell).
+
+**To unblock:** run `npx supabase login` once in a terminal (or set `$env:SUPABASE_ACCESS_TOKEN=sbp_...`), then run:
+
+```powershell
+npx supabase db push
+npx supabase functions deploy send-push-notification
 ```
 
----
+### Migrations not yet applied (apply in timestamp order — db push handles this)
+1. `20260601000000_homie_accepted_name_payload.sql` — adds `accepted_by_name` to homie_accepted notif payload.
+2. `20260601000001_delete_user_account.sql` — adds `profiles.deleted_at` + `delete_user_account()` RPC. **Required for account deletion.**
+3. `20260601000002_get_public_duo.sql` — `get_public_duo(uuid)` RPC for the public share page. **Depends on `deleted_at` from #2.**
 
-## Routing
+### Edge function not yet (re)deployed
+`send-push-notification` — local `SUPPORTED_TYPES` has 6 types incl. `homie_accepted` + `hangout_confirmed`, and the push icon was fixed to `/icon.png`. **Until deployed, `homie_accepted` / `hangout_confirmed` pushes are silently skipped in prod** (only `homie_request` / `hangout_request` push works).
 
-Routing is `useState`-based. No react-router. All navigation goes through the `go()` function in `App.jsx`.
-
-```js
-// Signature
-go(newPage, duo = null, reqData = null, chat = null)
-
-// Examples
-go('home')
-go('duo_detail', duoObject)
-go('request', duoObject)
-go('match', duoObject, { vibe: 'Boba', when: 'Friday', message: '...' })
-go('chat_thread', null, null, chatObject)
-```
-
-### Route map
-
-| Route key | Page | Notes |
-|-----------|------|-------|
-| `landing` | LandingPage | Default start |
-| `onboarding` | OnboardingFlow | 4 steps |
-| `home` | HomePage | Duo grid |
-| `duo_detail` | DuoDetailPage | Requires `selectedDuo` |
-| `request` | RequestTwoVTwo | Requires `selectedDuo` |
-| `match` | MatchScreen | Requires `selectedDuo` + `requestData` |
-| `hangouts` | PlaceholderPage | Stub — not built yet |
-| `chat` | ChatListPage | Mock data |
-| `chat_thread` | ChatThreadPage | Requires `selectedChat` |
-| `explore` | PlaceholderPage | Stub |
-| `me` | PlaceholderPage | Stub |
+**Until these run:** account deletion errors out, the public `/duo/[id]` page shows "not found", and the two key transactional push types don't fire. Frontend for all of these is already live.
 
 ---
 
-## Core User Flow (as built)
+## What works (verified by code trace)
+Core loop is solid end-to-end:
+1. **Signup → profile** (`AuthPage` → `OnboardingFlow` → `profiles`). ⚠️ depends on Supabase "email confirmation" project setting being OFF, else session won't exist post-signup.
+2. **Find Homie → request → accept → duo** (`findHomies` now excludes only blocked users + self; `acceptHomieRequest` creates the duo with rollback on failure).
+3. **Create Plan → join request → accept → chat** and **Hangout Request → accept → chat** — both create a confirmed `hangouts` row and auto-navigate into the chat thread.
+4. **Chat** — hangout (`messages`) + duo room (`duo_messages`), realtime via `supabase.channel`.
+5. **Onboarding guide** — 5-step bottom sheet + BottomNav tab pulse (`useOnboardingGuide`, gate key `duo_oc_onboarding_v2`; step 3 is event-gated on `homie_accepted`).
 
-```
-LandingPage
-  ↓ [Join the Beta]
-OnboardingFlow (4 steps — saves nothing to DB yet)
-  ↓ [Your duo is live]
-HomePage (mock duo grid)
-  ↓ [card tap]
-DuoDetailPage
-  ↓ [Request 2v2 Hangout]
-RequestTwoVTwo (pick vibe + when + message)
-  ↓ [Send Request →]
-MatchScreen ★ (check mark + Instagram buttons + Back to Home)
-  ↓ [instagram.com/@handle opens in browser]
-  ↓ [Back to Home]
-HomePage
+## Features added this session
+- **UX flow fixes**: home homie-request banner; post-accept celebration (`HomieAcceptedCelebration`); Hangout tabs simplified to Upcoming + Requests (Past behind a toggle); auto-navigate to chat on confirm; 4-person `hangout_confirmed` push to both duos; home "this week's confirmed hangout" card.
+- **Find Homie**: now shows all non-blocked users (was over-excluding former homies).
+- **Account deletion** (App Store req): `deleteAccount()` + EditProfile danger button + confirm modal + soft-delete RPC.
+- **ErrorBoundary** wrapping `<App/>` in `main.jsx`.
+- **Removed dead code**: `FirstTimeGuide.jsx`, `DuoActionsGuide.jsx`, `MePage.jsx`. Removed latent `setRequestData` crash in `go()`.
+- **PWA**: `public/manifest.json` + `<link rel="manifest">`. FCM token refresh via `watchTokenRefresh` (visibilitychange; v9 SDK has no `onTokenRefresh`).
+- **DUO CARD public share**: `get_public_duo` RPC + `src/lib/publicDuo.js` + `PublicDuoPage.jsx` + `/duo/[id]` deep-link parsing in App.jsx (added `public_duo` to PAGES/PUBLIC_PAGES).
+- **Share sheet**: `DuoShareSheet.jsx` — 9:16 dark viral card, **html2canvas image export** (Instagram story) + Web Share link fallback. Opened from MyDuoPage "카드 공유".
 
-Chat flow:
-BottomNav → chat → ChatListPage → row tap → ChatThreadPage
-```
+## Known issues / gaps
+- **Account deletion is soft-delete only.** No re-login block (a soft-deleted user can still log in), no app-wide `deleted_at` filtering in `findHomies`/`getExploreDuos`, no hard `auth.users` deletion. For full compliance: add a re-login guard + service-role edge function to scrub PII.
+- **iOS web push** needs an installed PWA; manifest exists but verify on device.
+- **html2canvas + Supabase Storage photos**: CORS can taint the canvas → image save fails for photo cards (initials-only cards always work). `<a download>` is ignored by iOS Safari (opens preview instead) — consider `navigator.share({files})`.
+- **Public `/duo/[id]` for logged-in-but-not-onboarded users** gets bounced to `onboarding` by the profile-load effect. Anon + onboarded users see it fine.
+- **Per-duo link previews (OG)** are generic; would need an `/api/duo/[id]` SSR function.
+- **`createNotificationForUser` doesn't fire push** (only `createNotificationsForDuo` does) — some notif types are in-app only. All push calls are `.catch(()=>{})` (silent failures, no logging).
+- **No notificationclick handler** in `firebase-messaging-sw.js` (push tap doesn't deep-link).
+- **No account recovery / ToS** verified; bundle not code-split.
+- `getMyDuos` profiles select has no `school` → share card subtitle falls back to city.
 
----
+## Landing page note
+Landing → auth/login navigation was investigated and is **correct** (buttons wired, `auth`/`login` in `PUBLIC_PAGES`, guards allow them). If "nothing works" recurs, it's an environment/loading issue (stuck on `app-loading` if `INITIAL_SESSION` never fires, or ErrorBoundary screen from missing Supabase env), not the routing.
 
-## Design Tokens (`src/tokens.js`)
+## localStorage keys
+- `duo_oc_onboarding_v2` — onboarding guide progress (`'done'` or step count).
+- `duo_oc_invite_token` (sessionStorage) — invite deep-link token.
 
-All colors, type sizes, spacing, and radii live here. Never hardcode hex values in components.
-
-```js
-import { C, F, R, S } from '../tokens';
-
-C.orange    // #FF6A00 — CTA, selected, badge, logo only. Never as background.
-C.bg        // #08080A — app background
-C.card      // #1C1C1F — card surface
-C.white     // #FFFFFF — primary text
-C.gray      // #A1A1AA — secondary text
-C.border    // #2A2A2E — card borders
-
-F.titleXl   // { fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px' }
-F.bodySm    // { fontSize: 14, fontWeight: 400 }
-F.label     // { fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }
-
-R.lg        // 12px — buttons
-R.xl        // 16px — cards
-```
-
-### Orange rule
-Orange (`#FF6A00`) is only used for:
-- CTA buttons
-- Selected state (pills, tabs)
-- Badges
-- Logo "oc." text
-- Unread dot
-
-**Never as a background fill.**
-
-### Only bright space
-`ChatThreadPage` is the only screen with a light background (`#FAFAF7`).
-Every other screen uses dark theme.
-
----
-
-## Mock Data (`src/data/duos.js`)
-
-```js
-DUOS       // 4 duos: Mia & Jess, Jay & Marcus, Sophie & Ana, Ryan & Kai
-SECTIONS   // 4 home sections: TONIGHT IN OC (featured), NEAR YOU, GYM/NIGHT, NEW DUOS
-OC_SPOTS   // 6 spots: Boba, Coffee, Beach, Food, Night, Social
-```
-
-Each duo has:
-- `members[2]` with `{ name, age, city, ig, emoji, avatarBg }`
-- `cardBg[2]` — hex colors for the photo split area
-- `vibes[]`, `spots[]`, `lookingFor`
-
----
-
-## Supabase Setup (`src/lib/`)
-
-The helpers are written and tested for import — but **not connected to any UI**.
-The app runs entirely on mock data until you wire these in.
-
-### To activate Supabase
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Copy `.env.example` → `.env.local`
-3. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
-4. Run `src/database/schema.sql` in Supabase Dashboard → SQL Editor
-5. Start connecting UI pages to `src/lib/` functions
-
-### Null-safe design
-
-If env vars are missing, `supabase = null` and the app renders normally with mock data.
-`requireSupabase()` throws a clear error only when a lib function is explicitly called.
-
-```js
-import { isSupabaseConfigured } from './lib/supabaseClient';
-// Use this flag to toggle between mock and live data
-```
-
----
-
-## Database Schema (`src/database/schema.sql`)
-
-**Not applied yet.** Apply manually via Supabase SQL Editor.
-
-Tables:
-
-| Table | Purpose |
-|-------|---------|
-| `users` | App profile (linked to `auth.users` by id) |
-| `profiles` | Extended prefs: vibes, intent, age range |
-| `duos` | Core product unit |
-| `duo_members` | Join: users ↔ duos |
-| `match_requests` | Pending 2v2 requests |
-| `matches` | Confirmed matches |
-| `hangout_plans` | IRL meetup scheduling |
-| `chat_threads` | One per match |
-| `chat_messages` | Messages inside a thread |
-| `blocks` | User-to-user blocks |
-| `reports` | Safety reports |
-| `verifications` | Phone/school/selfie badges |
-
-Key constraints baked into schema:
-- `age check (age >= 18 and age <= 25)` — enforced at DB level, not just UI
-- `public_place_only default true` — MVP safety default
-- `from_duo_id <> to_duo_id` — can't request yourself
-- `unique(blocker_user_id, blocked_user_id)` — no duplicate blocks
-
----
-
-## RLS Status
-
-RLS is **enabled** on all tables in `schema.sql` but **policies are not yet written**.
-
-With RLS enabled and no policies: no rows are accessible to any client.
-This is safe for schema setup — add policies before inserting real user data.
-
-Policy priorities (see `src/database/rls_notes.md` for full analysis):
-
-| Priority | Tables |
-|----------|--------|
-| P0 — before any real users | `chat_messages`, `reports`, `users` |
-| P1 — before launch | `blocks`, `matches`, `match_requests`, `chat_threads`, `verifications` |
-| P2 — can be looser initially | `duos`, `profiles`, `duo_members`, `hangout_plans` |
-
----
-
-## What's Not Built Yet
-
-| Feature | Status |
-|---------|--------|
-| Explore page | Placeholder stub |
-| Me / profile page | Placeholder stub |
-| Real auth (sign up / sign in) | Helpers written, UI not connected |
-| Onboarding saves to DB | Not connected |
-| Home feed from DB | Not connected |
-| Real match requests | Not connected |
-| Realtime chat | Helper written (`subscribeToMessages`), not wired |
-| Block / report UI | Helpers written, no UI trigger yet |
-| Push notifications | Not started |
-| Photo upload | Not started |
-| Invite link | Not started |
-| Verification badges | Not started |
-| Monetization | Not started |
-
----
-
-## Next Phase: Phase 13 — Supabase Connect
-
-### Recommended order
-
-1. **Apply schema** — run `schema.sql` in Supabase SQL Editor
-2. **Write RLS policies** — P0 tables first (`chat_messages`, `reports`, `users`)
-3. **Auth in OnboardingFlow** — step 1 calls `signUpWithEmail`, saves to `public.users`
-4. **Session persistence** — `getSession()` on app load, skip landing if logged in
-5. **Home feed from DB** — replace `DUOS` mock with `getActiveDuos()`
-6. **Real match request** — `RequestTwoVTwo` calls `sendMatchRequest()`
-7. **Accept/reject in HangoutsPage** — wire `acceptMatchRequest()` / `rejectMatchRequest()`
-8. **Chat from DB** — `ChatThreadPage` calls `getMessages()` + `subscribeToMessages()`
-
-### Do not yet
-
-- Add Stripe
-- Add Google Places API
-- Add React Router (keep useState routing)
-- Add Tailwind
-- Add push notifications (Firebase FCM or Expo)
-
----
-
-## Running Locally
-
-```bash
-npm install
-npm run dev      # http://localhost:5173 — full mock app, no env vars needed
-npm run build    # production build, must pass before deploy
-```
-
-To test with real Supabase:
-```bash
-cp .env.example .env.local
-# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-npm run dev
-```
-
----
-
-## Key Decisions to Preserve
-
-| Decision | Reason |
-|----------|--------|
-| No react-router | Keeps routing simple for a single-page mobile-first app |
-| No Tailwind | Inline styles + tokens = explicit, no class-name abstraction needed at this scale |
-| Instagram via `<a>` link only | Instagram TOS forbids automation. Direct link is correct. |
-| Orange never as background | Brand rule — orange loses meaning if overused |
-| Chat only after match | Safety + product design — no cold DMs |
-| `public_place_only = true` by default | Safety — first meetup must be public |
-| Age enforced at DB level | Frontend checks can be bypassed. DB constraint cannot. |
-| Mock data until DB is wired | App is fully demonstrable without a backend account |
-
----
-
-*meet oc. — 2v2 Hangouts for 18–25s in Orange County*
-*Built with React + Vite + Supabase (pending)*
+## Dev
+- `npm run dev` — vite (frontend only; `/api` + Firebase/Places env may be absent).
+- `npm run dev:full` — `vercel dev` (boots `/api` functions too). **Do NOT** set `dev` to `vercel dev` (recursion).
+- `npm run build` — vite build (used to verify after every change).
