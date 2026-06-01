@@ -10,7 +10,7 @@ const TABS = [
   { key: 'me',       label: 'Me',       Icon: User           },
 ];
 
-export default function BottomNav({ activePage, onNavigate, badges = {} }) {
+export default function BottomNav({ activePage, onNavigate, badges = {}, pulseTab = null }) {
   return (
     <>
       <style>{`
@@ -20,6 +20,11 @@ export default function BottomNav({ activePage, onNavigate, badges = {} }) {
         }
         @media (max-width: 767px) {
           .side-nav-desktop { display: none !important; }
+        }
+        @keyframes navTabPulse {
+          0%   { box-shadow: 0 0 0 0 rgba(255,107,0,0.55); }
+          70%  { box-shadow: 0 0 0 11px rgba(255,107,0,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,107,0,0); }
         }
       `}</style>
 
@@ -80,10 +85,25 @@ export default function BottomNav({ activePage, onNavigate, badges = {} }) {
               )}
 
               <div style={{ position: 'relative', display: 'inline-flex' }}>
+                {tab.key === pulseTab && (
+                  <span
+                    style={{
+                      position:     'absolute',
+                      top:          '50%',
+                      left:         '50%',
+                      transform:    'translate(-50%, -50%)',
+                      width:        30,
+                      height:       30,
+                      borderRadius: '50%',
+                      pointerEvents:'none',
+                      animation:    'navTabPulse 1.6s ease-out infinite',
+                    }}
+                  />
+                )}
                 <tab.Icon
                   size={22}
                   strokeWidth={active ? 2.3 : 1.7}
-                  color={active ? C.amber : 'rgba(17,17,17,0.40)'}
+                  color={tab.key === pulseTab ? C.amber : active ? C.amber : 'rgba(17,17,17,0.40)'}
                   style={{ transition: 'color 0.15s' }}
                 />
                 {badges[tab.key] && (

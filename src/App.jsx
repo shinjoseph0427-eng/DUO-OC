@@ -23,17 +23,19 @@ import CounterHangout from './pages/CounterHangout.jsx';
 import EditProfile from './pages/EditProfile.jsx';
 import EditDuoProfile from './pages/EditDuoProfile.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
-import FirstTimeGuide from './components/FirstTimeGuide.jsx';
+import OnboardingGuide, { STEP_TABS } from './components/OnboardingGuide.jsx';
 import RequestModal from './components/RequestModal.jsx';
 import { signOut } from './lib/auth.js';
 import { getMyDuo, getMyDuos } from './lib/duos.js';
 import { getMyProfile, isProfileOnboardingComplete, saveFcmToken } from './lib/profile.js';
 import { getConfirmedChatCount } from './lib/messages.js';
+import { getNotifications } from './lib/notifications.js';
 import { acceptInvite } from './lib/invites.js';
 import { supabase } from './lib/supabaseClient.js';
 import { requestPushPermission } from './lib/firebase.js';
 import { usePlanStatus } from './hooks/usePlanStatus';
 import { useReviewPrompt } from './hooks/useReviewPrompt';
+import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
 const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
@@ -67,11 +69,13 @@ export default function App() {
   const [profileReady,    setProfileReady]    = useState(false);
   const [profile,         setProfile]         = useState(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
-  const [showGuide,          setShowGuide]          = useState(false);
 
   // Auto-expire elapsed plans and fire post-hangout review prompts.
   usePlanStatus();
   useReviewPrompt();
+
+  // Post-signup onboarding guide (bottom sheet + tab pulse).
+  const guide = useOnboardingGuide(onboardingComplete);
 
   const showToast = (msg, type = 'info') => {
     setToast({ msg, type });
@@ -167,7 +171,23 @@ export default function App() {
     }
   }, [currentUser, profile]);
 
-  const go = (newPage, duo = null, reqData = null, chat = null, hangout = null) => {
+  // Surface onboarding step 3 once a homie request has been accepted. Forward-only
+  // inside the hook, so it won't drag the guide backwards on later loads.
+  useEffect(() => {
+    if (!currentUser?.id || !onboardingComplete) return undefined;
+    let cancelled = false;
+    getNotifications(currentUser.id)
+      .then((notifs) => {
+        if (cancelled) return;
+        if ((notifs ?? []).some((n) => n.type === 'homie_accepted')) {
+          guide.jumpToStep(3);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentUser?.id, onboardingComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const go = (newPage, duo = null, reqData = null, chat = null, hangout = null, opts = {}) => {
     // Unauthenticated user trying to access protected page
     if (!PUBLIC_PAGES.includes(newPage) && !currentUser) {
       setPage('landing');
@@ -182,7 +202,7 @@ export default function App() {
       setPage(onboardingComplete ? 'home' : 'onboarding');
       return;
     }
-    setPageStack((prev) => [...prev, page]);
+    if (!opts.noStack) setPageStack((prev) => [...prev, page]);
     setSelectedDuo(duo);
     if (reqData)  setRequestData(reqData);
     if (chat)     setSelectedChat(chat);
@@ -223,9 +243,8 @@ export default function App() {
       sessionStorage.removeItem('duo_oc_invite_token');
       acceptInvite(pendingInvite, currentUser.id)
         .then(async () => {
-          const acceptedDuo = await refreshMyDuo();
+          await refreshMyDuo();
           setPage('home');
-          if (acceptedDuo) setShowGuide(true);
         })
         .catch(err => {
           console.error('Invite accept failed:', err);
@@ -234,7 +253,6 @@ export default function App() {
         });
     } else {
       setPage(hasDuo ? 'me' : 'home');
-      if (hasDuo) setShowGuide(true);
     }
 
     if (currentUser) getMyDuo(currentUser.id).then(setMyDuo).catch(() => {});
@@ -303,8 +321,13 @@ export default function App() {
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
-      {showGuide && (
-        <FirstTimeGuide onDone={() => setShowGuide(false)} />
+      {!isAuthPage && currentUser && onboardingComplete && guide.isActive && (
+        <OnboardingGuide
+          currentStep={guide.currentStep}
+          navigate={(p) => go(p, null, null, null, null, { noStack: true })}
+          advanceStep={guide.advanceStep}
+          skipAll={guide.skipAll}
+        />
       )}
       {selectedRequestId && currentUser && (
         <RequestModal
@@ -316,7 +339,12 @@ export default function App() {
         />
       )}
       {!isAuthPage && currentUser && (
-        <BottomNav activePage={activeTab ?? page} onNavigate={(tab) => go(tab)} badges={{ chat: chatBadge }} />
+        <BottomNav
+          activePage={activeTab ?? page}
+          onNavigate={(tab) => go(tab)}
+          badges={{ chat: chatBadge }}
+          pulseTab={guide.isActive ? STEP_TABS[guide.currentStep] : null}
+        />
       )}
     </div>
   );
