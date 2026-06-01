@@ -102,14 +102,23 @@ export default function App() {
     }
   }, []);
 
-  // Auth state — single source of truth via onAuthStateChange
+  // Auth init: read the session directly on mount so authReady is set even if
+  // the INITIAL_SESSION event never fires / is delayed on a fresh first visit.
+  // onAuthStateChange then keeps state in sync for later sign-in/out.
   useEffect(() => {
+    let cancelled = false;
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        if (session?.user) setCurrentUser(session.user);
+        setAuthReady(true); // session present or not — always unblock the app
+      })
+      .catch(() => { if (!cancelled) setAuthReady(true); });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-        if (session?.user) {
-          setCurrentUser(session.user);
-          setProfileReady(false);
-        }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setCurrentUser(session?.user ?? null);
         setAuthReady(true);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
@@ -125,7 +134,7 @@ export default function App() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
