@@ -6,6 +6,7 @@ import TopBar from '../components/TopBar.jsx';
 import InitialsAvatar from '../components/InitialsAvatar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
+import HomieAcceptedCelebration from '../components/HomieAcceptedCelebration.jsx';
 import { acceptHomieRequest, getMyHomieRequests, getSentHomieRequests } from '../lib/homie.js';
 
 function getSender(request) {
@@ -109,7 +110,7 @@ function RequestCard({ request, accepting, accepted, onAccept }) {
 
 export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }) {
   const [requests, setRequests] = useState([]);
-  const [showBanner, setShowBanner] = useState(false);
+  const [celebratePartner, setCelebratePartner] = useState(null);
   const [acceptingRequestId, setAcceptingRequestId] = useState(null);
   const [acceptedIds, setAcceptedIds] = useState({});
   const [errorMessage, setErrorMessage] = useState('');
@@ -173,8 +174,7 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
       } catch (refreshError) {
         console.error('HomieInboxPage onDuoChanged refresh failed:', refreshError);
       }
-      setShowBanner(true);
-      setTimeout(() => go('explore'), 2500);
+      setCelebratePartner(getSender(request)?.name ?? '새 듀오');
       await loadRequests();
     } catch (err) {
       console.error('HomieInboxPage accept homie request failed:', err);
@@ -188,28 +188,12 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
       <TopBar showBack onBack={goBack} onLogoClick={() => go('home')} />
 
-      {showBanner && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            position: 'fixed',
-            top: 20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#111',
-            color: '#fff',
-            padding: '12px 20px',
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 600,
-            zIndex: 999,
-            whiteSpace: 'nowrap',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-          }}
-        >
-          Duo created — now find someone to hang with
-        </motion.div>
+      {celebratePartner && (
+        <HomieAcceptedCelebration
+          partnerName={celebratePartner}
+          onGoToDuoCard={() => { setCelebratePartner(null); go('me'); }}
+          onClose={() => setCelebratePartner(null)}
+        />
       )}
 
       <div style={{ padding: '18px 16px 104px' }}>

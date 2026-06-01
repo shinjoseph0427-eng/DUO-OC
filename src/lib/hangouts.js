@@ -376,11 +376,21 @@ export async function acceptHangout(hangoutId, currentUserId) {
   if (error) throw error
   if (!updated || updated.length === 0) return { alreadyProcessed: true }
 
-  const { data: duoB } = await supabase.from('duos').select('name').eq('id', h.duo_b_id).single()
-  await createNotificationsForDuo(h.duo_a_id, 'hangout_accepted', {
-    hangout_id: hangoutId,
-    duo_name:   duoB?.name ?? 'a duo',
-  })
+  // Notify ALL FOUR members (both duos) that the hangout is confirmed and the
+  // chat room is open. Each duo's notification names the OTHER duo.
+  const { data: bothDuos } = await supabase
+    .from('duos').select('id, name').in('id', [h.duo_a_id, h.duo_b_id])
+  const nameById = new Map((bothDuos ?? []).map((d) => [d.id, d.name]))
+  await Promise.all([
+    createNotificationsForDuo(h.duo_a_id, 'hangout_confirmed', {
+      hangout_id: hangoutId,
+      duo_name:   nameById.get(h.duo_b_id) ?? 'a duo',
+    }).catch((err) => console.error('hangout_confirmed notify failed:', err)),
+    createNotificationsForDuo(h.duo_b_id, 'hangout_confirmed', {
+      hangout_id: hangoutId,
+      duo_name:   nameById.get(h.duo_a_id) ?? 'a duo',
+    }).catch((err) => console.error('hangout_confirmed notify failed:', err)),
+  ])
   return { confirmed: true }
 }
 
@@ -730,12 +740,21 @@ export async function acceptPlanRequest(requestId, currentUserId) {
     .eq('status', 'pending')
     .neq('id', requestId)
 
-  // Notify the requester duo that their request was accepted
-  const { data: creatorDuo } = await supabase.from('duos').select('name').eq('id', plan.creator_duo_id).single()
-  await createNotificationsForDuo(req.requester_duo_id, 'plan_accepted', {
-    plan_id:  plan.id,
-    duo_name: creatorDuo?.name ?? 'A duo',
-  }).catch(() => {})
+  // Notify ALL FOUR members (creator + requester duos) that the hangout is
+  // confirmed and the chat room is open. Each duo's notification names the OTHER.
+  const { data: bothDuos } = await supabase
+    .from('duos').select('id, name').in('id', [plan.creator_duo_id, req.requester_duo_id])
+  const nameById = new Map((bothDuos ?? []).map((d) => [d.id, d.name]))
+  await Promise.all([
+    createNotificationsForDuo(plan.creator_duo_id, 'hangout_confirmed', {
+      hangout_id: hangout.id,
+      duo_name:   nameById.get(req.requester_duo_id) ?? 'A duo',
+    }).catch((err) => console.error('hangout_confirmed notify failed:', err)),
+    createNotificationsForDuo(req.requester_duo_id, 'hangout_confirmed', {
+      hangout_id: hangout.id,
+      duo_name:   nameById.get(plan.creator_duo_id) ?? 'A duo',
+    }).catch((err) => console.error('hangout_confirmed notify failed:', err)),
+  ])
 
   return { confirmed: true, hangoutId: hangout.id }
 }

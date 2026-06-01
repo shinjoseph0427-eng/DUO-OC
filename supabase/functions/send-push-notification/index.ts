@@ -19,22 +19,28 @@ type PushRequest = {
 // Notification types this function is allowed to deliver a push for.
 const SUPPORTED_TYPES = new Set([
   "homie_request",
+  "homie_accepted",
   "hangout_request",
   "hangout_accepted",
+  "hangout_confirmed",
   "match",
 ]);
 
 const PUSH_TITLES: Record<string, string> = {
   homie_request: "New duo request",
+  homie_accepted: "You're now a duo!",
   hangout_request: "New hangout request",
   hangout_accepted: "Hangout confirmed",
+  hangout_confirmed: "Hangout confirmed",
   match: "It's a match!",
 };
 
 const PUSH_BODIES: Record<string, string> = {
   homie_request: "Someone wants to be your duo partner.",
+  homie_accepted: "Your homie request was accepted.",
   hangout_request: "A duo wants to hang out with you.",
   hangout_accepted: "A duo accepted your hangout request.",
+  hangout_confirmed: "Your hangout is confirmed — the chat room is open.",
   match: "You matched with a new duo.",
 };
 
@@ -52,6 +58,12 @@ function buildPushBody(
       ? payload.matched_duo_name.trim()
       : null;
 
+  const acceptedByName =
+    typeof payload.accepted_by_name === "string" &&
+      payload.accepted_by_name.trim()
+      ? payload.accepted_by_name.trim()
+      : null;
+
   switch (type) {
     case "hangout_request":
       return duoName
@@ -61,6 +73,14 @@ function buildPushBody(
       return duoName
         ? `${duoName} accepted your hangout request.`
         : PUSH_BODIES.hangout_accepted;
+    case "hangout_confirmed":
+      return duoName
+        ? `${duoName} 듀오랑 hangout 확정! 채팅방이 열렸어요.`
+        : PUSH_BODIES.hangout_confirmed;
+    case "homie_accepted":
+      return acceptedByName
+        ? `${acceptedByName}님이 Homie 요청을 수락했어요!`
+        : PUSH_BODIES.homie_accepted;
     case "match":
       return matchedName
         ? `You matched with ${matchedName}.`

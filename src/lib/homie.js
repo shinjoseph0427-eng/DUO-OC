@@ -259,7 +259,7 @@ export async function acceptHomieRequest(requestId) {
     throwStep('request update failed', acceptError)
   }
 
-  const { error: notificationError } = await supabase.rpc(
+  const { data: acceptNotif, error: notificationError } = await supabase.rpc(
     'notify_homie_request_accepted',
     {
       p_request_id: requestId,
@@ -268,6 +268,10 @@ export async function acceptHomieRequest(requestId) {
   )
   if (notificationError) {
     console.error('acceptHomieRequest notification insert failed:', notificationError)
+  } else {
+    // Fire a push to the requester: "OO accepted your homie request!"
+    const notifRow = Array.isArray(acceptNotif) ? acceptNotif[0] : acceptNotif
+    if (notifRow?.id) await sendPushForNotification(notifRow.id).catch(() => {})
   }
 
   return {

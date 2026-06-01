@@ -93,6 +93,15 @@ export async function getMyChats(userId) {
   return results
 }
 
+// Resolves the single chat object (same shape as getMyChats rows) for one
+// confirmed hangout. Used to deep-link straight into the 4-person chat room
+// right after a hangout is confirmed. Returns null if not found / not a member.
+export async function getChatByHangoutId(userId, hangoutId) {
+  if (!userId || !hangoutId) return null
+  const chats = await getMyChats(userId)
+  return chats.find((c) => c.hangoutId === hangoutId) ?? null
+}
+
 export async function getMessages(hangoutId, currentUserId) {
   await assertHangoutMember(hangoutId, currentUserId)
 

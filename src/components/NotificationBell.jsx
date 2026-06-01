@@ -10,6 +10,8 @@ import {
 } from '../lib/notifications.js';
 import { getMyHomieRequests, acceptHomieRequest } from '../lib/homie.js';
 import { acceptPlanRequest, declinePlanRequest, formatPlanDateLabel } from '../lib/hangouts.js';
+import { getChatByHangoutId } from '../lib/messages.js';
+import HomieAcceptedCelebration from './HomieAcceptedCelebration.jsx';
 
 function getSender(request) {
   return request?.profiles ?? request?.profile ?? request?.from_profile ?? {};
@@ -19,9 +21,10 @@ const TYPE_META = {
   match:             { label: (p) => `${p.matched_duo_name ?? 'A duo'} matched with you.`, page: 'hangouts' },
   hangout_request:   { label: (p) => `${p.duo_name ?? 'A duo'} sent a hangout request.`, page: 'hangouts' },
   hangout_accepted:  { label: (p) => `${p.duo_name ?? 'A duo'} accepted your hangout request.`, page: 'hangouts' },
+  hangout_confirmed: { label: (p) => `${p.duo_name ?? 'A duo'} 듀오랑 hangout 확정! 채팅방이 열렸어요.`, emoji: '🎉', page: 'chat' },
   hangout_declined:  { label: (p) => `${p.duo_name ?? 'A duo'} declined your hangout request.`, page: 'hangouts' },
   homie_request:     { label: () => 'Someone wants to be your homie.', page: 'find_homie' },
-  homie_accepted:    { label: (p) => `${p.accepted_by_name ?? 'Your homie'} accepted. You are now a duo.`, page: 'edit_duo_profile' },
+  homie_accepted:    { label: (p) => `${p.accepted_by_name ?? 'Your homie'} accepted. You are now a duo.`, page: 'me' },
   plan_request:      { label: (p) => `${p.duo_name ?? 'A duo'} sent a request to join your open plan.`, page: 'hangouts' },
   plan_accepted:     { label: (p) => `${p.duo_name ?? 'A duo'} accepted your request to join their open plan.`, page: 'hangouts' },
   plan_declined:     { label: () => 'Your request to join an open plan was declined.', page: 'hangouts' },
@@ -46,6 +49,7 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
   const [homieRequests, setHomieRequests] = useState([]);
   const [acceptingId,   setAcceptingId]   = useState(null);
   const [planBusyId,    setPlanBusyId]    = useState(null);
+  const [celebratePartner, setCelebratePartner] = useState(null);
   const [open,          setOpen]          = useState(false);
   const panelRef = useRef(null);
   const btnRef   = useRef(null);
@@ -66,9 +70,12 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
 
   const handleAcceptHomie = async (requestId) => {
     setAcceptingId(requestId);
+    const partnerName = getSender(homieRequests.find((r) => r.id === requestId))?.name ?? '새 듀오';
     try {
       await acceptHomieRequest(requestId);
       setHomieRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setOpen(false);
+      setCelebratePartner(partnerName);
     } catch (e) {
       console.error(e);
     } finally {
@@ -128,6 +135,14 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
         return;
       }
     }
+    // hangout_confirmed → deep-link straight into the 4-person chat room.
+    if (n.type === 'hangout_confirmed' && n.payload?.hangout_id && currentUser?.id) {
+      setOpen(false);
+      const chat = await getChatByHangoutId(currentUser.id, n.payload.hangout_id).catch(() => null);
+      if (chat) { go('chat_thread', null, null, chat); return; }
+      go('chat');
+      return;
+    }
     const meta = TYPE_META[n.type];
     if (meta?.page) go(meta.page);
     setOpen(false);
@@ -144,12 +159,16 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
     }
     setPlanBusyId(n.id);
     try {
-      await acceptPlanRequest(reqId, currentUser.id);
+      const res = await acceptPlanRequest(reqId, currentUser.id);
       await markAsRead(n.id);
       setNotifs((prev) => prev.filter((x) => x.id !== n.id));
       showToast?.('Accepted! Chat opened.', 'success');
       setOpen(false);
-      go?.('chat');
+      const chat = res?.hangoutId
+        ? await getChatByHangoutId(currentUser.id, res.hangoutId).catch(() => null)
+        : null;
+      if (chat) go?.('chat_thread', null, null, chat);
+      else go?.('chat');
     } catch (err) {
       showToast?.(err?.message || 'Failed to accept', 'error');
     } finally {
@@ -528,6 +547,14 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
           </motion.div>
         )}
       </AnimatePresence>
+
+      {celebratePartner && (
+        <HomieAcceptedCelebration
+          partnerName={celebratePartner}
+          onGoToDuoCard={() => { setCelebratePartner(null); go('me'); }}
+          onClose={() => setCelebratePartner(null)}
+        />
+      )}
     </div>
   );
 }

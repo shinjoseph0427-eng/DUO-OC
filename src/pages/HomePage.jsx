@@ -4,6 +4,8 @@ import { Calendar, Compass, MessageCircle, Plus, Users } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import NotificationBell from '../components/NotificationBell.jsx';
+import HomieAcceptedCelebration from '../components/HomieAcceptedCelebration.jsx';
+import { getNotifications, markAsRead } from '../lib/notifications.js';
 import { getMyHomieRequests } from '../lib/homie.js';
 import { getExploreDuos } from '../lib/duos.js';
 import {
@@ -14,7 +16,7 @@ import {
   getWeeklyConfirmedCount,
   isPastHangoutTime,
 } from '../lib/hangouts.js';
-import { getConfirmedChatCount } from '../lib/messages.js';
+import { getConfirmedChatCount, getMyChats } from '../lib/messages.js';
 import { isDuoRestricted } from '../lib/safety.js';
 import { STORAGE_BASE_URL } from '../lib/constants.js';
 
@@ -267,11 +269,30 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
   const [homieRequests, setHomieRequests] = useState([]);
   const [openPlans, setOpenPlans] = useState([]);
   const [chatCount, setChatCount] = useState(0);
+  const [chatMap, setChatMap] = useState(new Map()); // hangoutId → chat row
   const [restrictedMap, setRestrictedMap] = useState(new Map());
   const [allDuos,          setAllDuos]          = useState([]);
   const [nearbyCount,      setNearbyCount]      = useState(null); // null=loading, false=error
   const [displayNearby,    setDisplayNearby]    = useState(0);
   const [weeklyMatchCount, setWeeklyMatchCount] = useState(null); // null=loading, false=error
+  const [celebratePartner, setCelebratePartner] = useState(null);
+
+  // Requester side of Problem 2: if a homie_accepted notification is waiting
+  // unread, greet them with the same celebration the accepter saw, then mark
+  // it read so it only fires once.
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser?.id) return () => { cancelled = true; };
+    getNotifications(currentUser.id).then((notifs) => {
+      if (cancelled) return;
+      const accepted = (notifs ?? []).find((n) => n.type === 'homie_accepted' && !n.read);
+      if (accepted) {
+        setCelebratePartner(accepted.payload?.accepted_by_name ?? '새 듀오');
+        markAsRead(accepted.id).catch(() => {});
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -303,14 +324,16 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
       getConfirmedChatCount(currentUser.id).catch(() => 0),
       getExploreDuos(currentUser.id).catch(() => false),
       getWeeklyConfirmedCount().catch(() => false),
+      getMyChats(currentUser.id).catch(() => []),
     ])
-      .then(([nextHangouts, nextPlanItems, nextHomieRequests, nextOpenPlans, nextChatCount, nextAllDuos, nextWeeklyMatchCount]) => {
+      .then(([nextHangouts, nextPlanItems, nextHomieRequests, nextOpenPlans, nextChatCount, nextAllDuos, nextWeeklyMatchCount, nextChats]) => {
         if (cancelled) return;
         setHangouts(nextHangouts ?? []);
         setPlanItems(nextPlanItems ?? []);
         setHomieRequests(nextHomieRequests ?? []);
         setOpenPlans(nextOpenPlans ?? []);
         setChatCount(nextChatCount ?? 0);
+        setChatMap(new Map((nextChats ?? []).map((c) => [c.hangoutId, c])));
         setRestrictedMap(new Map((nextPlanItems ?? []).map((item) => [item.duo.id, item.restricted])));
         setAllDuos(nextAllDuos === false ? [] : (nextAllDuos ?? []));
         setNearbyCount(nextAllDuos === false ? false : (nextAllDuos ?? []).length);
@@ -485,6 +508,13 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
+      {celebratePartner && (
+        <HomieAcceptedCelebration
+          partnerName={celebratePartner}
+          onGoToDuoCard={() => { setCelebratePartner(null); go('me'); }}
+          onClose={() => setCelebratePartner(null)}
+        />
+      )}
       <TopBar
         onLogout={onLogout}
         rightContent={
@@ -513,6 +543,57 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
             {greetingName ? `Hey, ${greetingName}` : 'Hey'}
           </p>
         </motion.div>
+
+        {/* ── Homie request banner — unmissable, tap → inbox ─────────── */}
+        {!loading && homieRequests.length > 0 && (
+          <motion.button
+            type="button"
+            onClick={() => go('homie_inbox')}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ duration: 0.22 }}
+            style={{
+              display:        'flex',
+              alignItems:     'center',
+              gap:            14,
+              width:          'calc(100% - 32px)',
+              margin:         '0 16px 8px',
+              padding:        '16px 18px',
+              borderRadius:   18,
+              border:         'none',
+              background:     C.gradientCTA,
+              color:          '#fff',
+              cursor:         'pointer',
+              textAlign:      'left',
+              boxShadow:      '0 10px 30px rgba(255,107,0,0.32)',
+            }}
+          >
+            <div style={{
+              width:          44,
+              height:         44,
+              borderRadius:   14,
+              background:     'rgba(255,255,255,0.2)',
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              flexShrink:     0,
+            }}>
+              <Users size={22} color="#fff" strokeWidth={2.4} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 16, fontWeight: 900, margin: '0 0 2px', lineHeight: 1.15 }}>
+                Homie 요청 {homieRequests.length}개
+              </p>
+              <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: 'rgba(255,255,255,0.85)' }}>
+                {homieRequests.length === 1
+                  ? '누군가 당신과 듀오를 맺고 싶어해요'
+                  : `${homieRequests.length}명이 당신과 듀오를 맺고 싶어해요`}
+              </p>
+            </div>
+            <span style={{ fontSize: 22, fontWeight: 700, flexShrink: 0, opacity: 0.9 }}>→</span>
+          </motion.button>
+        )}
 
         {loading ? (
           <div style={{ padding: '0 16px', display: 'grid', gap: 12 }}>
@@ -683,6 +764,65 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                 </div>
               </motion.button>
             </motion.div>
+
+            {/* ── This week's confirmed hangouts — pinned, chat deep-link ── */}
+            {confirmed.length > 0 && (
+              <div style={{ padding: '16px 16px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: C.white }}>
+                    이번 주 확정된 Hangout
+                  </span>
+                  <span onClick={() => go('chat')} style={{ fontSize: 13, color: C.amber, cursor: 'pointer' }}>
+                    채팅 전체보기 →
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {confirmed.slice(0, 3).map((h) => {
+                    const otherDuo = pickOtherDuo(h, duoIds);
+                    const chat = chatMap.get(h.id);
+                    return (
+                      <motion.button
+                        key={h.id}
+                        type="button"
+                        onClick={() => (chat ? go('chat_thread', null, null, chat) : go('chat'))}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.12 }}
+                        style={{
+                          display:      'flex',
+                          alignItems:   'center',
+                          gap:          12,
+                          width:        '100%',
+                          padding:      '13px 14px',
+                          borderRadius: 14,
+                          border:       `0.5px solid ${C.greenBorder}`,
+                          background:   C.greenT08,
+                          cursor:       'pointer',
+                          textAlign:    'left',
+                        }}
+                      >
+                        <div style={{
+                          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                          background: C.amberT08, border: `1px solid ${C.brownBorder}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 14, fontWeight: 800, color: C.amber,
+                        }}>
+                          {(otherDuo?.name ?? '?')[0].toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {otherDuo?.name ?? 'Duo'}
+                          </p>
+                          <p style={{ fontSize: 12, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {[DATE_LABELS[h.date] ?? h.date, TIME_LABELS[h.time_slot] ?? h.time_slot, h.place].filter(Boolean).join(' · ') || '채팅방이 열렸어요'}
+                          </p>
+                        </div>
+                        <MessageCircle size={18} color={C.success} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── Requests section ──────────────────────────────────── */}
             {incoming.length > 0 && nextIncoming && (

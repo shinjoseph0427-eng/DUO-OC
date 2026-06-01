@@ -4,6 +4,7 @@ import { Calendar, Eye, MapPin, Pencil, Plus, ShieldAlert, Users } from 'lucide-
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import SafetyModal from '../components/SafetyModal.jsx';
+import DuoActionsGuide from '../components/DuoActionsGuide.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { getMyActivePlan } from '../lib/hangouts.js';
 import { isDuoRestricted, SAFETY_MESSAGES } from '../lib/safety.js';
@@ -457,6 +458,21 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
   const [confirmLeaveId, setConfirmLeaveId] = useState(null);
   const [inviteLoading,  setInviteLoading]  = useState(false);
   const [showSafety,     setShowSafety]     = useState(false);
+  const [showActionsGuide, setShowActionsGuide] = useState(false);
+
+  // First-time DUO CARD onboarding sheet — once per device, only after the user
+  // actually has a complete (2-person) duo.
+  useEffect(() => {
+    const hasRealDuo = duos.some((d) => (d.duo_members?.length ?? 0) >= 2);
+    if (hasRealDuo && !localStorage.getItem('duo_oc_duo_actions_seen')) {
+      setShowActionsGuide(true);
+    }
+  }, [duos]);
+
+  const dismissActionsGuide = () => {
+    localStorage.setItem('duo_oc_duo_actions_seen', '1');
+    setShowActionsGuide(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -712,6 +728,7 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
           onClose={() => setShowSafety(false)}
         />
       )}
+      {showActionsGuide && <DuoActionsGuide onClose={dismissActionsGuide} />}
     </div>
   );
 }

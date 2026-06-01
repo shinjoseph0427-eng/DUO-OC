@@ -15,7 +15,7 @@ import {
   cancelHangoutRequest,
   isPastHangoutTime, formatPlanDateLabel,
 } from '../lib/hangouts.js';
-import { getMyChats } from '../lib/messages.js';
+import { getMyChats, getChatByHangoutId } from '../lib/messages.js';
 import { createPostHangoutReview, getMyReviewsForHangouts } from '../lib/reviews.js';
 import { blockDuo, reportDuo } from '../lib/safety.js';
 
@@ -114,7 +114,7 @@ function IncomingCard({ h, go, onAccept, onDecline }) {
     setAccepting(false);
     if (success) {
       setAccepted(true);
-      setTimeout(() => go('chat'), 1500);
+      // Navigation into the chat room is handled by the parent's handleAccept.
     }
   };
 
@@ -216,11 +216,13 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const [hangouts,          setHangouts]          = useState([]);
   const [loading,           setLoading]           = useState(true);
   const [activeTab,         setActiveTab]         = useState('upcoming');
+  const [showPast,          setShowPast]          = useState(false);
   const [chatMap,           setChatMap]           = useState(new Map());
   // planData: [{ duo, plan: {...}|null, requests: [...] }]
   const [planData,          setPlanData]          = useState([]);
   const [planLoading,       setPlanLoading]       = useState(false);
   const [acceptedPlanReqId, setAcceptedPlanReqId] = useState(null);
+  const [acceptedChat,      setAcceptedChat]      = useState(null);
   const [busyPlanReqId,     setBusyPlanReqId]     = useState(null);
   const [confirmCancelId,   setConfirmCancelId]   = useState(null);
   const [busyHangoutId,     setBusyHangoutId]     = useState(null);
@@ -303,6 +305,14 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
         showToast?.('Time conflict — your duo already has a hangout then.', 'error');
         return false;
       }
+      if (res?.confirmed) {
+        // Jump straight into the freshly-opened 4-person chat room.
+        const chat = await getChatByHangoutId(currentUser.id, id).catch(() => null);
+        setTimeout(() => {
+          if (chat) go('chat_thread', null, null, chat);
+          else go('chat');
+        }, 1200);
+      }
       return true;
     } catch (err) {
       load(); // resync (revert the optimistic change)
@@ -348,10 +358,18 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
     if (busyPlanReqId) return;
     setBusyPlanReqId(reqId);
     try {
-      await acceptPlanRequest(reqId, currentUser?.id);
+      const res = await acceptPlanRequest(reqId, currentUser?.id);
       setAcceptedPlanReqId(reqId);
       loadPlan();
       load();
+      if (res?.hangoutId) {
+        const chat = await getChatByHangoutId(currentUser.id, res.hangoutId).catch(() => null);
+        setAcceptedChat(chat);
+        setTimeout(() => {
+          if (chat) go('chat_thread', null, null, chat);
+          else go('chat');
+        }, 1400);
+      }
     } catch (err) {
       showToast?.(err?.message ?? 'Could not accept request.', 'error');
     } finally {
@@ -486,7 +504,6 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
   const tabItems = [
     { key: 'upcoming', label: 'Upcoming', count: confirmed.length + activePlanItems.length },
     { key: 'requests', label: 'Requests', count: requestCount },
-    { key: 'past',     label: 'Past',     count: pastConfirmed.length },
   ];
 
   return (
@@ -503,7 +520,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
           <>
             <div style={{
               display:      'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: 'repeat(2, 1fr)',
               gap:          6,
               background:   C.cardElevated,
               border:       `0.5px solid ${C.border}`,
@@ -804,17 +821,29 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
               </>
             )}
 
-            {/* PAST HANGOUTS */}
-            {activeTab === 'past' && pastConfirmed.length === 0 && (
-              <EmptyState
-                icon={Calendar}
-                title="No past hangouts yet."
-                subtitle="After a confirmed hangout time passes, it will move here."
-                style={{ marginBottom: 24 }}
-              />
+            {/* PAST HANGOUTS — tucked behind a "show more" toggle in Upcoming */}
+            {activeTab === 'upcoming' && pastConfirmed.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPast((v) => !v)}
+                style={{
+                  width:        '100%',
+                  marginTop:    20,
+                  background:   'transparent',
+                  border:       `0.5px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding:      '11px 0',
+                  fontSize:     13,
+                  fontWeight:   700,
+                  color:        C.muted,
+                  cursor:       'pointer',
+                }}
+              >
+                {showPast ? '지난 hangout 숨기기' : `지난 hangout 보기 (${pastConfirmed.length})`}
+              </button>
             )}
 
-            {activeTab === 'past' && pastConfirmed.length > 0 && (
+            {activeTab === 'upcoming' && showPast && pastConfirmed.length > 0 && (
               <>
                 <div style={{ marginBottom: 6, marginTop: 28 }}>
                   <p style={SECTION_LABEL}>Past hangouts</p>
@@ -1259,7 +1288,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                       </div>
                       <motion.button
                         type="button"
-                        onClick={() => go('chat')}
+                        onClick={() => (acceptedChat ? go('chat_thread', null, null, acceptedChat) : go('chat'))}
                         whileTap={{ scale: 0.97 }}
                         transition={{ duration: 0.1 }}
                         style={{
