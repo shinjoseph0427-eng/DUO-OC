@@ -4,6 +4,7 @@ import { Calendar, Eye, MapPin, Pencil, Plus, Share2, ShieldAlert, Users } from 
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import SafetyModal from '../components/SafetyModal.jsx';
+import DuoShareSheet from '../components/DuoShareSheet.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { getMyActivePlan } from '../lib/hangouts.js';
 import { isDuoRestricted, SAFETY_MESSAGES } from '../lib/safety.js';
@@ -480,6 +481,7 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
   const [confirmLeaveId, setConfirmLeaveId] = useState(null);
   const [inviteLoading,  setInviteLoading]  = useState(false);
   const [showSafety,     setShowSafety]     = useState(false);
+  const [shareDuo,       setShareDuo]       = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -541,23 +543,7 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
     }
   }
 
-  async function handleShareDuo(duo) {
-    const url = `${window.location.origin}/duo/${duo.id}`;
-    const shareData = { title: 'Duo OC', text: '우리 Duo OC 카드 봐봐 👀', url };
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(url);
-        showToast?.('링크 복사됨', 'success');
-      }
-    } catch (e) {
-      if (e?.name !== 'AbortError') {
-        await navigator.clipboard.writeText(url).catch(() => {});
-        showToast?.('링크 복사됨', 'success');
-      }
-    }
-  }
+  const handleShareDuo = (duo) => setShareDuo(duo);
 
   async function handleLeaveDuo(duoId) {
     if (leavingDuoId) return;
@@ -752,6 +738,13 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
         <SafetyModal
           myDuo={duos[0]}
           onClose={() => setShowSafety(false)}
+        />
+      )}
+      {shareDuo && (
+        <DuoShareSheet
+          duo={shareDuo}
+          onClose={() => setShareDuo(null)}
+          showToast={showToast}
         />
       )}
     </div>
