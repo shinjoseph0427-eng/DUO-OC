@@ -23,6 +23,7 @@ import CounterHangout from './pages/CounterHangout.jsx';
 import EditProfile from './pages/EditProfile.jsx';
 import EditDuoProfile from './pages/EditDuoProfile.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
+import PublicDuoPage from './pages/PublicDuoPage.jsx';
 import OnboardingGuide, { STEP_TABS } from './components/OnboardingGuide.jsx';
 import RequestModal from './components/RequestModal.jsx';
 import { signOut } from './lib/auth.js';
@@ -32,7 +33,7 @@ import { getConfirmedChatCount } from './lib/messages.js';
 import { getNotifications } from './lib/notifications.js';
 import { acceptInvite } from './lib/invites.js';
 import { supabase } from './lib/supabaseClient.js';
-import { requestPushPermission } from './lib/firebase.js';
+import { requestPushPermission, watchTokenRefresh } from './lib/firebase.js';
 import { usePlanStatus } from './hooks/usePlanStatus';
 import { useReviewPrompt } from './hooks/useReviewPrompt';
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
@@ -41,10 +42,17 @@ const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
   'duo_detail', 'hangouts', 'chat', 'chat_thread', 'duo_room',
   'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
-  'create_plan', 'privacy',
+  'create_plan', 'privacy', 'public_duo',
 ];
 
-const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy'];
+const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy', 'public_duo'];
+
+// Parse a shareable /duo/[uuid] deep link from the URL on first load.
+function parsePublicDuoId() {
+  if (typeof window === 'undefined') return null;
+  const m = window.location.pathname.match(/^\/duo\/([0-9a-fA-F-]{36})\/?$/);
+  return m ? m[1] : null;
+}
 const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'explore', 'hangouts', 'chat', 'me'];
 const ONBOARDED_PAGES = [
@@ -54,7 +62,9 @@ const ONBOARDED_PAGES = [
 ];
 
 export default function App() {
-  const [page,            setPage]            = useState('landing');
+  const initialPublicDuoId = parsePublicDuoId();
+  const [publicDuoId]     = useState(initialPublicDuoId);
+  const [page,            setPage]            = useState(initialPublicDuoId ? 'public_duo' : 'landing');
   const [pageStack,       setPageStack]       = useState([]);
   const [selectedDuo,     setSelectedDuo]     = useState(null);
   const [selectedChat,    setSelectedChat]    = useState(null);
@@ -170,6 +180,12 @@ export default function App() {
       }).catch(() => {});
     }
   }, [currentUser, profile]);
+
+  // Keep the saved FCM token fresh (re-fetch + save when the tab regains focus).
+  useEffect(() => {
+    if (!currentUser?.id || !onboardingComplete) return undefined;
+    return watchTokenRefresh(currentUser.id);
+  }, [currentUser?.id, onboardingComplete]);
 
   // Surface onboarding step 3 once a homie request has been accepted. Forward-only
   // inside the hook, so it won't drag the guide backwards on later loads.
@@ -317,6 +333,7 @@ export default function App() {
         {page === 'edit_profile'     && <EditProfile currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
+        {page === 'public_duo'       && <PublicDuoPage duoId={publicDuoId} go={go} />}
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />

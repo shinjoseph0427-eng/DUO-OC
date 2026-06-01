@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken } from 'firebase/messaging';
+import { saveFcmToken } from './profile.js';
 
 const requiredEnvs = [
   'VITE_FIREBASE_API_KEY',
@@ -41,4 +42,35 @@ export async function requestPushPermission() {
     console.error('Push permission error:', e);
     return null;
   }
+}
+
+// FCM token-refresh handling.
+// The modular (v9+) SDK has no `onTokenRefresh` event — the supported pattern is
+// to re-fetch the token (getToken returns the rotated value) and persist it.
+// A rotated token surfaces on a fresh load / when the tab regains focus, so we
+// re-fetch on visibilitychange and auto-save it if it changed.
+let lastSavedToken = null;
+
+export function watchTokenRefresh(userId) {
+  if (!userId || typeof document === 'undefined') return () => {};
+
+  const refresh = async () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Notification.permission !== 'granted') return;
+    try {
+      const token = await getToken(messaging, {
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+      });
+      if (token && token !== lastSavedToken) {
+        lastSavedToken = token;
+        await saveFcmToken(userId, token);
+      }
+    } catch (e) {
+      console.warn('FCM token refresh failed:', e);
+    }
+  };
+
+  document.addEventListener('visibilitychange', refresh);
+  refresh(); // run once on start
+  return () => document.removeEventListener('visibilitychange', refresh);
 }

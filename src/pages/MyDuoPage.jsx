@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Eye, MapPin, Pencil, Plus, ShieldAlert, Users } from 'lucide-react';
+import { Calendar, Eye, MapPin, Pencil, Plus, Share2, ShieldAlert, Users } from 'lucide-react';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import SafetyModal from '../components/SafetyModal.jsx';
@@ -65,7 +65,7 @@ function DuoPlanSummary({ plan }) {
   );
 }
 
-function DuoCard({ duo, plan, restricted, loadingPlan, go, confirmLeaveId, setConfirmLeaveId, leavingDuoId, handleLeaveDuo }) {
+function DuoCard({ duo, plan, restricted, loadingPlan, go, onShare, confirmLeaveId, setConfirmLeaveId, leavingDuoId, handleLeaveDuo }) {
   const members = duo.duo_members ?? [];
   const memberCount = members.length || 1;
   const tags = Array.isArray(duo.vibes) ? duo.vibes.filter(Boolean).slice(0, 4) : [];
@@ -277,6 +277,29 @@ function DuoCard({ duo, plan, restricted, loadingPlan, go, confirmLeaveId, setCo
             Edit
           </PremiumButton>
         </div>
+
+        <button
+          onClick={() => onShare?.(duo)}
+          style={{
+            marginTop:      8,
+            width:          '100%',
+            padding:        '11px 0',
+            borderRadius:   9,
+            border:         `0.5px solid ${C.brownBorder}`,
+            background:     C.amberT08,
+            color:          C.amber,
+            fontSize:       13,
+            fontWeight:     700,
+            cursor:         'pointer',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            gap:            7,
+          }}
+        >
+          <Share2 size={15} strokeWidth={2.2} />
+          카드 공유
+        </button>
 
         <div style={{ marginTop: 8 }}>
           {plan ? (
@@ -518,6 +541,24 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
     }
   }
 
+  async function handleShareDuo(duo) {
+    const url = `${window.location.origin}/duo/${duo.id}`;
+    const shareData = { title: 'Duo OC', text: '우리 Duo OC 카드 봐봐 👀', url };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        showToast?.('링크 복사됨', 'success');
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') {
+        await navigator.clipboard.writeText(url).catch(() => {});
+        showToast?.('링크 복사됨', 'success');
+      }
+    }
+  }
+
   async function handleLeaveDuo(duoId) {
     if (leavingDuoId) return;
     setLeavingDuoId(duoId);
@@ -670,6 +711,7 @@ export default function MyDuoPage({ currentUser, profile, myDuo, myDuos = [], go
                   restricted={restrictedMap.get(duo.id) ?? false}
                   loadingPlan={loadingPlans}
                   go={go}
+                  onShare={handleShareDuo}
                   confirmLeaveId={confirmLeaveId}
                   setConfirmLeaveId={setConfirmLeaveId}
                   leavingDuoId={leavingDuoId}
