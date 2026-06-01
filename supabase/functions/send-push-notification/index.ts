@@ -448,7 +448,7 @@ serve(async (req) => {
               notification: {
                 title,
                 body,
-                icon: "/icon-192.png",
+                icon: "/icon.png",
               },
             },
           },

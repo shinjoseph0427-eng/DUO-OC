@@ -6,6 +6,7 @@ import TopBar from '../components/TopBar.jsx';
 import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { getMyProfile, updateProfile, checkUsername } from '../lib/profile.js';
 import { uploadPhoto, deletePhoto } from '../lib/upload.js';
+import { deleteAccount } from '../lib/auth.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_CITY_LENGTH = 80;
@@ -142,7 +143,21 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
   ]);
   const [saving,          setSaving]          = useState(false);
   const [usernameStatus,  setUsernameStatus]  = useState(''); // '' | 'checking' | 'available' | 'taken'
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting,          setDeleting]          = useState(false);
   const debRef = useRef(null);
+
+  const handleDeleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAccount(); // soft-delete + signOut → App routes to landing
+    } catch (err) {
+      showToast?.(err?.message ?? '계정 삭제에 실패했어. 다시 시도해줘.', 'error');
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -504,7 +519,103 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
             {saving ? 'Saving…' : 'Save Profile'}
           </PremiumButton>
         </div>
+
+        {/* ── Danger zone: delete account ─────────────────────────── */}
+        <div style={{ marginTop: 36, paddingTop: 20, borderTop: `0.5px solid ${C.border}` }}>
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            style={{
+              width:        '100%',
+              padding:      '13px 0',
+              borderRadius: 12,
+              border:       `0.5px solid ${C.danger}`,
+              background:   'transparent',
+              color:        C.danger,
+              fontSize:     14,
+              fontWeight:   700,
+              cursor:       'pointer',
+            }}
+          >
+            계정 삭제
+          </button>
+        </div>
       </div>
+
+      {/* ── Delete confirmation modal ─────────────────────────────── */}
+      {showDeleteConfirm && (
+        <div
+          onClick={() => !deleting && setShowDeleteConfirm(false)}
+          style={{
+            position:       'fixed',
+            inset:          0,
+            background:     'rgba(0,0,0,0.6)',
+            zIndex:         1200,
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            padding:        '0 28px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background:   C.bg,
+              borderRadius: 22,
+              padding:      '28px 24px 22px',
+              width:        '100%',
+              maxWidth:     360,
+              border:       `0.5px solid ${C.border}`,
+              textAlign:    'center',
+            }}
+          >
+            <div style={{ fontSize: 40, marginBottom: 14 }}>🗑️</div>
+            <h2 style={{ fontSize: 19, fontWeight: 900, color: C.white, margin: '0 0 8px' }}>
+              정말 삭제할까요?
+            </h2>
+            <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, margin: '0 0 24px' }}>
+              모든 데이터가 사라져요. 이 작업은 되돌릴 수 없어요.
+            </p>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              style={{
+                width:        '100%',
+                padding:      '14px 0',
+                borderRadius: 12,
+                border:       'none',
+                background:   C.danger,
+                color:        '#fff',
+                fontSize:     15,
+                fontWeight:   800,
+                cursor:       deleting ? 'wait' : 'pointer',
+                opacity:      deleting ? 0.7 : 1,
+                marginBottom: 10,
+              }}
+            >
+              {deleting ? '삭제 중…' : '계정 삭제'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              style={{
+                width:      '100%',
+                padding:    '12px 0',
+                background: 'none',
+                border:     'none',
+                color:      C.muted,
+                fontSize:   14,
+                fontWeight: 600,
+                cursor:     'pointer',
+              }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

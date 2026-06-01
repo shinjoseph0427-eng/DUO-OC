@@ -16,6 +16,6 @@ messaging.onBackgroundMessage(function(payload) {
   const { title, body } = payload.notification ?? {};
   self.registration.showNotification(title ?? 'DUO OC', {
     body: body ?? '',
-    icon: '/icon-192.png',
+    icon: '/icon.png',
   });
 });

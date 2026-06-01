@@ -19,6 +19,15 @@ export async function signOut() {
   await supabase.auth.signOut()
 }
 
+// Soft-deletes the current user's account (sets profiles.deleted_at via a
+// SECURITY DEFINER RPC) and signs out locally. The SIGNED_OUT auth event then
+// routes the app back to the landing page.
+export async function deleteAccount() {
+  const { error } = await supabase.rpc('delete_user_account')
+  if (error) throw error
+  await supabase.auth.signOut()
+}
+
 export async function getUser() {
   const { data } = await supabase.auth.getUser()
   return data.user

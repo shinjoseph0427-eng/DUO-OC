@@ -204,7 +204,6 @@ export default function App() {
     }
     if (!opts.noStack) setPageStack((prev) => [...prev, page]);
     setSelectedDuo(duo);
-    if (reqData)  setRequestData(reqData);
     if (chat)     setSelectedChat(chat);
     if (hangout)  setSelectedHangout(hangout);
     if (newPage === 'chat') setChatBadge(false);
