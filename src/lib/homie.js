@@ -81,55 +81,32 @@ async function createDuoWithMembers(senderProfile, receiverProfile) {
   return duo.id
 }
 
+// eslint-disable-next-line no-unused-vars
 export async function findHomies(currentUser, myProfile) {
-  // Build the exclusion set: self, existing homies (either direction), anyone
-  // with a pending request either direction, and my duo co-members.
-  const [homieIds, pendingRowsRes, myMembershipsRes] = await Promise.all([
-    getMyHomieIds(currentUser.id),
-    supabase
-      .from('homie_requests')
-      .select('from_user_id, to_user_id')
-      .eq('status', 'pending')
-      .or(`from_user_id.eq.${currentUser.id},to_user_id.eq.${currentUser.id}`),
-    supabase
-      .from('duo_members')
-      .select('duo_id')
-      .eq('user_id', currentUser.id),
-  ])
+  // Exclusion set is intentionally minimal: only the user themselves and anyone
+  // they are in a block relationship with (either direction). Everyone else is
+  // shown — including former homies whose relationship was deleted. We do NOT
+  // exclude current homies, pending requests, co-members, or filter by age, so a
+  // removed homie always reappears here.
+  const { data: blockRows } = await supabase
+    .from('user_blocks')
+    .select('blocker_id, blocked_id')
+    .or(`blocker_id.eq.${currentUser.id},blocked_id.eq.${currentUser.id}`)
 
-  const pendingIds = (pendingRowsRes.data ?? []).map(
-    (r) => (r.from_user_id === currentUser.id ? r.to_user_id : r.from_user_id),
+  const blockedIds = (blockRows ?? []).map(
+    (r) => (r.blocker_id === currentUser.id ? r.blocked_id : r.blocker_id),
   )
 
-  let coMemberIds = []
-  const myDuoIds = (myMembershipsRes.data ?? []).map((m) => m.duo_id).filter(Boolean)
-  if (myDuoIds.length) {
-    const { data: coMembers } = await supabase
-      .from('duo_members')
-      .select('user_id')
-      .in('duo_id', myDuoIds)
-    coMemberIds = (coMembers ?? []).map((m) => m.user_id)
-  }
+  const excluded = new Set([currentUser.id, ...blockedIds].filter(Boolean))
 
-  const excluded = new Set(
-    [currentUser.id, ...homieIds, ...pendingIds, ...coMemberIds].filter(Boolean),
-  )
-
-  let query = supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .neq('id', currentUser.id)
+    .limit(100)
 
-  if (myProfile.age) {
-    query = query
-      .gte('age', myProfile.age - 3)
-      .lte('age', myProfile.age + 3)
-  }
-
-  // Over-fetch then filter client-side, since the exclusion set is dynamic.
-  const { data, error } = await query.limit(50)
   if (error) return []
-  return (data ?? []).filter((p) => !excluded.has(p.id)).slice(0, 20)
+  return (data ?? []).filter((p) => !excluded.has(p.id))
 }
 
 // Returns the user ids of everyone the user is already homies with (accepted
