@@ -3,8 +3,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarClock, MapPin, MessageCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { CalendarClock, MapPin, MessageCircle, RefreshCw, Sparkles, UserCheck } from 'lucide-react';
 import { getWeeklyMatches, getMyWeeklyCard } from '../lib/weeklyCards.js';
+import { sendSoloRequest } from '../lib/solo.js';
 import { C } from '../tokens';
 import TopBar from '../components/TopBar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -30,6 +31,10 @@ function formatDistance(km) {
 function getPhoto(match) {
   const photos = asList(match?.photos);
   return photos[0] ?? match?.photo_url ?? match?.avatar_url ?? null;
+}
+
+function getMatchUserId(match) {
+  return match?.user_id ?? match?.profile_id ?? match?.id ?? null;
 }
 
 function SkeletonCard() {
@@ -68,7 +73,7 @@ function AmberPill({ children }) {
   );
 }
 
-function WeeklyMatchCard({ match, onRequest }) {
+function WeeklyMatchCard({ match, onRequest, requested, requesting }) {
   const name = match?.name || match?.username || 'Someone';
   const username = match?.username && match.username !== match.name ? `@${match.username}` : null;
   const photo = getPhoto(match);
@@ -193,25 +198,47 @@ function WeeklyMatchCard({ match, onRequest }) {
         <button
           type="button"
           onClick={() => onRequest(match)}
+          disabled={requested || requesting}
           style={{
             marginTop: 'auto',
             width: '100%',
             minHeight: 38,
             border: 'none',
             borderRadius: 10,
-            background: C.gradientCTA,
+            background: requested ? 'rgba(17,17,17,0.16)' : C.gradientCTA,
             color: C.cream,
             fontSize: 13,
             fontWeight: 800,
-            cursor: 'pointer',
+            cursor: requested || requesting ? 'default' : 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 7,
+            opacity: requesting ? 0.72 : 1,
           }}
         >
-          <MessageCircle size={15} strokeWidth={2.4} />
-          Say hi
+          {requested ? (
+            <>
+              <UserCheck size={15} strokeWidth={2.4} />
+              Requested
+            </>
+          ) : requesting ? (
+            <>
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}
+                style={{ display: 'inline-flex' }}
+              >
+                <RefreshCw size={15} strokeWidth={2.4} />
+              </motion.span>
+              Sending...
+            </>
+          ) : (
+            <>
+              <MessageCircle size={15} strokeWidth={2.4} />
+              Send Request
+            </>
+          )}
         </button>
       </div>
     </motion.article>
@@ -223,6 +250,8 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [requested, setRequested] = useState(new Set());
+  const [requesting, setRequesting] = useState(new Set());
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -252,8 +281,29 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
     load();
   }, [load]);
 
-  const handleRequest = () => {
-    showToast?.('Request flow coming next.', 'info');
+  const handleRequest = async (match) => {
+    const toUserId = getMatchUserId(match);
+    if (!toUserId || requested.has(toUserId) || requesting.has(toUserId)) return;
+
+    setRequested(prev => new Set([...prev, toUserId]));
+    setRequesting(prev => new Set([...prev, toUserId]));
+    try {
+      await sendSoloRequest(toUserId);
+      showToast?.('Request sent!', 'success');
+    } catch (error) {
+      setRequested(prev => {
+        const next = new Set(prev);
+        next.delete(toUserId);
+        return next;
+      });
+      showToast?.(error?.message ?? 'Failed to send request', 'error');
+    } finally {
+      setRequesting(prev => {
+        const next = new Set(prev);
+        next.delete(toUserId);
+        return next;
+      });
+    }
   };
 
   return (
@@ -335,6 +385,8 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
                   key={match.id}
                   match={match}
                   onRequest={handleRequest}
+                  requested={requested.has(getMatchUserId(match))}
+                  requesting={requesting.has(getMatchUserId(match))}
                 />
               ))}
             </AnimatePresence>
