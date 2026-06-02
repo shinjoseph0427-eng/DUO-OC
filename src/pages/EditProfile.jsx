@@ -7,7 +7,6 @@ import PremiumButton from '../components/ui/PremiumButton.jsx';
 import { getMyProfile, updateProfile, checkUsername } from '../lib/profile.js';
 import { uploadPhoto, deletePhoto } from '../lib/upload.js';
 import { deleteAccount } from '../lib/auth.js';
-import { updateIsSolo } from '../lib/solo.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const MAX_CITY_LENGTH = 80;
@@ -47,27 +46,6 @@ const INPUT = {
   outline:      'none',
   boxSizing:    'border-box',
 };
-
-function Toggle({ on, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={on}
-      style={{
-        width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-        background: on ? C.amber : 'rgba(17,17,17,0.15)',
-        position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-      }}
-    >
-      <span style={{
-        position: 'absolute', top: 3, left: on ? 20 : 2,
-        width: 20, height: 20, borderRadius: '50%', background: '#fff',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.3)', transition: 'left 0.2s',
-      }} />
-    </button>
-  );
-}
 
 function PhotoSlot({ url, uploading, onAdd, onRemove }) {
   const ref = useRef(null);
@@ -167,20 +145,7 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
   const [usernameStatus,  setUsernameStatus]  = useState(''); // '' | 'checking' | 'available' | 'taken'
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting,          setDeleting]          = useState(false);
-  const [isSolo,            setIsSolo]            = useState(false);
   const debRef = useRef(null);
-
-  const handleSoloToggle = async () => {
-    const next = !isSolo;
-    setIsSolo(next);
-    try {
-      await updateIsSolo(next);
-      showToast?.(next ? 'Solo 탐색에 노출돼요' : 'Solo 탐색에서 숨겨졌어요', 'success');
-    } catch (e) {
-      setIsSolo(!next);
-      showToast?.('저장 실패', 'error');
-    }
-  };
 
   const handleDeleteAccount = async () => {
     if (deleting) return;
@@ -211,7 +176,6 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
         { q: p.prompt_q1 || PROMPT_OPTIONS[0], a: p.prompt_a1 || '' },
         { q: p.prompt_q2 || PROMPT_OPTIONS[2], a: p.prompt_a2 || '' },
       ]);
-      setIsSolo(p.is_solo ?? false);
     });
   }, [currentUser]);
 
@@ -549,23 +513,6 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
             </div>
           </div>
         ))}
-
-        {/* ── Solo 1:1 노출 토글 ───────────────────────── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 0',
-          borderTop: `1px solid ${C.border}`,
-        }}>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0 }}>
-              Solo로도 보이기
-            </p>
-            <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>
-              1:1 매칭 탐색에 내 프로필 노출
-            </p>
-          </div>
-          <Toggle on={isSolo} onToggle={handleSoloToggle} />
-        </div>
 
         <div style={{ marginTop: 8 }}>
           <PremiumButton fullWidth onClick={handleSave} disabled={saving}>

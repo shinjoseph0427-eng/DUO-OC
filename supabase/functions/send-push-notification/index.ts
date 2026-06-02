@@ -24,6 +24,8 @@ const SUPPORTED_TYPES = new Set([
   "hangout_accepted",
   "hangout_confirmed",
   "match",
+  "solo_request",
+  "solo_accepted",
 ]);
 
 const PUSH_TITLES: Record<string, string> = {
@@ -33,6 +35,8 @@ const PUSH_TITLES: Record<string, string> = {
   hangout_accepted: "Hangout confirmed",
   hangout_confirmed: "Hangout confirmed",
   match: "It's a match!",
+  solo_request: "새로운 1:1 요청",
+  solo_accepted: "매칭됐어요! 🎉",
 };
 
 const PUSH_BODIES: Record<string, string> = {
@@ -42,6 +46,8 @@ const PUSH_BODIES: Record<string, string> = {
   hangout_accepted: "A duo accepted your hangout request.",
   hangout_confirmed: "Your hangout is confirmed — the chat room is open.",
   match: "You matched with a new duo.",
+  solo_request: "누군가 Solo 요청을 보냈어요.",
+  solo_accepted: "상대가 요청을 수락했어요.",
 };
 
 // Builds a friendlier body using the notification payload when available.
@@ -62,6 +68,15 @@ function buildPushBody(
     typeof payload.accepted_by_name === "string" &&
       payload.accepted_by_name.trim()
       ? payload.accepted_by_name.trim()
+      : null;
+
+  const senderName =
+    typeof payload.sender_name === "string" && payload.sender_name.trim()
+      ? payload.sender_name.trim()
+      : null;
+  const partnerName =
+    typeof payload.partner_name === "string" && payload.partner_name.trim()
+      ? payload.partner_name.trim()
       : null;
 
   switch (type) {
@@ -85,6 +100,14 @@ function buildPushBody(
       return matchedName
         ? `You matched with ${matchedName}.`
         : PUSH_BODIES.match;
+    case "solo_request":
+      return senderName
+        ? `${senderName}님이 Solo 요청을 보냈어요`
+        : PUSH_BODIES.solo_request;
+    case "solo_accepted":
+      return partnerName
+        ? `${partnerName}님이 요청을 수락했어요`
+        : PUSH_BODIES.solo_accepted;
     default:
       return PUSH_BODIES[type] ?? "You have a new notification.";
   }

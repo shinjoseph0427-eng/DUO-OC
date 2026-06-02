@@ -160,6 +160,90 @@ $$;
 REVOKE ALL ON FUNCTION public.accept_solo_request(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.accept_solo_request(uuid) TO authenticated;
 
+-- ── notify RPCs (SECURITY DEFINER so the inserted notification id can be
+--    returned to the caller for push, bypassing the user_id=auth.uid() SELECT RLS) ──
+
+-- solo_request → notify the recipient (to_user_id). Caller must be the sender.
+CREATE OR REPLACE FUNCTION public.notify_solo_request(p_request_id uuid)
+RETURNS SETOF public.notifications
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid  uuid := auth.uid();
+  v_req  public.solo_requests%ROWTYPE;
+  v_name text;
+  v_notification public.notifications%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO v_req FROM public.solo_requests WHERE id = p_request_id;
+  IF NOT FOUND OR v_req.from_user_id <> v_uid OR v_req.status <> 'pending' THEN
+    RAISE EXCEPTION 'Solo request not eligible for notification' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT name INTO v_name FROM public.profiles WHERE id = v_req.from_user_id;
+
+  INSERT INTO public.notifications (user_id, type, payload, read)
+  VALUES (
+    v_req.to_user_id,
+    'solo_request',
+    jsonb_build_object('from_user_id', v_req.from_user_id, 'request_id', v_req.id, 'sender_name', v_name),
+    false
+  )
+  RETURNING * INTO v_notification;
+
+  RETURN NEXT v_notification;
+  RETURN;
+END;
+$$;
+
+-- solo_accepted → notify the original sender (from_user_id). Caller must be the accepter.
+CREATE OR REPLACE FUNCTION public.notify_solo_accepted(p_request_id uuid)
+RETURNS SETOF public.notifications
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid  uuid := auth.uid();
+  v_req  public.solo_requests%ROWTYPE;
+  v_name text;
+  v_notification public.notifications%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO v_req FROM public.solo_requests WHERE id = p_request_id;
+  IF NOT FOUND OR v_req.to_user_id <> v_uid OR v_req.status <> 'accepted' THEN
+    RAISE EXCEPTION 'Solo request not eligible for accepted notification' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT name INTO v_name FROM public.profiles WHERE id = v_req.to_user_id;
+
+  INSERT INTO public.notifications (user_id, type, payload, read)
+  VALUES (
+    v_req.from_user_id,
+    'solo_accepted',
+    jsonb_build_object('accepted_by_user_id', v_req.to_user_id, 'request_id', v_req.id, 'partner_name', v_name),
+    false
+  )
+  RETURNING * INTO v_notification;
+
+  RETURN NEXT v_notification;
+  RETURN;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.notify_solo_request(uuid)  FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.notify_solo_accepted(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_solo_request(uuid)  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.notify_solo_accepted(uuid) TO authenticated;
+
 -- ── realtime for solo_messages ─────────────────────────────────────────────
 DO $$
 BEGIN

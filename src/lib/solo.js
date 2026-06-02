@@ -3,6 +3,7 @@
 // 기존 homie.js / duos.js 전혀 수정하지 않음 (additive layer).
 
 import { supabase } from "./supabaseClient.js";
+import { sendPushForNotification } from "./notifications.js";
 
 // ─────────────────────────────────────────────────────────
 // 유틸
@@ -78,11 +79,10 @@ export async function findSoloUsers(currentUser, opts = {}) {
     ...new Set([currentUser.id, ...blockedIds, ...sentToIds, ...matchedIds].filter(Boolean)),
   ];
 
-  // 5) Solo 유저 조회 (오버페치 후 거리 필터)
+  // 5) 유저 조회 (모든 유저 대상 — is_solo 필터 없음, 오버페치 후 거리 필터)
   const { data: users, error } = await supabase
     .from("profiles")
     .select(PROFILE_FIELDS)
-    .eq("is_solo", true)
     .not("id", "in", `(${excludeIds.join(",")})`)
     .limit(limit * 3);
 
@@ -120,6 +120,16 @@ export async function sendSoloRequest(toUserId) {
     if (error.code === "23505") throw new Error("이미 요청을 보낸 상대입니다.");
     throw error;
   }
+
+  // 상대에게 알림 + 푸시 (SECURITY DEFINER RPC가 알림 행을 만들고 id를 반환).
+  try {
+    const { data: notif } = await supabase.rpc("notify_solo_request", { p_request_id: data.id });
+    const row = Array.isArray(notif) ? notif[0] : notif;
+    if (row?.id) await sendPushForNotification(row.id);
+  } catch (e) {
+    console.warn("notify_solo_request failed:", e?.message);
+  }
+
   return data;
 }
 
@@ -182,7 +192,17 @@ export async function acceptSoloRequest(requestId) {
     p_request_id: requestId,
   });
   if (error) throw error;
-  return data;
+
+  // 요청 보낸 사람에게 수락 알림 + 푸시.
+  try {
+    const { data: notif } = await supabase.rpc("notify_solo_accepted", { p_request_id: requestId });
+    const row = Array.isArray(notif) ? notif[0] : notif;
+    if (row?.id) await sendPushForNotification(row.id);
+  } catch (e) {
+    console.warn("notify_solo_accepted failed:", e?.message);
+  }
+
+  return data; // match_id
 }
 
 export async function declineSoloRequest(requestId) {
