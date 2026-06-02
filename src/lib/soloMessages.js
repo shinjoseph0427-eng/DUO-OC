@@ -33,6 +33,28 @@ export async function getSoloMessages(matchId, opts = {}) {
 // ─────────────────────────────────────────────────────────
 // 2. Send a message
 // ─────────────────────────────────────────────────────────
+export async function getLatestSoloMessages(matchIds = []) {
+  const ids = [...new Set(matchIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("solo_messages")
+    .select(`
+      id, match_id, sender_user_id, content, created_at,
+      sender:profiles!solo_messages_sender_user_id_fkey(${SENDER_FIELDS})
+    `)
+    .in("match_id", ids)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const latest = new Map();
+  for (const msg of data || []) {
+    if (!latest.has(msg.match_id)) latest.set(msg.match_id, msg);
+  }
+  return latest;
+}
+
 export async function sendSoloMessage(matchId, content) {
   const trimmed = content?.trim();
   if (!trimmed) throw new Error("Message is empty.");

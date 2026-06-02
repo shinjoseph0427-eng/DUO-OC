@@ -1031,6 +1031,33 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                     Explore
                   </ActionButton>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => go('solo_inbox')}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginTop: 10,
+                    padding: '11px 12px',
+                    borderRadius: 12,
+                    border: `0.5px solid ${C.border}`,
+                    background: C.bg2,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <MessageCircle size={18} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 850, color: C.white }}>
+                      1:1 Chats
+                    </p>
+                    <p style={{ margin: 0, fontSize: 12, color: C.muted, lineHeight: 1.35 }}>
+                      See your matches and messages.
+                    </p>
+                  </div>
+                </button>
               </GlassCard>
             </div>
 
