@@ -24,6 +24,9 @@ import EditProfile from './pages/EditProfile.jsx';
 import EditDuoProfile from './pages/EditDuoProfile.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import PublicDuoPage from './pages/PublicDuoPage.jsx';
+import SoloExplorePage from './pages/SoloExplorePage.jsx';
+import SoloInboxPage from './pages/SoloInboxPage.jsx';
+import SoloChatPage from './pages/SoloChatPage.jsx';
 import OnboardingGuide, { STEP_TABS } from './components/OnboardingGuide.jsx';
 import RequestModal from './components/RequestModal.jsx';
 import { signOut } from './lib/auth.js';
@@ -43,6 +46,7 @@ const PAGES = [
   'duo_detail', 'hangouts', 'chat', 'chat_thread', 'duo_room',
   'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
   'create_plan', 'privacy', 'public_duo',
+  'solo_explore', 'solo_inbox', 'solo_chat',
 ];
 
 const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy', 'public_duo'];
@@ -59,6 +63,7 @@ const ONBOARDED_PAGES = [
   'home', 'explore', 'duo_detail', 'hangouts', 'chat',
   'chat_thread', 'duo_room', 'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
   'edit_profile', 'edit_duo_profile', 'create_plan',
+  'solo_explore', 'solo_inbox', 'solo_chat',
 ];
 
 export default function App() {
@@ -343,6 +348,11 @@ export default function App() {
         {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
         {page === 'public_duo'       && <PublicDuoPage duoId={publicDuoId} go={go} />}
+        {page === 'solo_explore'     && <SoloExplorePage currentUser={currentUser} profile={profile} go={go} showToast={showToast} />}
+        {page === 'solo_inbox'       && <SoloInboxPage currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
+        {page === 'solo_chat'        && (selectedChat
+          ? <SoloChatPage match={selectedChat} currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />
+          : fallback('Chat not found', 'home'))}
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />

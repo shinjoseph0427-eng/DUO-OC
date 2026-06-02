@@ -544,6 +544,31 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
           </p>
         </motion.div>
 
+        {/* ── Solo 탐색 진입 ─────────────────────────────────────────── */}
+        <div style={{ padding: '0 16px' }}>
+          <button
+            type="button"
+            onClick={() => go('solo_explore')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '14px 16px',
+              background: 'rgba(255,107,0,0.06)',
+              border: '1px solid rgba(255,107,0,0.18)',
+              borderRadius: 14,
+              cursor: 'pointer',
+              width: '100%',
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ fontSize: 22 }}>🤝</span>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#FF6B00', margin: 0 }}>Solo 탐색</p>
+              <p style={{ fontSize: 12, color: '#888', margin: 0 }}>근처에서 1:1로 만날 사람 찾기</p>
+            </div>
+            <span style={{ color: '#FF6B00', fontSize: 18, fontWeight: 300 }}>›</span>
+          </button>
+        </div>
+
         {/* ── Homie request banner — unmissable, tap → inbox ─────────── */}
         {!loading && homieRequests.length > 0 && (
           <motion.button
