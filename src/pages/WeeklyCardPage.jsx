@@ -112,7 +112,7 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
           This Week
         </h1>
         <p style={{ fontSize: 14, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>
-          When are you free this week? We'll match you with people whose times overlap.
+          Pick the days and times you are open. We'll use them to find people whose week overlaps with yours.
         </p>
 
         {loading ? (
@@ -153,7 +153,7 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
             <input
               value={vibe}
               onChange={(e) => setVibe(e.target.value.slice(0, 60))}
-              placeholder="What kind of hangout? (e.g. coffee, walk, food)"
+              placeholder="What are you in the mood for? (e.g. coffee, walk, food)"
               style={INPUT}
             />
           </>
@@ -185,7 +185,7 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
           </motion.button>
           {days.length === 0 && (
             <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>
-              Pick at least one day
+              Pick at least one day to set your week
             </p>
           )}
         </div>

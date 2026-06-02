@@ -252,7 +252,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
 
       <div style={{ flex: 1, padding: '12px 16px 100px', overflowY: 'auto' }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: C.white, margin: '4px 0 14px' }}>
-          Solo inbox
+          Messages
         </h1>
 
         {/* Loading skeleton */}
@@ -310,9 +310,9 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
           <EmptyState
             icon={Inbox}
             title="No requests yet"
-            subtitle="Make the first move from Solo explore"
-            action={() => go('solo_explore')}
-            actionLabel="Explore"
+            subtitle="Explore this week and send a request when someone's week overlaps with yours."
+            action={() => go('weekly_explore')}
+            actionLabel="Explore This Week"
             style={{ marginTop: 14 }}
           />
         )}

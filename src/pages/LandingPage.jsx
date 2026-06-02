@@ -10,26 +10,26 @@ const FONT_B = "'DM Sans', system-ui, sans-serif";
 
 // ── Card data ────────────────────────────────────────────────────────────
 const CARDS = [
-  { letter: 'A', name: 'Ari & Lena',    location: 'Irvine · Newport Beach', tags: ['Coffee runs', 'Pilates', 'Beach days'],  bg: '#fff0e8' },
-  { letter: 'J', name: 'Jae & Miles',   location: 'Fullerton · Anaheim',    tags: ['KBBQ', 'Late nights', 'Car meets'],      bg: '#f0f5e8' },
-  { letter: 'S', name: 'Sofia & Mina',  location: 'Costa Mesa · Newport',   tags: ['Thrift finds', 'Art walks', 'Boba'],     bg: '#e8edf5' },
+  { letter: 'A', name: 'Ari',    location: 'Irvine · evenings',       tags: ['Coffee', 'Walks', 'Wed'],       bg: '#fff0e8' },
+  { letter: 'J', name: 'Jae',    location: 'Fullerton · weekends',    tags: ['KBBQ', 'Late nights', 'Fri'],   bg: '#f0f5e8' },
+  { letter: 'S', name: 'Sofia',  location: 'Costa Mesa · afternoons', tags: ['Boba', 'Art walks', 'Sun'],     bg: '#e8edf5' },
 ];
 
 // ── Feature rows ─────────────────────────────────────────────────────────
 const FEATURES = [
   {
-    side: 'left',  letter: '2',  cardBg: '#fff0e8',
-    badgeLabel: '2 vs 2',      badgeSub: 'Always with a friend',
-    tag: 'No solo pressure',
-    heading: ['Bring your friend.', 'They bring theirs.'],
-    body: 'Four people, one plan, zero awkward one-on-ones. You show up with backup — so does everyone else.',
+    side: 'left',  letter: 'W',  cardBg: '#fff0e8',
+    badgeLabel: 'Set week',      badgeSub: 'Days and times',
+    tag: 'Your availability',
+    heading: ['Pick your days.', 'Pick your times.'],
+    body: 'Tell WEEKLY when you are free this week so your matches start with real overlap.',
   },
   {
-    side: 'right', letter: 'IG', cardBg: '#e8edf5',
-    badgeLabel: 'Instagram',   badgeSub: 'Unlocks on match',
-    tag: 'The unlock',
-    heading: ['Match first.', 'Instagram opens.'],
-    body: "You only see their Instagram when both duos agree. The anticipation is the whole point.",
+    side: 'right', letter: 'O', cardBg: '#e8edf5',
+    badgeLabel: 'Overlap',   badgeSub: 'Shared free time',
+    tag: 'The match',
+    heading: ['Find people whose', 'week lines up.'],
+    body: 'See people who share at least one day and time with you, then choose who feels right.',
   },
   {
     side: 'left',  letter: 'OC', cardBg: '#f0f5e8',
@@ -39,11 +39,11 @@ const FEATURES = [
     body: 'From Newport to Fullerton. Real spots, real times, real people around Orange County.',
   },
   {
-    side: 'right', letter: '18', cardBg: '#f5e8f0',
-    badgeLabel: '18 – 25 only', badgeSub: 'Verified age range',
-    tag: 'Your crowd',
-    heading: ['Everyone here', 'is your age.'],
-    body: 'No filtering through the wrong crowd. Every duo on DUO OC is age-verified and local to OC.',
+    side: 'right', letter: 'Y', cardBg: '#f5e8f0',
+    badgeLabel: 'Say yes', badgeSub: 'Requests first',
+    tag: 'Chat',
+    heading: ['Send a request.', 'Chat if both say yes.'],
+    body: 'No cold DMs. Send a request, match when it is mutual, then keep the conversation going.',
   },
 ];
 
@@ -236,7 +236,7 @@ const SwipeCard = forwardRef(function SwipeCard({ card, onSwiped }, ref) {
       onDragEnd={handleDragEnd}
       whileTap={{ cursor: 'grabbing' }}
     >
-      {/* DUO label */}
+      {/* YES label */}
       <AnimatePresence>
         {label === 'duo' && (
           <motion.div
@@ -249,7 +249,7 @@ const SwipeCard = forwardRef(function SwipeCard({ card, onSwiped }, ref) {
               padding: '5px 14px', borderRadius: 8,
               border: '2.5px solid rgba(255,255,255,0.7)', letterSpacing: 2,
             }}
-          >DUO</motion.div>
+          >YES</motion.div>
         )}
       </AnimatePresence>
 
@@ -297,7 +297,7 @@ function LockOverlay({ onSignUp }) {
         Sign up to keep swiping
       </div>
       <div style={{ fontSize: 13, color: '#aaa', marginBottom: 22, lineHeight: 1.5 }}>
-        There are duos in OC waiting to meet yours.
+        There are people in OC whose week can line up with yours.
       </div>
       <CTAButton label="Get started" onClick={onSignUp} />
     </motion.div>
@@ -459,7 +459,7 @@ function ToastContent() {
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: ORANGE }} />
         </div>
         <span style={{ fontFamily: FONT_B, fontSize: 13, color: '#111' }}>
-          <strong style={{ fontWeight: 500 }}>Brianna & Jade</strong> just joined DUO OC
+          <strong style={{ fontWeight: 500 }}>Brianna</strong> just joined WEEKLY
         </span>
       </div>
     </motion.div>
@@ -508,7 +508,7 @@ export default function LandingPage({ go }) {
         {inviterName && (
           <div style={{ background: '#fff5f0', borderBottom: '1px solid rgba(255,92,0,0.15)', padding: '12px 24px', textAlign: 'center' }}>
             <span style={{ fontFamily: FONT_B, fontSize: 13, color: ORANGE, fontWeight: 500 }}>
-              {inviterName} invited you to join their duo on DUO OC
+              {inviterName} invited you to join WEEKLY
             </span>
           </div>
         )}
@@ -521,7 +521,7 @@ export default function LandingPage({ go }) {
         }}>
           <div style={{ ...PAD, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 20, color: ORANGE, letterSpacing: -0.3 }}>
-              DUO OC
+              WEEKLY
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <span style={{ fontFamily: FONT_B, fontSize: 13, color: '#bbb', fontWeight: 400 }}>
@@ -567,18 +567,18 @@ export default function LandingPage({ go }) {
                 fontFamily: FONT_H, fontWeight: 800, fontSize: 62,
                 letterSpacing: -3.5, lineHeight: 0.9, color: '#111', margin: '0 0 24px',
               }}>
-                Bring<br />a <span style={{ color: ORANGE }}>friend.</span><br />
-                <span style={{ color: '#ddd' }}>Meet a duo.</span>
+                Set<br />your <span style={{ color: ORANGE }}>week.</span><br />
+                <span style={{ color: '#ddd' }}>Meet your overlap.</span>
               </h1>
 
               {/* Subtext */}
               <p style={{ fontFamily: FONT_B, fontSize: 15, fontWeight: 300, color: '#aaa', lineHeight: 1.7, margin: '0 0 32px', maxWidth: 360 }}>
-                2v2 hangouts around OC. Match first — then Instagram unlocks. No awkward one-on-ones.
+                Find people whose week overlaps with yours. Send a request, then chat if you both say yes.
               </p>
 
               {/* Primary CTA */}
               <div style={{ marginBottom: 14 }}>
-                <CTAButton label="Find my duo" onClick={() => go('auth')} />
+                <CTAButton label="Set my week" onClick={() => go('auth')} />
               </div>
 
               {/* Secondary */}
@@ -608,7 +608,7 @@ export default function LandingPage({ go }) {
                   ))}
                 </div>
                 <span style={{ fontFamily: FONT_B, fontSize: 12, color: '#bbb' }}>
-                  847 duos matched this week · 22 new today
+                  847 weekly matches · 22 new today
                 </span>
               </div>
             </div>
@@ -644,15 +644,15 @@ export default function LandingPage({ go }) {
             {[
               {
                 display: <><span style={{ color: '#111' }}>847</span><span style={{ color: ORANGE }}>+</span></>,
-                label: 'Duos matched this week',
+                label: 'Weekly matches',
               },
               {
-                display: <><span style={{ color: ORANGE }}>2</span><span style={{ color: '#111' }}>v</span><span style={{ color: ORANGE }}>2</span></>,
-                label: 'Always with a friend',
+                display: <><span style={{ color: ORANGE }}>1</span><span style={{ color: '#111' }}>:</span><span style={{ color: ORANGE }}>1</span></>,
+                label: 'Requests before chat',
               },
               {
                 display: <><span style={{ color: '#111' }}>0</span><span style={{ color: ORANGE }}>%</span></>,
-                label: 'Awkward cold DMs',
+                label: 'Cold DMs',
               },
             ].map((stat, i) => (
               <div key={i} style={{
@@ -673,14 +673,14 @@ export default function LandingPage({ go }) {
         {/* ── CTA section ── */}
         <section className="lp-pad" style={{ ...PAD, paddingTop: 100, paddingBottom: 100, textAlign: 'center' }}>
           <h2 style={{ fontFamily: FONT_H, fontWeight: 800, fontSize: 52, letterSpacing: -2.5, lineHeight: 0.95, color: '#111', margin: '0 0 20px' }}>
-            There are duos in OC<br />
-            waiting <span style={{ color: ORANGE }}>right now.</span>
+            Your week can line up<br />
+            with someone <span style={{ color: ORANGE }}>right now.</span>
           </h2>
           <p style={{ fontFamily: FONT_B, fontSize: 15, fontWeight: 300, color: '#bbb', margin: '0 0 36px' }}>
-            You just can&apos;t see them yet.
+            Set your availability to see who overlaps.
           </p>
           <div style={{ marginBottom: 20 }}>
-            <CTAButton label="Find my duo" onClick={() => go('auth')} />
+            <CTAButton label="Set my week" onClick={() => go('auth')} />
           </div>
           <div style={{ marginBottom: 32 }}>
             <button
@@ -693,7 +693,7 @@ export default function LandingPage({ go }) {
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {['Instagram unlocks on match', 'OC only', '18 – 25', 'Public places first'].map((item, i) => (
+            {['Set your week', 'OC only', '18-25', 'Chat if both say yes'].map((item, i) => (
               <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 {i > 0 && <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#ddd', display: 'inline-block' }} />}
                 <span style={{ fontFamily: FONT_B, fontSize: 12, color: '#ccc' }}>{item}</span>
@@ -705,15 +705,15 @@ export default function LandingPage({ go }) {
         {/* ── SEO FAQ ── */}
         <section className="lp-pad" style={{ maxWidth: 720, margin: '0 auto', padding: '60px 48px 80px', borderTop: '1px solid #f5f5f5' }}>
           <p style={{ fontFamily: FONT_B, fontSize: 10, fontWeight: 500, color: '#ccc', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 24 }}>
-            About DUO OC
+            About WEEKLY
           </p>
           {[
-            { q: 'What is DUO OC?', a: 'DUO OC, also searched as OC DUO, is a 2v2 social hangout app for Orange County. It helps young adults meet new people in OC by bringing a friend and matching with another duo.' },
-            { q: 'Is DUO OC a dating app?', a: "DUO OC is not a traditional dating app. It's a social discovery and casual hangout app built around 2v2 plans, friend groups, and low-pressure meetups around Orange County." },
-            { q: 'Who is DUO OC for?', a: 'DUO OC is for young adults aged 18–25 in Orange County who want to meet new people and find casual plans without the pressure of one-on-one apps.' },
-            { q: 'How does a 2v2 hangout work?', a: "You bring a friend, create a duo, discover other duos, and propose a casual plan around OC. Everyone shows up with backup — no cold one-on-ones." },
-            { q: 'Where does DUO OC work?', a: 'DUO OC is built for Orange County — Irvine, Fullerton, Anaheim, Costa Mesa, Huntington Beach, Newport Beach, and nearby OC communities.' },
-            { q: 'What should I search to find DUO OC?', a: 'People find DUO OC by searching DUO OC, OC DUO, OC social app, Orange County social app, OC hangout app, 2v2 hangout app, or meet new people in Orange County.' },
+            { q: 'What is WEEKLY?', a: 'WEEKLY helps people in Orange County meet through shared availability. Set your week, find people whose days and times overlap with yours, and send a request.' },
+            { q: 'Is WEEKLY a dating app?', a: "WEEKLY is a social discovery app for low-pressure 1:1 connections. You only chat when both people say yes." },
+            { q: 'Who is WEEKLY for?', a: 'WEEKLY is for young adults aged 18-25 in Orange County who want to meet new people around real availability.' },
+            { q: 'How does WEEKLY work?', a: 'Pick the days and times you are free, browse people with overlapping weeks, send a request, and chat if it is mutual.' },
+            { q: 'Where does WEEKLY work?', a: 'WEEKLY is built for Orange County, including Irvine, Fullerton, Anaheim, Costa Mesa, Huntington Beach, Newport Beach, and nearby OC communities.' },
+            { q: 'What should I search to find WEEKLY?', a: 'People can find WEEKLY by searching WEEKLY, OC social app, Orange County social app, weekly matches, or meet new people in Orange County.' },
           ].map(({ q, a }, i) => (
             <details key={i} style={{ borderBottom: '1px solid #f5f5f5', padding: '14px 0' }}>
               <summary style={{ fontFamily: FONT_B, fontSize: 13, fontWeight: 500, color: '#999', cursor: 'pointer', listStyle: 'none' }}>{q}</summary>

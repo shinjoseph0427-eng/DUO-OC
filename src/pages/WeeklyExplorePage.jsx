@@ -346,7 +346,7 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
           Explore This Week
         </h1>
         <p style={{ margin: '0 0 16px', color: C.muted, fontSize: 14, lineHeight: 1.5 }}>
-          People whose free days and time slots overlap with yours.
+          These people share at least one day and time with your week.
         </p>
 
         {loading && (
@@ -361,7 +361,7 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
           <EmptyState
             icon={CalendarClock}
             title="Set your week first"
-            subtitle="Pick when you're free so we can find people who match your week."
+            subtitle="Pick when you're free so we can find people whose week overlaps with yours."
             action={() => go('weekly_card')}
             actionLabel="Set My Week"
           />
@@ -371,7 +371,7 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
           <EmptyState
             icon={Sparkles}
             title="No weekly matches yet"
-            subtitle="Check back later or update your week."
+            subtitle="Check back later, or update your week to widen your overlap."
             action={() => go('weekly_card')}
             actionLabel="Update My Week"
           />

@@ -80,12 +80,12 @@ export default function PrivacyPolicyPage({ go, goBack }) {
             Privacy Policy
           </p>
           <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
-            DUO OC · Last updated June 2026
+            WEEKLY · Last updated June 2026
           </p>
         </div>
 
         <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, marginBottom: 32 }}>
-          DUO OC ("we", "us", or "our") operates the DUO OC mobile application and website
+          WEEKLY ("we", "us", or "our") operates the WEEKLY mobile application and website
           (the "Service"). This page informs you of our policies regarding the collection,
           use, and disclosure of personal data when you use our Service.
         </p>
@@ -96,17 +96,17 @@ export default function PrivacyPolicyPage({ go, goBack }) {
           <Item><strong style={{ color: C.white }}>Name</strong> — used to display your profile to other users.</Item>
           <Item><strong style={{ color: C.white }}>Profile photos</strong> — uploaded by you, stored securely in Supabase Storage.</Item>
           <Item><strong style={{ color: C.white }}>Birth year</strong> — used to suggest age-compatible matches.</Item>
-          <Item><strong style={{ color: C.white }}>City / Location</strong> — used to show nearby duos. Exact GPS coordinates are only collected if you enable location features.</Item>
+          <Item><strong style={{ color: C.white }}>City / Location</strong> — used to show nearby people and matches. Exact GPS coordinates are only collected if you enable location features.</Item>
           <Item><strong style={{ color: C.white }}>Email address</strong> — used for authentication and account recovery. Never shown to other users.</Item>
-          <Item><strong style={{ color: C.white }}>Instagram handle</strong> — optional. Only shared with duos you have matched and confirmed a hangout with.</Item>
+          <Item><strong style={{ color: C.white }}>Instagram handle</strong> — optional. Only shown according to the sharing settings available in the app.</Item>
           <Item><strong style={{ color: C.white }}>FCM device token</strong> — used solely to send push notifications to your device. Never shared externally.</Item>
-          <Item><strong style={{ color: C.white }}>App usage data</strong> — actions within the app (e.g., matches, hangout proposals) stored to power core features.</Item>
+          <Item><strong style={{ color: C.white }}>App usage data</strong> — actions within the app (e.g., weekly cards, requests, matches, and messages) stored to power core features.</Item>
         </Section>
 
         {/* 2 */}
         <Section title="2. How We Use Your Information">
-          <Item>Matching you with compatible duos in Orange County.</Item>
-          <Item>Sending push notifications about duo requests, hangout proposals, and confirmations.</Item>
+          <Item>Matching you with people whose availability overlaps with yours in Orange County.</Item>
+          <Item>Sending push notifications about requests, matches, and messages.</Item>
           <Item>Displaying your profile to other authenticated users of the Service.</Item>
           <Item>Maintaining your account and authentication session.</Item>
           <Item>Improving app features and user experience over time.</Item>
@@ -142,7 +142,7 @@ export default function PrivacyPolicyPage({ go, goBack }) {
         <Section title="4. Data Retention">
           <Item>Your profile and account data is retained for as long as your account is active.</Item>
           <Item>Deleted accounts are purged from our database within 30 days of deletion.</Item>
-          <Item>Chat messages and hangout records are retained for 12 months after the hangout date, then automatically deleted.</Item>
+          <Item>Chat messages and match records are retained for 12 months after the match or message activity, then automatically deleted.</Item>
           <Item>FCM tokens are overwritten each time you log in on a new device and removed when you delete your account.</Item>
         </Section>
 
@@ -188,7 +188,7 @@ export default function PrivacyPolicyPage({ go, goBack }) {
         {/* 7 */}
         <Section title="7. Children's Privacy">
           <p style={{ margin: 0 }}>
-            DUO OC is intended for users aged 18 and older. We do not knowingly collect personal
+            WEEKLY is intended for users aged 18 and older. We do not knowingly collect personal
             information from anyone under 18. If you believe a minor has provided us with personal
             data, please contact us immediately and we will delete that information.
           </p>
@@ -213,12 +213,12 @@ export default function PrivacyPolicyPage({ go, goBack }) {
             <a href="mailto:team.duooc@gmail.com" style={{ color: C.amber }}>team.duooc@gmail.com</a>
           </Item>
           <Item>
-            <strong style={{ color: C.white }}>App:</strong> DUO OC
+            <strong style={{ color: C.white }}>App:</strong> WEEKLY
           </Item>
           <Item>
             <strong style={{ color: C.white }}>Website:</strong>{' '}
             <a href="https://duo-oc.com" target="_blank" rel="noopener noreferrer" style={{ color: C.amber }}>
-              duo-oc.com
+              WEEKLY website
             </a>
           </Item>
         </Section>
@@ -231,7 +231,7 @@ export default function PrivacyPolicyPage({ go, goBack }) {
           }}
         >
           <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            © 2026 DUO OC. All rights reserved.
+            © 2026 WEEKLY. All rights reserved.
           </p>
         </div>
       </div>

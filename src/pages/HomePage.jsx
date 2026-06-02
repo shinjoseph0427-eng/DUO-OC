@@ -224,7 +224,7 @@ function DuoMiniCard({ duo, plan, restricted }) {
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <p style={{ fontSize: 14, fontWeight: 850, color: C.white, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {duo.name ?? 'Your Duo'}
+            {duo.name ?? 'Your match'}
           </p>
           <p style={{ fontSize: 12, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {restricted ? 'Not available right now' : plan ? 'Open plan live' : duo.city ?? 'Ready when you are'}
@@ -287,7 +287,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
       if (cancelled) return;
       const accepted = (notifs ?? []).find((n) => n.type === 'homie_accepted' && !n.read);
       if (accepted) {
-        setCelebratePartner(accepted.payload?.accepted_by_name ?? 'your new duo');
+        setCelebratePartner(accepted.payload?.accepted_by_name ?? 'your new match');
         markAsRead(accepted.id).catch(() => {});
       }
     }).catch(() => {});
@@ -391,8 +391,8 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
 
   const progressSteps = [
     { label: 'Complete profile', done: !!(profile?.name && profile?.birth_year) },
-    { label: 'Create a duo',  done: !!myDuo },
-    { label: 'First hangout',     done: confirmed.length > 0 },
+    { label: 'Start matching',  done: !!myDuo },
+    { label: 'First connection',     done: confirmed.length > 0 },
   ];
   const progressCompleted  = progressSteps.filter((s) => s.done).length;
   const progressPct        = Math.round((progressCompleted / 3) * 100);
@@ -408,19 +408,19 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
     if (ownedDuos.length === 0) {
       return {
         eyebrow: 'Next up',
-        title:   'Find your duo partner',
-        body:    'Find a homie first, then create a duo together.',
-        cta:     'Find a homie',
+        title:   'Set your week',
+        body:    'Pick when you are free so WEEKLY can find people whose week overlaps with yours.',
+        cta:     'Set My Week',
         Icon:    Users,
-        action:  () => go('find_homie'),
+        action:  () => go('weekly_card'),
         glow:    'rgba(255,107,0,0.12)',
       };
     }
     if (homieRequests.length > 0) {
       return {
         eyebrow: 'Waiting',
-        title:   'Homie request waiting',
-        body:    homieRequests.length === 1 ? 'Someone wants to duo up with you.' : `${homieRequests.length} homie requests are waiting.`,
+        title:   'Request waiting',
+        body:    homieRequests.length === 1 ? 'Someone sent you a request.' : `${homieRequests.length} requests are waiting.`,
         cta:     'Review request',
         Icon:    Users,
         action:  () => go('homie_inbox'),
@@ -432,7 +432,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
         eyebrow: 'Requests',
         title:   'Requests waiting',
         body:    nextIncoming
-          ? `${nextIncoming.duo_a?.name ?? 'A duo'} wants to hang.`
+          ? `${nextIncoming.duo_a?.name ?? 'Someone'} sent a request.`
           : `${planRequestCount} request${planRequestCount === 1 ? '' : 's'} to join your plan.`,
         cta:    'Review requests',
         Icon:   Calendar,
@@ -443,9 +443,9 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
     if (nextConfirmed) {
       return {
         eyebrow: 'Locked',
-        title:   'You have a confirmed hangout',
-        body:    `${pickOtherDuo(nextConfirmed, duoIds)?.name ?? 'A duo'} · ${formatPlanMeta(nextConfirmed)}`,
-        cta:     'View hangout',
+        title:   'You have a confirmed plan',
+        body:    `${pickOtherDuo(nextConfirmed, duoIds)?.name ?? 'Someone'} · ${formatPlanMeta(nextConfirmed)}`,
+        cta:     'View chat',
         Icon:    MessageCircle,
         action:  () => go('hangouts'),
         glow:    'rgba(255,107,0,0.15)',
@@ -455,7 +455,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
       return {
         eyebrow: 'Live',
         title:   'Your plan is open',
-        body:    formatPlanMeta(nextOpenOwnPlan) || 'Another duo can request to join.',
+        body:    formatPlanMeta(nextOpenOwnPlan) || 'Someone can request to join.',
         cta:     'View requests',
         Icon:    Calendar,
         action:  () => go('hangouts'),
@@ -465,21 +465,21 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
     if (nextOutgoing) {
       return {
         eyebrow: 'Pending',
-        title:   'Waiting on their duo',
-        body:    `${nextOutgoing.duo_b?.name ?? 'A duo'} has your hangout request.`,
-        cta:     'View hangouts',
+        title:   'Waiting on their reply',
+        body:    `${nextOutgoing.duo_b?.name ?? 'Someone'} has your request.`,
+        cta:     'View requests',
         Icon:    Calendar,
         action:  () => go('hangouts'),
         glow:    'rgba(255,107,0,0.10)',
       };
     }
     return {
-      eyebrow: 'Open night',
-      title:   'Ready to hang?',
-      body:    'Browse duos nearby and keep it low-pressure.',
-      cta:     'Find a duo to hang with',
+      eyebrow: 'This week',
+      title:   'Find your overlap',
+      body:    'Browse people whose days and times line up with yours.',
+      cta:     'Explore This Week',
       Icon:    Compass,
-      action:  () => go('explore'),
+      action:  () => go('weekly_explore'),
       glow:    'rgba(255,107,0,0.12)',
     };
   })();
@@ -561,8 +561,8 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
             }}
           >
             <div style={{ textAlign: 'left', flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#FF6B00', margin: 0 }}>Solo</p>
-              <p style={{ fontSize: 12, color: '#888', margin: 0 }}>Find people nearby for 1:1</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#FF6B00', margin: 0 }}>Explore People</p>
+              <p style={{ fontSize: 12, color: '#888', margin: 0 }}>Send a request when your week lines up</p>
             </div>
             <span style={{ color: '#FF6B00', fontSize: 18, fontWeight: 300 }}>›</span>
           </button>
@@ -607,12 +607,12 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 16, fontWeight: 900, margin: '0 0 2px', lineHeight: 1.15 }}>
-                {homieRequests.length} homie request{homieRequests.length === 1 ? '' : 's'}
+                {homieRequests.length} request{homieRequests.length === 1 ? '' : 's'}
               </p>
               <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: 'rgba(255,255,255,0.85)' }}>
                 {homieRequests.length === 1
-                  ? 'Someone wants to duo up with you'
-                  : `${homieRequests.length} people want to duo up with you`}
+                  ? 'Someone sent you a request'
+                  : `${homieRequests.length} people sent you requests`}
               </p>
             </div>
             <span style={{ fontSize: 22, fontWeight: 700, flexShrink: 0, opacity: 0.9 }}>→</span>
@@ -794,7 +794,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               <div style={{ padding: '16px 16px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{ fontSize: 15, fontWeight: 800, color: C.white }}>
-                    This week's confirmed Hangouts
+                    This week's confirmed plans
                   </span>
                   <span onClick={() => go('chat')} style={{ fontSize: 13, color: C.amber, cursor: 'pointer' }}>
                     See all chats →
@@ -834,7 +834,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {otherDuo?.name ?? 'Duo'}
+                            {otherDuo?.name ?? 'Someone'}
                           </p>
                           <p style={{ fontSize: 12, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {[DATE_LABELS[h.date] ?? h.date, TIME_LABELS[h.time_slot] ?? h.time_slot, h.place].filter(Boolean).join(' · ') || 'Chat room is open'}
@@ -888,7 +888,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.white, marginBottom: 2 }}>
-                      {nextIncoming.duo_a?.name ?? 'A duo'} wants to hang
+                      {nextIncoming.duo_a?.name ?? 'Someone'} sent a request
                     </div>
                     <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {nextIncoming.duo_a?.city || 'OC'}{nextIncoming.date ? ` · ${DATE_LABELS[nextIncoming.date] ?? nextIncoming.date}` : ''}
@@ -946,7 +946,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => go('explore')}
+                  onClick={() => go('weekly_explore')}
                   style={{
                     flex:         1,
                     padding:      '14px 0',
@@ -959,11 +959,11 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                     cursor:       'pointer',
                   }}
                 >
-                  Find duos
+                  Explore This Week
                 </button>
                 <button
                   type="button"
-                  onClick={() => go('hangouts')}
+                  onClick={() => go('solo_inbox')}
                   style={{
                     flex:         1,
                     padding:      '14px 0',
@@ -976,7 +976,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                     cursor:       'pointer',
                   }}
                 >
-                  Hangouts
+                  Messages
                 </button>
                 <button
                   type="button"
@@ -1019,7 +1019,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                       This Week
                     </p>
                     <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: C.muted }}>
-                      Set your availability and find people whose week overlaps with yours.
+                      Set your availability, find overlap, and chat if you both say yes.
                     </p>
                   </div>
                 </div>
@@ -1051,24 +1051,24 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                   <MessageCircle size={18} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 850, color: C.white }}>
-                      1:1 Chats
+                      Messages
                     </p>
                     <p style={{ margin: 0, fontSize: 12, color: C.muted, lineHeight: 1.35 }}>
-                      See your matches and messages.
+                      Reopen active chats and keep the conversation going.
                     </p>
                   </div>
                 </button>
               </GlassCard>
             </div>
 
-            {/* ── Nearby duos ──────────────────────────────────────────── */}
+            {/* ── Nearby matches ───────────────────────────────────────── */}
             {nearbyDuos.length > 0 && (
               <div style={{ padding: '20px 16px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Nearby duos</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Nearby matches</span>
                   <button
                     type="button"
-                    onClick={() => go('explore')}
+                    onClick={() => go('weekly_explore')}
                     style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: C.amber, cursor: 'pointer', padding: 0 }}
                   >
                     See all
@@ -1142,7 +1142,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                     >
                       {nearbyCount === null ? '—' : displayNearby}
                     </motion.span>
-                    {' '}teams
+                    {' '}nearby
                   </>
                 )}
                 {nearbyCount !== false && weeklyMatchCount !== false && ' · '}
@@ -1207,18 +1207,18 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                   {currentProgressIdx === 1 && (
                     <motion.button
                       type="button"
-                      onClick={() => go('find_homie')}
+                      onClick={() => go('weekly_card')}
                       whileTap={{ scale: 0.97 }}
                       transition={{ duration: 0.1 }}
                       style={{ padding: '8px 18px', borderRadius: 9999, border: 'none', background: C.white, color: C.cream, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                     >
-                      Find Homie
+                      Set My Week
                     </motion.button>
                   )}
                   {currentProgressIdx === 2 && (
                     <motion.button
                       type="button"
-                      onClick={() => go('explore')}
+                      onClick={() => go('weekly_explore')}
                       whileTap={{ scale: 0.97 }}
                       transition={{ duration: 0.1 }}
                       style={{ padding: '8px 18px', borderRadius: 9999, border: 'none', background: C.white, color: C.cream, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}

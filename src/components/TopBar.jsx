@@ -11,7 +11,7 @@ function Wordmark() {
       lineHeight:    1,
       fontFamily:    "'Satoshi', 'Inter', system-ui, sans-serif",
     }}>
-      <span className="gradient-text">DUO OC</span>
+      <span className="gradient-text">WEEKLY</span>
     </span>
   );
 }
