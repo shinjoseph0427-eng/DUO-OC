@@ -10,9 +10,8 @@ import { logError } from '../lib/logger.js';
 
 const VIBES = ['Coffee', 'Boba', 'Gym', 'Beach', 'Bowling', 'Food', 'Nightlife', 'Shopping', 'Drives', 'Games'];
 
-// Steps: 1 = About you, 2 = Photos, 3 = Duo setup, 4 = Duo profile, 5 = Done
-// Step 3 has no footer CTA; the choice buttons navigate directly.
-// Step 5 has no footer CTA; finish actions are inside the body.
+// Steps: 1 = About you, 2 = Photos, 3 = WEEKLY start.
+// Legacy duo/invite helpers remain in place but are no longer the default path.
 
 function FieldLabel({ children }) {
   return (
@@ -187,10 +186,10 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     return Object.keys(errs).length === 0;
   };
 
-  // Validate step 3 fields
+  // Validate legacy match-card fields
   const validateStep3 = () => {
     const errs = {};
-    if (!duoName.value.trim()) errs.duoName = 'Give your duo a name.';
+    if (!duoName.value.trim()) errs.duoName = 'Give your card a name.';
     if (vibes.length < 1)      errs.vibes   = 'Pick at least one vibe.';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -227,6 +226,24 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     }
   };
 
+  const handleStartWeekly = async () => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      await saveProfileBasics();
+      if (onComplete) {
+        onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
+      } else {
+        go('home');
+      }
+    } catch (err) {
+      logError('profile save error', err);
+      showToast?.('Could not save your profile yet.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleJoinPendingInvite = async () => {
     if (!currentUser) return;
     try {
@@ -245,7 +262,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     }
   };
 
-  // Step 3 → Step 4 (duo path)
+  // Legacy optional invite path
   const handleInviteFriend = () => setStep(4);
 
   // Step 4 → Done
@@ -264,18 +281,18 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
           instagram:  instagram.value.trim().replace(/^@/, '') || '',
         }),
       ]);
-      showToast?.('Duo created!', 'success');
+      showToast?.('Card created!', 'success');
       setStep(5);
     } catch (err) {
-      logError('create duo error', err);
-      showToast?.('Could not create your Duo yet.', 'error');
+      logError('create card error', err);
+      showToast?.('Could not create your card yet.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   // Step 4 — generate an invite link for the partner, then show the waiting view.
-  // The duo itself is only created once the partner accepts (createDuoWithMembers).
+  // The optional card itself is only created once the invite is accepted.
   const handleSendInvite = async () => {
     if (!currentUser || inviteLoading) return;
     setInviteLoading(true);
@@ -284,11 +301,11 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
       const url = `${window.location.origin}?invite=${token}`;
       setInviteUrl(url);
       const shareText = partnerName.value.trim()
-        ? `Hey ${partnerName.value.trim()}, be my duo partner on DUO OC.`
-        : 'Be my duo partner on DUO OC.';
+        ? `Hey ${partnerName.value.trim()}, join me on WEEKLY.`
+        : 'Join me on WEEKLY.';
       try {
         if (navigator.share) {
-          await navigator.share({ title: 'Join me on DUO OC', text: shareText, url });
+          await navigator.share({ title: 'Join me on WEEKLY', text: shareText, url });
         } else {
           await navigator.clipboard.writeText(url);
           showToast?.('Invite link copied!', 'success');
@@ -308,7 +325,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     }
   };
 
-  // Done → Find Homie
+  // Legacy invite helper
   const handleInviteHomie = async () => {
     if (!currentUser || inviteLoading) return;
     setInviteLoading(true);
@@ -318,8 +335,8 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
 
       if (navigator.share) {
         await navigator.share({
-          title: 'Join me on DUO OC',
-          text: 'Be my duo partner on DUO OC.',
+          title: 'Join me on WEEKLY',
+          text: 'Join me on WEEKLY.',
           url,
         });
       } else {
@@ -351,17 +368,16 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     if (step === 4) { setStep(3); return; }
   };
 
-  // Progress: steps 1-4 = 25/50/75/100%, step 5 = 100%
-  const progress = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
+  const progress = step === 1 ? 33 : step === 2 ? 66 : 100;
 
   const stepLabel = step === 1
-    ? 'Step 1 of 4 — About you'
+    ? 'Step 1 of 3 — Profile'
     : step === 2
-    ? 'Step 2 of 4 — Photos'
+    ? 'Step 2 of 3 — Photos'
     : step === 3
-    ? 'Step 3 of 4 - Duo setup'
+    ? 'Step 3 of 3 - Start WEEKLY'
     : step === 4
-    ? 'Step 4 of 4 — Invite your homie'
+    ? 'Optional - Invite'
     : null;
 
   const showBackBtn = step <= 4;
@@ -415,7 +431,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
 
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
             <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px' }}>
-              <span className="gradient-text">DUO OC</span>
+              <span className="gradient-text">WEEKLY</span>
             </span>
           </div>
 
@@ -451,10 +467,10 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                 {stepLabel}
               </p>
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
-                About you
+                Set up your profile
               </h1>
               <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
-                Tell us a little about yourself.
+                Tell us a little about yourself so matches know who they are meeting.
               </p>
 
               <FieldLabel>First name</FieldLabel>
@@ -482,7 +498,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
               />
               <FieldError>{errors.age}</FieldError>
 
-              <FieldLabel>City <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
+              <FieldLabel>Area <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
               <TextInput
                 value={city.value}
                 onChange={(e) => city.set(e.target.value)}
@@ -503,7 +519,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                 prefix="@"
               />
               <p style={{ fontSize: 12, color: C.muted, margin: '-8px 0 0', lineHeight: 1.4 }}>
-                Only shared with a duo after you both match.
+                Optional. You control what you share after you match.
               </p>
             </>
           )}
@@ -518,7 +534,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                 Add your photos
               </h1>
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.5 }}>
-                Add photos so duos know who they're hanging with.
+                Add photos so people can recognize who they are matching with.
               </p>
 
               <div style={{
@@ -574,7 +590,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
               }}>
                 {filledPhotos.length > 0
                   ? `${filledPhotos.length} photo${filledPhotos.length > 1 ? 's' : ''} added`
-                  : 'Add photos so duos know who you are'}
+                  : 'Add photos so people know who you are'}
               </div>
 
               {photoError && (
@@ -585,17 +601,17 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
             </>
           )}
 
-          {/* ── Step 3: Duo setup ── */}
+          {/* ── Step 3: Start WEEKLY ── */}
           {step === 3 && (
             <>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
                 {stepLabel}
               </p>
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
-                Set up your Duo
+                Start with your week
               </h1>
               <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 24px' }}>
-                DUO OC is built around pairs. Create your Duo first, then invite your homie and meet another team for a 2v2 hangout.
+                Set when you are free, find people whose week overlaps with yours, and send a request when it feels right.
               </p>
 
               {/* Explainer box */}
@@ -609,17 +625,17 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                 }}
               >
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 6px' }}>
-                  How it works
+                  How WEEKLY works
                 </p>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.65 }}>
-                  Other duos find your Duo and propose a hangout. You both confirm and plans are made - no awkward one-on-ones.
+                  Pick your days and times. Browse overlap. Send a request. Chat if you both say yes.
                 </p>
               </div>
 
-              {/* Single path forward — duos are always built with a partner */}
+              {/* Default path: save profile and enter the WEEKLY app */}
               <motion.button
                 type="button"
-                onClick={hasPendingInvite ? handleJoinPendingInvite : handleCreateYourDuo}
+                onClick={hasPendingInvite ? handleJoinPendingInvite : handleStartWeekly}
                 disabled={loading}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1 }}
@@ -638,16 +654,16 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                   opacity:      loading ? 0.6 : 1,
                 }}
               >
-                {loading ? 'Saving...' : hasPendingInvite ? 'Join your Duo' : 'Continue'}
+                {loading ? 'Saving...' : 'Finish setup'}
               </motion.button>
 
               <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-                Next, invite your homie to form your Duo together.
+                You can set your week from Home right after this.
               </p>
             </>
           )}
 
-          {/* ── Step 4: Invite your homie ── */}
+          {/* ── Step 4: Optional invite ── */}
           {step === 4 && (
             <>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
@@ -657,10 +673,10 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
               {!inviteSent ? (
                 <>
                   <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
-                    Who's your duo partner?
+                    Invite someone you know
                   </h1>
                   <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
-                    DUO OC is 2v2. Invite your homie to build your Duo Card together.
+                    This is optional. You can invite a friend, or continue into WEEKLY and set your week.
                   </p>
 
                   <FieldLabel>Partner's name</FieldLabel>
@@ -700,7 +716,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                       letterSpacing: '-0.2px',
                     }}
                   >
-                    {inviteLoading ? 'Creating link…' : 'Invite your homie'}
+                    {inviteLoading ? 'Creating link...' : 'Create invite link'}
                   </motion.button>
 
                   <button
@@ -724,13 +740,13 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                     <Users size={32} color={C.amber} strokeWidth={2.2} />
                   </div>
                   <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.6px', margin: '0 0 10px' }}>
-                    Waiting for your homie…
+                    Invite link ready
                   </h1>
                   <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, margin: '0 auto 24px', maxWidth: 300 }}>
                     {partnerName.value.trim()
                       ? `${partnerName.value.trim()} just needs to tap your invite link.`
-                      : 'Your homie just needs to tap your invite link.'}{' '}
-                    Your Duo is created the moment they accept.
+                      : 'They just need to tap your invite link.'}{' '}
+                    You can keep using WEEKLY while they accept.
                   </p>
 
                   <motion.button
@@ -818,7 +834,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                   maxWidth:    260,
                 }}
               >
-                Your profile and Duo are ready. Invite your homie or start exploring OC.
+                Your profile is ready. Set your week, find overlap, and chat if you both say yes.
               </p>
 
               <motion.button
@@ -841,7 +857,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                   marginBottom:  12,
                 }}
               >
-                {inviteLoading ? 'Creating link...' : 'Invite your homie'}
+                {inviteLoading ? 'Creating link...' : 'Create invite link'}
               </motion.button>
 
               <motion.button
@@ -864,7 +880,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
                   boxShadow:     `0 4px 24px ${C.amberT35}`,
                 }}
               >
-                Go to My Duo
+                Go Home
               </motion.button>
             </div>
           )}

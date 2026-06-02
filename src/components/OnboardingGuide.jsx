@@ -11,28 +11,28 @@ const TOTAL_STEPS = 5;
 // handlers passed in (navigate / advanceStep / skipAll).
 const STEP_COPY = {
   1: {
-    title: 'Welcome to Duo OC!',
-    body:  'This is your home. New requests show up right here.',
-    cta:   'Find a homie →',
+    title: 'Welcome to WEEKLY!',
+    body:  'This is your home. Set your week, see requests, and reopen chats from here.',
+    cta:   'Set my week →',
   },
   2: {
-    title: 'Find someone you vibe with',
-    body:  'Tap a card to see their profile. Send a Homie Request and we\'ll let you know when they accept.',
-    cta:   'Got it, I\'ll send a request',
+    title: 'Find people whose week overlaps',
+    body:  'Pick when you are free, then browse people who share at least one day and time with you.',
+    cta:   'Explore this week →',
   },
   3: {
-    title: 'Your homie accepted!',
-    body:  'A DUO CARD just appeared on your ME tab. Add a name and photos to finish your duo profile.',
-    cta:   'Finish your DUO CARD →',
+    title: 'Send a request',
+    body:  'When someone feels like a good fit, send a request. They will see it in Messages.',
+    cta:   'Open Messages →',
   },
   4: {
-    title: 'Now you can set up a Hangout',
-    body:  'Create a Plan yourself, or send a request to join another duo\'s Hangout. Both live in the Hangout tab.',
-    cta:   'Go to the Hangout tab →',
+    title: 'Chat if you both say yes',
+    body:  'When a request is accepted, a 1:1 chat opens automatically.',
+    cta:   'See messages →',
   },
   5: {
-    title: 'A chat room opens once a Hangout is confirmed',
-    body:  'When all four are in, a chat room is created automatically. Sort out the place and time there.',
+    title: 'You are ready',
+    body:  'Set your week anytime, update it when plans change, and keep conversations going from Messages.',
     cta:   'Done! Let\'s go →',
   },
 };
@@ -41,14 +41,14 @@ export default function OnboardingGuide({ currentStep, navigate, advanceStep, sk
   const copy = STEP_COPY[currentStep];
   if (!copy) return null;
 
-  // Each CTA advances the linear flow; steps that point at another tab also
-  // navigate there (without pushing onto the back stack).
+  // Keep the guide short for the WEEKLY flow; legacy gated steps can still be
+  // skipped safely once the user enters the new weekly path.
   const handleCta = () => {
     switch (currentStep) {
-      case 1: advanceStep(); navigate('explore'); break;
-      case 2: advanceStep(); break; // stay put; step 3 waits for homie_accepted
-      case 3: advanceStep(); navigate('me'); break;
-      case 4: advanceStep(); navigate('hangouts'); break;
+      case 1: advanceStep(); navigate('weekly_card'); break;
+      case 2: skipAll(); navigate('weekly_explore'); break;
+      case 3: advanceStep(); navigate('solo_inbox'); break;
+      case 4: advanceStep(); navigate('solo_inbox'); break;
       case 5: skipAll(); break;
       default: advanceStep();
     }
