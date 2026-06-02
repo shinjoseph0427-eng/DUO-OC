@@ -35,8 +35,8 @@ const PUSH_TITLES: Record<string, string> = {
   hangout_accepted: "Hangout confirmed",
   hangout_confirmed: "Hangout confirmed",
   match: "It's a match!",
-  solo_request: "새로운 1:1 요청",
-  solo_accepted: "매칭됐어요! 🎉",
+  solo_request: "New 1:1 request",
+  solo_accepted: "It's a match! 🎉",
 };
 
 const PUSH_BODIES: Record<string, string> = {
@@ -46,8 +46,8 @@ const PUSH_BODIES: Record<string, string> = {
   hangout_accepted: "A duo accepted your hangout request.",
   hangout_confirmed: "Your hangout is confirmed — the chat room is open.",
   match: "You matched with a new duo.",
-  solo_request: "누군가 Solo 요청을 보냈어요.",
-  solo_accepted: "상대가 요청을 수락했어요.",
+  solo_request: "Someone sent you a 1:1 request.",
+  solo_accepted: "Your 1:1 request was accepted.",
 };
 
 // Builds a friendlier body using the notification payload when available.
@@ -90,11 +90,11 @@ function buildPushBody(
         : PUSH_BODIES.hangout_accepted;
     case "hangout_confirmed":
       return duoName
-        ? `${duoName} 듀오랑 hangout 확정! 채팅방이 열렸어요.`
+        ? `Confirmed with ${duoName} — your chat room is open.`
         : PUSH_BODIES.hangout_confirmed;
     case "homie_accepted":
       return acceptedByName
-        ? `${acceptedByName}님이 Homie 요청을 수락했어요!`
+        ? `${acceptedByName} accepted your homie request!`
         : PUSH_BODIES.homie_accepted;
     case "match":
       return matchedName
@@ -102,11 +102,11 @@ function buildPushBody(
         : PUSH_BODIES.match;
     case "solo_request":
       return senderName
-        ? `${senderName}님이 Solo 요청을 보냈어요`
+        ? `${senderName} sent you a 1:1 request.`
         : PUSH_BODIES.solo_request;
     case "solo_accepted":
       return partnerName
-        ? `${partnerName}님이 요청을 수락했어요`
+        ? `${partnerName} accepted your 1:1 request.`
         : PUSH_BODIES.solo_accepted;
     default:
       return PUSH_BODIES[type] ?? "You have a new notification.";
