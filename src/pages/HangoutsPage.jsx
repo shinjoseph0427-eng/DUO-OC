@@ -839,7 +839,7 @@ export default function HangoutsPage({ currentUser, myDuo, myDuos: myDuosProp = 
                   cursor:       'pointer',
                 }}
               >
-                {showPast ? '지난 hangout 숨기기' : `지난 hangout 보기 (${pastConfirmed.length})`}
+                {showPast ? 'Hide past hangouts' : `Show past hangouts (${pastConfirmed.length})`}
               </button>
             )}
 

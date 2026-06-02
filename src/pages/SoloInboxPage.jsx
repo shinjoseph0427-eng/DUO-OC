@@ -1,5 +1,5 @@
 // src/pages/SoloInboxPage.jsx
-// 받은 Solo 요청 수락/거절 — HomieInboxPage 패턴 복제, 듀오 생성 없음.
+// Accept/decline received Solo requests — cloned from HomieInboxPage, no duo creation.
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,11 +18,11 @@ function gradientFor(id = '') {
   return AVATAR_GRADIENTS[code % AVATAR_GRADIENTS.length];
 }
 
-// ── 요청 카드 ──────────────────────────────────────────────
+// ── Request card ──────────────────────────────────────────
 function RequestCard({ req, onAccept, onDecline, busy }) {
   const u     = req.from_user;
   const photo = u?.photos?.[0] ?? null;
-  const name  = u?.name || u?.username || '익명';
+  const name  = u?.name || u?.username || 'Someone';
 
   return (
     <motion.div
@@ -38,7 +38,7 @@ function RequestCard({ req, onAccept, onDecline, busy }) {
         border: `0.5px solid ${C.border}`,
       }}
     >
-      {/* 아바타 */}
+      {/* Avatar */}
       {photo ? (
         <img
           src={photo} alt={name}
@@ -56,7 +56,7 @@ function RequestCard({ req, onAccept, onDecline, busy }) {
         </div>
       )}
 
-      {/* 이름 + 동네 */}
+      {/* Name + city */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: 0, lineHeight: 1.3 }}>
           {name}
@@ -71,12 +71,12 @@ function RequestCard({ req, onAccept, onDecline, busy }) {
         )}
       </div>
 
-      {/* 수락 / 거절 */}
+      {/* Accept / decline */}
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <button
           onClick={() => onDecline(req)}
           disabled={busy}
-          aria-label="거절"
+          aria-label="Decline"
           style={{
             width: 40, height: 40, borderRadius: 20,
             border: `1.5px solid ${C.border}`,
@@ -93,7 +93,7 @@ function RequestCard({ req, onAccept, onDecline, busy }) {
         <button
           onClick={() => onAccept(req)}
           disabled={busy}
-          aria-label="수락"
+          aria-label="Accept"
           style={{
             width: 40, height: 40, borderRadius: 20,
             border: 'none',
@@ -111,7 +111,7 @@ function RequestCard({ req, onAccept, onDecline, busy }) {
   );
 }
 
-// ── 메인 페이지 ────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────
 export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
   const [requests, setRequests] = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -121,7 +121,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
     if (!currentUser?.id) return;
     getMyReceivedSoloRequests()
       .then(setRequests)
-      .catch(() => showToast?.('불러오기 실패', 'error'))
+      .catch(() => showToast?.('Failed to load', 'error'))
       .finally(() => setLoading(false));
   }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -131,11 +131,11 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
     try {
       const matchId = await acceptSoloRequest(req.id);
       setRequests(prev => prev.filter(r => r.id !== req.id));
-      showToast?.('매칭됐어요! 채팅을 시작해보세요 🎉', 'success');
-      // 채팅으로 바로 이동 — go() chat 슬롯에 match 객체
+      showToast?.('Matched! Start the chat.', 'success');
+      // Jump straight into the chat — go() chat slot carries the match object
       go('solo_chat', null, null, { matchId, partner: req.from_user });
     } catch (e) {
-      showToast?.(e?.message ?? '수락 실패', 'error');
+      showToast?.(e?.message ?? 'Failed to accept', 'error');
     } finally {
       setBusyId(null);
     }
@@ -148,7 +148,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
       await declineSoloRequest(req.id);
       setRequests(prev => prev.filter(r => r.id !== req.id));
     } catch (e) {
-      showToast?.(e?.message ?? '거절 실패', 'error');
+      showToast?.(e?.message ?? 'Failed to decline', 'error');
     } finally {
       setBusyId(null);
     }
@@ -160,17 +160,17 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
 
       <div style={{ flex: 1, padding: '12px 16px 100px', overflowY: 'auto' }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: C.white, margin: '4px 0 14px' }}>
-          받은 Solo 요청
+          Solo requests
         </h1>
 
-        {/* 카운트 */}
+        {/* Count */}
         {!loading && requests.length > 0 && (
           <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px' }}>
-            {requests.length}개의 요청이 있어요
+            {requests.length} request{requests.length === 1 ? '' : 's'} waiting
           </p>
         )}
 
-        {/* 로딩 스켈레톤 */}
+        {/* Loading skeleton */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Array.from({ length: 3 }).map((_, i) => (
@@ -179,7 +179,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
           </div>
         )}
 
-        {/* 요청 목록 */}
+        {/* Request list */}
         {!loading && requests.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <AnimatePresence mode="popLayout">
@@ -196,14 +196,14 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
           </div>
         )}
 
-        {/* 빈 상태 */}
+        {/* Empty state */}
         {!loading && requests.length === 0 && (
           <EmptyState
             icon={Inbox}
-            title="아직 받은 요청이 없어요"
-            subtitle="Solo 탐색에서 먼저 다가가보세요"
+            title="No requests yet"
+            subtitle="Make the first move from Solo explore"
             action={() => go('solo_explore')}
-            actionLabel="탐색하기"
+            actionLabel="Explore"
           />
         )}
       </div>

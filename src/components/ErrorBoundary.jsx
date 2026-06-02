@@ -39,12 +39,11 @@ export default class ErrorBoundary extends Component {
           fontFamily:     "'DM Sans', system-ui, sans-serif",
         }}
       >
-        <div style={{ fontSize: 44, marginBottom: 16 }}>😵‍💫</div>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px' }}>
-          문제가 생겼어
+          Something went wrong
         </h1>
         <p style={{ fontSize: 14, color: 'rgba(17,17,17,0.55)', margin: '0 0 24px', lineHeight: 1.6, maxWidth: 320 }}>
-          예상치 못한 오류가 발생했어. 새로고침하면 대부분 해결돼.
+          An unexpected error occurred. Refreshing usually fixes it.
         </p>
         <button
           type="button"
@@ -61,7 +60,7 @@ export default class ErrorBoundary extends Component {
             boxShadow:    '0 10px 26px rgba(255,107,0,0.3)',
           }}
         >
-          새로고침
+          Refresh
         </button>
       </div>
     );

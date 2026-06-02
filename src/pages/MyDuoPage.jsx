@@ -271,7 +271,7 @@ function DuoCard({ duo, plan, restricted, loadingPlan, go, onShare, confirmLeave
               gap:            5,
             }}
           >
-            💬 Room
+            Room
           </button>
           <PremiumButton fullWidth variant="ghost" onClick={() => go('edit_duo_profile', duo)} style={{ padding: '11px 10px', gap: 6, fontSize: 13 }}>
             <Pencil size={14} strokeWidth={2.2} />
@@ -299,7 +299,7 @@ function DuoCard({ duo, plan, restricted, loadingPlan, go, onShare, confirmLeave
           }}
         >
           <Share2 size={15} strokeWidth={2.2} />
-          카드 공유
+          Share card
         </button>
 
         <div style={{ marginTop: 8 }}>

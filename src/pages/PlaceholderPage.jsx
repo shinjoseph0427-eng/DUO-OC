@@ -44,9 +44,7 @@ export default function PlaceholderPage({ go, title = 'Coming soon', activePage 
             fontSize:       24,
             marginBottom:   20,
           }}
-        >
-          🛠
-        </div>
+        />
         <h1
           style={{
             fontSize:      24,

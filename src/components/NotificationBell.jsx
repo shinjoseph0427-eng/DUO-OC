@@ -21,19 +21,19 @@ const TYPE_META = {
   match:             { label: (p) => `${p.matched_duo_name ?? 'A duo'} matched with you.`, page: 'hangouts' },
   hangout_request:   { label: (p) => `${p.duo_name ?? 'A duo'} sent a hangout request.`, page: 'hangouts' },
   hangout_accepted:  { label: (p) => `${p.duo_name ?? 'A duo'} accepted your hangout request.`, page: 'hangouts' },
-  hangout_confirmed: { label: (p) => `${p.duo_name ?? 'A duo'} 듀오랑 hangout 확정! 채팅방이 열렸어요.`, emoji: '🎉', page: 'chat' },
+  hangout_confirmed: { label: (p) => `Hangout with ${p.duo_name ?? 'a duo'} confirmed — your chat room is open.`, page: 'chat' },
   hangout_declined:  { label: (p) => `${p.duo_name ?? 'A duo'} declined your hangout request.`, page: 'hangouts' },
   homie_request:     { label: () => 'Someone wants to be your homie.', page: 'find_homie' },
   homie_accepted:    { label: (p) => `${p.accepted_by_name ?? 'Your homie'} accepted. You are now a duo.`, page: 'me' },
-  solo_request:      { label: (p) => `${p.sender_name ?? '누군가'}님이 Solo 요청을 보냈어요.`, emoji: '🙋', page: 'solo_inbox' },
-  solo_accepted:     { label: (p) => `${p.partner_name ?? '상대'}님이 Solo 요청을 수락했어요.`, emoji: '🎉', page: 'solo_explore' },
+  solo_request:      { label: (p) => `${p.sender_name ?? 'Someone'} sent you a 1:1 request.`, page: 'solo_inbox' },
+  solo_accepted:     { label: (p) => `${p.partner_name ?? 'Someone'} accepted your 1:1 request.`, page: 'solo_explore' },
   plan_request:      { label: (p) => `${p.duo_name ?? 'A duo'} sent a request to join your open plan.`, page: 'hangouts' },
   plan_accepted:     { label: (p) => `${p.duo_name ?? 'A duo'} accepted your request to join their open plan.`, page: 'hangouts' },
   plan_declined:     { label: () => 'Your request to join an open plan was declined.', page: 'hangouts' },
   plan_cancelled:    { label: () => 'An open plan you requested to join was cancelled.', page: 'hangouts' },
-  hangout_cancelled: { label: (p) => (p.cancelled_duo_name ? `${p.cancelled_duo_name} cancelled the hangout` : 'A hangout was cancelled'), emoji: '❌', page: 'hangouts' },
-  partner_approval_needed: { label: (p) => `${p.requested_by_name ?? 'Your partner'} wants to hang out with ${p.target_duo_name ?? 'another duo'}. You in?`, emoji: '🤝', page: 'hangouts' },
-  partner_notified:        { label: (p) => p.message ?? 'Hangout update.', emoji: '💬', page: 'hangouts' },
+  hangout_cancelled: { label: (p) => (p.cancelled_duo_name ? `${p.cancelled_duo_name} cancelled the hangout` : 'A hangout was cancelled'), page: 'hangouts' },
+  partner_approval_needed: { label: (p) => `${p.requested_by_name ?? 'Your partner'} wants to hang out with ${p.target_duo_name ?? 'another duo'}. You in?`, page: 'hangouts' },
+  partner_notified:        { label: (p) => p.message ?? 'Hangout update.', page: 'hangouts' },
 };
 
 function timeAgo(isoString) {
@@ -72,7 +72,7 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
 
   const handleAcceptHomie = async (requestId) => {
     setAcceptingId(requestId);
-    const partnerName = getSender(homieRequests.find((r) => r.id === requestId))?.name ?? '새 듀오';
+    const partnerName = getSender(homieRequests.find((r) => r.id === requestId))?.name ?? 'your new duo';
     try {
       await acceptHomieRequest(requestId);
       setHomieRequests((prev) => prev.filter((r) => r.id !== requestId));

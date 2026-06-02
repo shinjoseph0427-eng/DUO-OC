@@ -5,12 +5,12 @@ import { C } from '../tokens';
 import { reportDuo, blockDuo, SAFETY_MESSAGES } from '../lib/safety.js';
 
 const REASONS = [
-  { key: 'inappropriate_photos', label: 'Inappropriate photos',   emoji: '📸' },
-  { key: 'harassment',           label: 'Harassment',             emoji: '😤' },
-  { key: 'fake_profile',         label: 'Fake profile',           emoji: '🤖' },
-  { key: 'spam',                 label: 'Spam',                   emoji: '📢' },
-  { key: 'underage',             label: 'Underage',               emoji: '🔞' },
-  { key: 'other',                label: 'Other',                  emoji: '✏️' },
+  { key: 'inappropriate_photos', label: 'Inappropriate photos',   emoji: '' },
+  { key: 'harassment',           label: 'Harassment',             emoji: '' },
+  { key: 'fake_profile',         label: 'Fake profile',           emoji: '' },
+  { key: 'spam',                 label: 'Spam',                   emoji: '' },
+  { key: 'underage',             label: 'Underage',               emoji: '' },
+  { key: 'other',                label: 'Other',                  emoji: '' },
 ];
 
 export default function ReportModal({

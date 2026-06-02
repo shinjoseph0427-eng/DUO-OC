@@ -55,19 +55,17 @@ export default function PublicDuoPage({ duoId, go }) {
 
       {state === 'notfound' && (
         <div style={{ padding: '80px 28px', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>🤷</div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>이 듀오를 찾을 수 없어</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>Duo not found</h1>
           <p style={{ fontSize: 14, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            링크가 만료됐거나 더 이상 활성 듀오가 아니에요.
+            This link expired or the duo is no longer active.
           </p>
         </div>
       )}
 
       {state === 'error' && (
         <div style={{ padding: '80px 28px', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>😵‍💫</div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>불러오지 못했어</h1>
-          <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>잠시 후 다시 시도해줘.</p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>Couldn't load</h1>
+          <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Please try again in a moment.</p>
         </div>
       )}
 
@@ -179,7 +177,7 @@ export default function PublicDuoPage({ duoId, go }) {
                 cursor: 'pointer', boxShadow: '0 10px 26px rgba(255,107,0,0.3)',
               }}
             >
-              Duo OC 가입하기 🔥
+              Join Duo OC
             </motion.button>
           </div>
         </>

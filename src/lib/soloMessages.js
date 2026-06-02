@@ -1,14 +1,14 @@
 // src/lib/soloMessages.js
-// Solo 1:1 채팅 — duoRoomMessages.js 패턴 복제, match_id 기반.
-// 기존 messages.js / duoRoomMessages.js 전혀 수정하지 않음.
+// Solo 1:1 chat — cloned from the duoRoomMessages.js pattern, keyed by match_id.
+// Does not modify the existing messages.js / duoRoomMessages.js.
 
 import { supabase } from "./supabaseClient.js";
 
-// profiles 표시 필드 — 실제 스키마 (name + photos[]).
+// profiles display fields — actual schema (name + photos[]).
 const SENDER_FIELDS = "id, username, name, photos";
 
 // ─────────────────────────────────────────────────────────
-// 1. 메시지 조회 (오래된 순)
+// 1. Fetch messages (oldest first)
 // ─────────────────────────────────────────────────────────
 export async function getSoloMessages(matchId, opts = {}) {
   const { limit = 50, before } = opts;
@@ -31,15 +31,15 @@ export async function getSoloMessages(matchId, opts = {}) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 2. 메시지 전송
+// 2. Send a message
 // ─────────────────────────────────────────────────────────
 export async function sendSoloMessage(matchId, content) {
   const trimmed = content?.trim();
-  if (!trimmed) throw new Error("메시지 내용이 없습니다.");
+  if (!trimmed) throw new Error("Message is empty.");
 
   const { data: me } = await supabase.auth.getUser();
   const myId = me?.user?.id;
-  if (!myId) throw new Error("로그인 필요");
+  if (!myId) throw new Error("Sign in required");
 
   const { data, error } = await supabase
     .from("solo_messages")
@@ -55,7 +55,7 @@ export async function sendSoloMessage(matchId, content) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 3. Realtime 구독 — cleanup용 함수 반환 (기존 패턴과 일치)
+// 3. Realtime subscribe — returns a cleanup fn (matches existing pattern)
 // ─────────────────────────────────────────────────────────
 export function subscribeSoloMessages(matchId, onMessage) {
   const channel = supabase
@@ -69,7 +69,7 @@ export function subscribeSoloMessages(matchId, onMessage) {
         filter: `match_id=eq.${matchId}`,
       },
       async (payload) => {
-        // realtime payload엔 join이 없어 sender를 별도 조회.
+        // realtime payload has no join, so fetch the sender separately.
         const { data: sender } = await supabase
           .from("profiles")
           .select(SENDER_FIELDS)
@@ -84,7 +84,7 @@ export function subscribeSoloMessages(matchId, onMessage) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 4. 메시지 삭제 (본인만)
+// 4. Delete a message (own only)
 // ─────────────────────────────────────────────────────────
 export async function deleteSoloMessage(messageId) {
   const { data: me } = await supabase.auth.getUser();
@@ -100,7 +100,7 @@ export async function deleteSoloMessage(messageId) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 5. 안 읽은 메시지 수 (뱃지용)
+// 5. Unread count (for badges)
 // ─────────────────────────────────────────────────────────
 export async function getSoloUnreadCount(matchId, lastReadAt) {
   const { data: me } = await supabase.auth.getUser();

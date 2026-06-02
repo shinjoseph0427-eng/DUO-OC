@@ -174,7 +174,7 @@ export default function HomieInboxPage({ currentUser, go, goBack, onDuoChanged }
       } catch (refreshError) {
         console.error('HomieInboxPage onDuoChanged refresh failed:', refreshError);
       }
-      setCelebratePartner(getSender(request)?.name ?? '새 듀오');
+      setCelebratePartner(getSender(request)?.name ?? 'your new duo');
       await loadRequests();
     } catch (err) {
       console.error('HomieInboxPage accept homie request failed:', err);

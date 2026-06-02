@@ -153,7 +153,7 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
     try {
       await deleteAccount(); // soft-delete + signOut → App routes to landing
     } catch (err) {
-      showToast?.(err?.message ?? '계정 삭제에 실패했어. 다시 시도해줘.', 'error');
+      showToast?.(err?.message ?? 'Failed to delete account. Please try again.', 'error');
       setDeleting(false);
       setShowDeleteConfirm(false);
     }
@@ -537,7 +537,7 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
               cursor:       'pointer',
             }}
           >
-            계정 삭제
+            Delete account
           </button>
         </div>
       </div>
@@ -569,12 +569,11 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
               textAlign:    'center',
             }}
           >
-            <div style={{ fontSize: 40, marginBottom: 14 }}>🗑️</div>
             <h2 style={{ fontSize: 19, fontWeight: 900, color: C.white, margin: '0 0 8px' }}>
-              정말 삭제할까요?
+              Delete your account?
             </h2>
             <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, margin: '0 0 24px' }}>
-              모든 데이터가 사라져요. 이 작업은 되돌릴 수 없어요.
+              All your data will be removed. This can't be undone.
             </p>
             <button
               type="button"
@@ -594,7 +593,7 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
                 marginBottom: 10,
               }}
             >
-              {deleting ? '삭제 중…' : '계정 삭제'}
+              {deleting ? 'Deleting…' : 'Delete account'}
             </button>
             <button
               type="button"
@@ -611,7 +610,7 @@ export default function EditProfile({ currentUser, go, goBack, showToast }) {
                 cursor:     'pointer',
               }}
             >
-              취소
+              Cancel
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 // src/pages/SoloChatPage.jsx
-// Solo 1:1 채팅방 — DuoRoomPage 패턴 복제, solo_messages 기반.
+// Solo 1:1 chat room — cloned from DuoRoomPage, backed by solo_messages.
 // match prop: { matchId, partner: { id, name, username, photos, ... } }
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -24,10 +24,10 @@ const MAX_LENGTH = 500;
 function fmtTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-// ── 메시지 버블 ────────────────────────────────────────────
+// ── Message bubble ─────────────────────────────────────────
 function Bubble({ msg, isMine, partnerPhoto, partnerName, showAvatar }) {
   return (
     <div style={{
@@ -37,7 +37,7 @@ function Bubble({ msg, isMine, partnerPhoto, partnerName, showAvatar }) {
       gap: 7,
       marginBottom: 4,
     }}>
-      {/* 상대 아바타 (상대 메시지 + 그룹 마지막 버블만) */}
+      {/* Partner avatar (their message + last bubble in group only) */}
       {!isMine && (
         <div style={{ width: 28, flexShrink: 0 }}>
           {showAvatar && (
@@ -61,7 +61,7 @@ function Bubble({ msg, isMine, partnerPhoto, partnerName, showAvatar }) {
         </div>
       )}
 
-      {/* 버블 + 시간 */}
+      {/* Bubble + time */}
       <div style={{
         display: 'flex',
         flexDirection: isMine ? 'row-reverse' : 'row',
@@ -89,7 +89,7 @@ function Bubble({ msg, isMine, partnerPhoto, partnerName, showAvatar }) {
   );
 }
 
-// ── 메인 페이지 ───────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────
 export default function SoloChatPage({ match, currentUser, go, goBack, showToast }) {
   const [messages, setMessages] = useState([]);
   const [input,    setInput]    = useState('');
@@ -101,13 +101,13 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
   const partner      = match?.partner ?? {};
   const matchId      = match?.matchId;
   const partnerPhoto = partner?.photos?.[0] ?? null;
-  const partnerName  = partner?.name || partner?.username || '상대방';
+  const partnerName  = partner?.name || partner?.username || 'Chat';
 
   const scrollToBottom = useCallback(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  // 초기 로드 + 실시간 구독
+  // Initial load + realtime subscription
   useEffect(() => {
     if (!matchId) return undefined;
     let cancelled = false;
@@ -130,7 +130,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
     return () => { cancelled = true; unsub?.(); };
   }, [matchId, scrollToBottom]);
 
-  // 전송 (낙관적 업데이트)
+  // Send (optimistic update)
   const handleSend = async () => {
     const text = input.trim();
     if (!text || sending || !matchId) return;
@@ -153,7 +153,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
     } catch (e) {
       setMessages(prev => prev.filter(m => m.id !== optimistic.id));
       setInput(text);
-      showToast?.(e?.message ?? '전송 실패', 'error');
+      showToast?.(e?.message ?? 'Failed to send', 'error');
     } finally {
       setSending(false);
     }
@@ -171,24 +171,24 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
       await endSoloMatch(matchId);
       go('home');
     } catch (e) {
-      showToast?.(e?.message ?? '나가기 실패', 'error');
+      showToast?.(e?.message ?? 'Failed to leave', 'error');
     }
   };
 
-  // matchId 없음 → 에러 화면
+  // No matchId → error screen
   if (!matchId) {
     return (
       <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
         <AlertCircle size={32} color={C.muted} />
-        <p style={{ color: C.muted, fontSize: 14 }}>채팅 정보를 찾을 수 없어요</p>
+        <p style={{ color: C.muted, fontSize: 14 }}>Chat not found</p>
         <button onClick={() => go('home')} style={{ color: C.amber, background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', fontWeight: 700 }}>
-          홈으로
+          Go home
         </button>
       </div>
     );
   }
 
-  // 그룹 마지막 버블만 아바타
+  // Only last bubble in a group shows an avatar
   const withAvatar = messages.map((msg, i) => {
     const next = messages[i + 1];
     const isLastInGroup = !next || next.sender_user_id !== msg.sender_user_id;
@@ -206,12 +206,12 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
             onClick={() => setShowEnd(true)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.muted, padding: '4px 6px', whiteSpace: 'nowrap' }}
           >
-            나가기
+            Leave
           </button>
         }
       />
 
-      {/* 상대 헤더 스트립 (TopBar엔 title이 없어 여기서 이름 표시) */}
+      {/* Partner header strip (TopBar has no title, so name shows here) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bg, flexShrink: 0 }}>
         {partnerPhoto ? (
           <img src={partnerPhoto} alt={partnerName} style={{ width: 32, height: 32, borderRadius: 16, objectFit: 'cover' }} />
@@ -228,19 +228,18 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         </div>
       </div>
 
-      {/* 메시지 영역 */}
+      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column' }}>
         {loading && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ color: C.muted, fontSize: 13 }}>불러오는 중...</p>
+            <p style={{ color: C.muted, fontSize: 13 }}>Loading...</p>
           </div>
         )}
 
         {!loading && messages.length === 0 && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <p style={{ fontSize: 28, margin: 0 }}>👋</p>
             <p style={{ fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
-              {partnerName}님과 매칭됐어요!<br />먼저 인사해볼까요?
+              You matched with {partnerName}!<br />Say hi first.
             </p>
           </div>
         )}
@@ -259,7 +258,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         <div ref={endRef} style={{ height: 1 }} />
       </div>
 
-      {/* 입력창 */}
+      {/* Input */}
       <div style={{
         padding: '10px 12px',
         paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
@@ -276,7 +275,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
             e.target.style.height = 'auto';
             e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
           }}
-          placeholder="메시지를 입력하세요..."
+          placeholder="Type a message..."
           rows={1}
           style={{
             flex: 1, resize: 'none', border: `1px solid ${C.border}`,
@@ -289,7 +288,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
-          aria-label="전송"
+          aria-label="Send"
           style={{
             width: 42, height: 42, borderRadius: 21, border: 'none',
             background: input.trim() ? C.gradientCTA : C.cardDeep,
@@ -302,7 +301,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         </button>
       </div>
 
-      {/* 나가기 확인 모달 */}
+      {/* Leave confirmation modal */}
       {showEnd && (
         <div
           style={{
@@ -318,25 +317,24 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
             style={{ background: C.bg, borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 320, textAlign: 'center' }}
             onClick={e => e.stopPropagation()}
           >
-            <p style={{ fontSize: 22, margin: '0 0 8px' }}>👋</p>
             <p style={{ fontSize: 16, fontWeight: 700, color: C.white, margin: '0 0 8px' }}>
-              채팅방을 나갈까요?
+              Leave this chat?
             </p>
             <p style={{ fontSize: 13, color: C.muted, margin: '0 0 22px', lineHeight: 1.5 }}>
-              매칭이 종료되고 채팅 기록은<br />더 이상 볼 수 없어요.
+              The match ends and the chat history<br />will no longer be available.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => setShowEnd(false)}
                 style={{ flex: 1, padding: '12px 0', borderRadius: 12, border: `1px solid ${C.border}`, background: C.bg, fontSize: 14, fontWeight: 600, color: C.muted, cursor: 'pointer' }}
               >
-                취소
+                Cancel
               </button>
               <button
                 onClick={handleEnd}
                 style={{ flex: 1, padding: '12px 0', borderRadius: 12, border: 'none', background: C.danger, fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
               >
-                나가기
+                Leave
               </button>
             </div>
           </motion.div>

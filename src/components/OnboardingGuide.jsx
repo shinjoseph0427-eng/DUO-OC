@@ -11,29 +11,29 @@ const TOTAL_STEPS = 5;
 // handlers passed in (navigate / advanceStep / skipAll).
 const STEP_COPY = {
   1: {
-    title: '👋 Duo OC에 온 걸 환영해!',
-    body:  '여기가 홈이야. 새 요청이 오면 여기서 바로 볼 수 있어.',
-    cta:   'Homie 찾으러 가기 →',
+    title: 'Welcome to Duo OC!',
+    body:  'This is your home. New requests show up right here.',
+    cta:   'Find a homie →',
   },
   2: {
-    title: '🔍 마음에 드는 사람 찾아봐',
-    body:  '카드를 탭하면 프로필을 볼 수 있어. Homie Request를 보내면 상대가 수락할 때 알려줄게.',
-    cta:   '알겠어, 요청 보내볼게',
+    title: 'Find someone you vibe with',
+    body:  'Tap a card to see their profile. Send a Homie Request and we\'ll let you know when they accept.',
+    cta:   'Got it, I\'ll send a request',
   },
   3: {
-    title: '🎉 Homie가 수락했어!',
-    body:  'ME 탭에 DUO CARD가 생겼어. 이름이랑 사진을 추가해서 듀오 프로필을 완성해봐.',
-    cta:   'DUO CARD 완성하러 가기 →',
+    title: 'Your homie accepted!',
+    body:  'A DUO CARD just appeared on your ME tab. Add a name and photos to finish your duo profile.',
+    cta:   'Finish your DUO CARD →',
   },
   4: {
-    title: '📍 이제 Hangout을 잡을 수 있어',
-    body:  '직접 Plan을 만들거나, 다른 듀오 Hangout에 참여 요청을 보내봐. 둘 다 Hangout 탭에서 할 수 있어.',
-    cta:   'Hangout 탭 보러 가기 →',
+    title: 'Now you can set up a Hangout',
+    body:  'Create a Plan yourself, or send a request to join another duo\'s Hangout. Both live in the Hangout tab.',
+    cta:   'Go to the Hangout tab →',
   },
   5: {
-    title: '💬 Hangout이 확정되면 채팅방이 열려',
-    body:  '4명이 모이면 자동으로 채팅방이 생겨. 여기서 장소랑 시간 얘기해봐.',
-    cta:   '완료! 시작하기 →',
+    title: 'A chat room opens once a Hangout is confirmed',
+    body:  'When all four are in, a chat room is created automatically. Sort out the place and time there.',
+    cta:   'Done! Let\'s go →',
   },
 };
 
@@ -90,14 +90,14 @@ export default function OnboardingGuide({ currentStep, navigate, advanceStep, sk
             boxSizing:     'border-box',
           }}
         >
-          {/* Top row: grabber + "나중에" skip */}
+          {/* Top row: grabber + "Later" skip */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 8, minHeight: 20 }}>
             <button
               type="button"
               onClick={skipAll}
               style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '2px 0' }}
             >
-              나중에
+              Later
             </button>
           </div>
 

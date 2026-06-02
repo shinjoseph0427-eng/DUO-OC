@@ -1,15 +1,15 @@
 // src/lib/solo.js
-// Solo 1:1 기능 — homie.js 패턴 복제 후 듀오 결합 제거.
-// 기존 homie.js / duos.js 전혀 수정하지 않음 (additive layer).
+// Solo 1:1 feature — cloned from the homie.js pattern with the duo coupling removed.
+// Does not modify the existing homie.js / duos.js (additive layer).
 
 import { supabase } from "./supabaseClient.js";
 import { sendPushForNotification } from "./notifications.js";
 
 // ─────────────────────────────────────────────────────────
-// 유틸
+// Utils
 // ─────────────────────────────────────────────────────────
 
-// profiles SELECT 공통 필드 — 실제 스키마 컬럼만 (avatar_url/full_name 없음).
+// Shared profiles SELECT fields — actual schema columns only (no avatar_url/full_name).
 const PROFILE_FIELDS = `
   id,
   username,
@@ -23,7 +23,7 @@ const PROFILE_FIELDS = `
   is_solo
 `.trim();
 
-/** Haversine 거리 계산 (km) */
+/** Haversine distance (km) */
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -37,17 +37,18 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 1. 탐색 — Solo 노출 유저 목록
+// 1. Discovery — list users to explore
 // ─────────────────────────────────────────────────────────
 
 /**
- * is_solo=true 인 유저 목록. 본인/차단/요청보냄/매치됨 제외 + 거리순.
+ * Returns users to explore. Excludes self / blocked / already-requested / matched,
+ * sorted by distance.
  * @param {object} currentUser - { id, lat, lng }
  */
 export async function findSoloUsers(currentUser, opts = {}) {
   const { maxDistanceKm = 50, limit = 30 } = opts;
 
-  // 1) 차단 (user_blocks: blocker_id / blocked_id)
+  // 1) Blocks (user_blocks: blocker_id / blocked_id)
   const { data: blocks } = await supabase
     .from("user_blocks")
     .select("blocker_id, blocked_id")
@@ -55,7 +56,7 @@ export async function findSoloUsers(currentUser, opts = {}) {
 
   const blockedIds = (blocks || []).flatMap((b) => [b.blocker_id, b.blocked_id]);
 
-  // 2) 이미 요청 보낸 상대
+  // 2) Users I already sent a request to
   const { data: sentReqs } = await supabase
     .from("solo_requests")
     .select("to_user_id")
@@ -64,7 +65,7 @@ export async function findSoloUsers(currentUser, opts = {}) {
 
   const sentToIds = (sentReqs || []).map((r) => r.to_user_id);
 
-  // 3) 이미 매치된 상대
+  // 3) Users I'm already matched with
   const { data: myMatches } = await supabase
     .from("solo_matches")
     .select("user_a, user_b")
@@ -79,7 +80,7 @@ export async function findSoloUsers(currentUser, opts = {}) {
     ...new Set([currentUser.id, ...blockedIds, ...sentToIds, ...matchedIds].filter(Boolean)),
   ];
 
-  // 5) 유저 조회 (모든 유저 대상 — is_solo 필터 없음, 오버페치 후 거리 필터)
+  // 5) Query users (all users — no is_solo filter, over-fetch then distance-filter)
   const { data: users, error } = await supabase
     .from("profiles")
     .select(PROFILE_FIELDS)
@@ -102,13 +103,13 @@ export async function findSoloUsers(currentUser, opts = {}) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 2. 요청 — 보내기 / 조회 / 취소
+// 2. Requests — send / list / cancel
 // ─────────────────────────────────────────────────────────
 
 export async function sendSoloRequest(toUserId) {
   const { data: me } = await supabase.auth.getUser();
   const myId = me?.user?.id;
-  if (!myId) throw new Error("로그인 필요");
+  if (!myId) throw new Error("Sign in required");
 
   const { data, error } = await supabase
     .from("solo_requests")
@@ -117,11 +118,11 @@ export async function sendSoloRequest(toUserId) {
     .single();
 
   if (error) {
-    if (error.code === "23505") throw new Error("이미 요청을 보낸 상대입니다.");
+    if (error.code === "23505") throw new Error("You already sent a request to this person.");
     throw error;
   }
 
-  // 상대에게 알림 + 푸시 (SECURITY DEFINER RPC가 알림 행을 만들고 id를 반환).
+  // Notify + push the recipient (SECURITY DEFINER RPC creates the row and returns its id).
   try {
     const { data: notif } = await supabase.rpc("notify_solo_request", { p_request_id: data.id });
     const row = Array.isArray(notif) ? notif[0] : notif;
@@ -183,17 +184,17 @@ export async function cancelSoloRequest(requestId) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 3. 수락 / 거절
+// 3. Accept / decline
 // ─────────────────────────────────────────────────────────
 
-/** 수락 → RPC로 solo_match 원자 생성. returns match_id (uuid) */
+/** Accept → atomic solo_match creation via RPC. Returns match_id (uuid). */
 export async function acceptSoloRequest(requestId) {
   const { data, error } = await supabase.rpc("accept_solo_request", {
     p_request_id: requestId,
   });
   if (error) throw error;
 
-  // 요청 보낸 사람에게 수락 알림 + 푸시.
+  // Notify + push the original sender that their request was accepted.
   try {
     const { data: notif } = await supabase.rpc("notify_solo_accepted", { p_request_id: requestId });
     const row = Array.isArray(notif) ? notif[0] : notif;
@@ -220,7 +221,7 @@ export async function declineSoloRequest(requestId) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 4. 매치 조회
+// 4. Matches
 // ─────────────────────────────────────────────────────────
 
 export async function getMySoloMatches() {
@@ -270,13 +271,13 @@ export async function getSoloMatch(matchId) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 5. 프로필 is_solo 토글
+// 5. profiles is_solo toggle
 // ─────────────────────────────────────────────────────────
 
 export async function updateIsSolo(isSolo) {
   const { data: me } = await supabase.auth.getUser();
   const myId = me?.user?.id;
-  if (!myId) throw new Error("로그인 필요");
+  if (!myId) throw new Error("Sign in required");
 
   const { error } = await supabase
     .from("profiles")
@@ -287,7 +288,7 @@ export async function updateIsSolo(isSolo) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 6. 매치 종료 (나가기)
+// 6. End match (leave)
 // ─────────────────────────────────────────────────────────
 
 export async function endSoloMatch(matchId) {

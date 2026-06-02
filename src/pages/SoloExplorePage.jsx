@@ -1,6 +1,6 @@
 // src/pages/SoloExplorePage.jsx
-// Solo 탐색 페이지 — is_solo=true 유저 카드 그리드 + 1:1 요청.
-// 기존 ExplorePage 무변경, 패턴만 복제.
+// Solo explore page — user card grid + 1:1 request.
+// Existing ExplorePage untouched; pattern cloned only.
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,14 +20,14 @@ function fmtDist(km) {
   return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
 }
 
-// ── 스켈레톤 ──────────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="shimmer" style={{ borderRadius: 16, aspectRatio: '3/4', background: C.cardElevated }} />
   );
 }
 
-// ── 카드 ───────────────────────────────────────────────────
+// ── Card ───────────────────────────────────────────────────
 function SoloCard({ u, onRequest, requested }) {
   const photo   = u.photos?.[0] ?? null;
   const dist    = fmtDist(u.distanceKm);
@@ -48,7 +48,7 @@ function SoloCard({ u, onRequest, requested }) {
         cursor: 'pointer',
       }}
     >
-      {/* 사진 or 이니셜 */}
+      {/* Photo or initial */}
       {photo ? (
         <img
           src={photo} alt={u.name}
@@ -67,13 +67,13 @@ function SoloCard({ u, onRequest, requested }) {
         </div>
       )}
 
-      {/* 하단 그래디언트 오버레이 */}
+      {/* Bottom gradient overlay */}
       <div style={{
         position: 'absolute', inset: 0,
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.03) 30%, rgba(0,0,0,0.78) 100%)',
       }} />
 
-      {/* 거리 배지 (우상단) */}
+      {/* Distance badge (top-right) */}
       {dist && (
         <div style={{
           position: 'absolute', top: 8, right: 8,
@@ -87,7 +87,7 @@ function SoloCard({ u, onRequest, requested }) {
         </div>
       )}
 
-      {/* Solo 뱃지 (좌상단) */}
+      {/* Solo badge (top-left) */}
       <div style={{
         position: 'absolute', top: 8, left: 8,
         background: 'rgba(255,107,0,0.15)',
@@ -98,10 +98,10 @@ function SoloCard({ u, onRequest, requested }) {
         Solo
       </div>
 
-      {/* 하단 정보 + 버튼 */}
+      {/* Bottom info + button */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 10px 12px' }}>
         <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '0 0 1px', lineHeight: 1.2 }}>
-          {u.name || u.username || '익명'}
+          {u.name || u.username || 'Someone'}
         </p>
         {u.username && (
           <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', margin: '0 0 7px' }}>
@@ -123,19 +123,19 @@ function SoloCard({ u, onRequest, requested }) {
             transition: 'opacity 0.15s',
           }}
         >
-          {requested ? (<><UserCheck size={13} /> 요청됨</>) : '1:1 요청'}
+          {requested ? (<><UserCheck size={13} /> Requested</>) : '1:1 request'}
         </button>
       </div>
     </motion.div>
   );
 }
 
-// ── 메인 페이지 ───────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────
 export default function SoloExplorePage({ currentUser, profile, go, showToast }) {
   const [users,      setUsers]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [requested,  setRequested]  = useState(new Set()); // 이미 요청 보낸 user_id
+  const [requested,  setRequested]  = useState(new Set()); // user_ids already requested
   const [inboxCount, setInboxCount] = useState(0);
 
   const load = useCallback(async (isRefresh = false) => {
@@ -152,7 +152,7 @@ export default function SoloExplorePage({ currentUser, profile, go, showToast })
       setUsers(soloUsers);
       setInboxCount(received.length);
     } catch (e) {
-      showToast?.('불러오기 실패', 'error');
+      showToast?.('Failed to load', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -166,10 +166,10 @@ export default function SoloExplorePage({ currentUser, profile, go, showToast })
     setRequested(prev => new Set([...prev, toUserId]));
     try {
       await sendSoloRequest(toUserId);
-      showToast?.('1:1 요청을 보냈어요 👋', 'success');
+      showToast?.('1:1 request sent', 'success');
     } catch (e) {
       setRequested(prev => { const s = new Set(prev); s.delete(toUserId); return s; });
-      showToast?.(e?.message ?? '요청 실패', 'error');
+      showToast?.(e?.message ?? 'Failed to send request', 'error');
     }
   };
 
@@ -181,10 +181,10 @@ export default function SoloExplorePage({ currentUser, profile, go, showToast })
         onLogoClick={() => go('home')}
         rightContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* 받은 요청 뱃지 */}
+            {/* Received requests badge */}
             <button
               onClick={() => go('solo_inbox')}
-              aria-label="받은 요청"
+              aria-label="Received requests"
               style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
             >
               <Inbox size={20} color={C.text} />
@@ -201,11 +201,11 @@ export default function SoloExplorePage({ currentUser, profile, go, showToast })
                 </span>
               )}
             </button>
-            {/* 새로고침 */}
+            {/* Refresh */}
             <button
               onClick={() => load(true)}
               disabled={refreshing}
-              aria-label="새로고침"
+              aria-label="Refresh"
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
             >
               <motion.div animate={{ rotate: refreshing ? 360 : 0 }} transition={{ duration: 0.6, repeat: refreshing ? Infinity : 0, ease: 'linear' }}>
@@ -216,27 +216,27 @@ export default function SoloExplorePage({ currentUser, profile, go, showToast })
         }
       />
 
-      {/* 본문 */}
+      {/* Body */}
       <div style={{ flex: 1, padding: '12px 16px 100px', overflowY: 'auto' }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: C.white, margin: '4px 0 12px' }}>
-          Solo 탐색
+          Solo
         </h1>
 
-        {/* 안내 문구 */}
+        {/* Helper text */}
         {!loading && users.length > 0 && (
           <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px' }}>
-            근처에서 1:1을 원하는 {users.length}명
+            {users.length} people nearby open to 1:1
           </p>
         )}
 
-        {/* 로딩 스켈레톤 */}
+        {/* Loading skeleton */}
         {loading && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 12 }}>
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         )}
 
-        {/* 카드 그리드 */}
+        {/* Card grid */}
         {!loading && users.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 12 }}>
             <AnimatePresence>
@@ -252,14 +252,14 @@ export default function SoloExplorePage({ currentUser, profile, go, showToast })
           </div>
         )}
 
-        {/* 빈 상태 */}
+        {/* Empty state */}
         {!loading && users.length === 0 && (
           <EmptyState
             icon={Users}
-            title="아직 근처에 없어요"
-            subtitle="프로필에서 'Solo로도 보이기'를 켜면 나도 탐색에 노출돼요"
+            title="No one nearby yet"
+            subtitle="Check back soon as more people join in your area"
             action={() => go('edit_profile')}
-            actionLabel="프로필 설정"
+            actionLabel="Edit profile"
           />
         )}
       </div>

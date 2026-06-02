@@ -637,7 +637,7 @@ export default function DuoDetailPage({ duo: propDuo, go, goBack, onLogout, curr
                   </p>
                   {openPlan.place && (
                     <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>
-                      📍 {openPlan.place}
+                      {openPlan.place}
                     </p>
                   )}
                   {openPlan.message && (

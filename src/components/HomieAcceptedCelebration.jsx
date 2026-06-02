@@ -5,7 +5,7 @@ import { C } from '../tokens.js';
 // accepter) or when the requester opens the app after their request was accepted.
 // CTA deep-links to the ME tab where the new DUO CARD lives.
 export default function HomieAcceptedCelebration({ partnerName, onGoToDuoCard, onClose }) {
-  const name = partnerName?.trim() || '새 듀오';
+  const name = partnerName?.trim() || 'your new duo';
 
   return (
     <AnimatePresence>
@@ -42,21 +42,12 @@ export default function HomieAcceptedCelebration({ partnerName, onGoToDuoCard, o
             border:       `0.5px solid ${C.border}`,
           }}
         >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.08 }}
-            style={{ fontSize: 56, marginBottom: 16, lineHeight: 1 }}
-          >
-            🎉
-          </motion.div>
-
           <h2 style={{ fontSize: 23, fontWeight: 900, color: C.white, margin: '0 0 10px', letterSpacing: '-0.3px' }}>
-            이제 듀오가 됐어요!
+            You're now a duo!
           </h2>
           <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, margin: '0 0 26px' }}>
-            {name}님과 듀오를 맺었어요. ME 탭에 새 <strong style={{ color: C.amber }}>DUO CARD</strong>가
-            생겼어요 — 거기서 다른 듀오와 hangout을 시작할 수 있어요.
+            You and {name} are now a duo. A new <strong style={{ color: C.amber }}>DUO CARD</strong> just
+            appeared on your ME tab — start a hangout with another duo from there.
           </p>
 
           <button
@@ -75,7 +66,7 @@ export default function HomieAcceptedCelebration({ partnerName, onGoToDuoCard, o
               boxShadow:    '0 10px 26px rgba(255,107,0,0.3)',
             }}
           >
-            DUO CARD 보러 가기 →
+            View your DUO CARD →
           </button>
 
           <button
@@ -93,7 +84,7 @@ export default function HomieAcceptedCelebration({ partnerName, onGoToDuoCard, o
               cursor:     'pointer',
             }}
           >
-            나중에 볼게요
+            Maybe later
           </button>
         </motion.div>
       </motion.div>

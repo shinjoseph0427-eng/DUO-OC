@@ -287,7 +287,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
       if (cancelled) return;
       const accepted = (notifs ?? []).find((n) => n.type === 'homie_accepted' && !n.read);
       if (accepted) {
-        setCelebratePartner(accepted.payload?.accepted_by_name ?? '새 듀오');
+        setCelebratePartner(accepted.payload?.accepted_by_name ?? 'your new duo');
         markAsRead(accepted.id).catch(() => {});
       }
     }).catch(() => {});
@@ -544,7 +544,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
           </p>
         </motion.div>
 
-        {/* ── Solo 탐색 진입 ─────────────────────────────────────────── */}
+        {/* ── Solo explore entry ─────────────────────────────────────── */}
         <div style={{ padding: '0 16px' }}>
           <button
             type="button"
@@ -560,10 +560,9 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               marginBottom: 12,
             }}
           >
-            <span style={{ fontSize: 22 }}>🤝</span>
             <div style={{ textAlign: 'left', flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#FF6B00', margin: 0 }}>Solo 탐색</p>
-              <p style={{ fontSize: 12, color: '#888', margin: 0 }}>근처에서 1:1로 만날 사람 찾기</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#FF6B00', margin: 0 }}>Solo</p>
+              <p style={{ fontSize: 12, color: '#888', margin: 0 }}>Find people nearby for 1:1</p>
             </div>
             <span style={{ color: '#FF6B00', fontSize: 18, fontWeight: 300 }}>›</span>
           </button>
@@ -608,12 +607,12 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 16, fontWeight: 900, margin: '0 0 2px', lineHeight: 1.15 }}>
-                Homie 요청 {homieRequests.length}개
+                {homieRequests.length} homie request{homieRequests.length === 1 ? '' : 's'}
               </p>
               <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: 'rgba(255,255,255,0.85)' }}>
                 {homieRequests.length === 1
-                  ? '누군가 당신과 듀오를 맺고 싶어해요'
-                  : `${homieRequests.length}명이 당신과 듀오를 맺고 싶어해요`}
+                  ? 'Someone wants to duo up with you'
+                  : `${homieRequests.length} people want to duo up with you`}
               </p>
             </div>
             <span style={{ fontSize: 22, fontWeight: 700, flexShrink: 0, opacity: 0.9 }}>→</span>
@@ -795,10 +794,10 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               <div style={{ padding: '16px 16px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{ fontSize: 15, fontWeight: 800, color: C.white }}>
-                    이번 주 확정된 Hangout
+                    This week's confirmed Hangouts
                   </span>
                   <span onClick={() => go('chat')} style={{ fontSize: 13, color: C.amber, cursor: 'pointer' }}>
-                    채팅 전체보기 →
+                    See all chats →
                   </span>
                 </div>
                 <div style={{ display: 'grid', gap: 10 }}>
@@ -838,7 +837,7 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
                             {otherDuo?.name ?? 'Duo'}
                           </p>
                           <p style={{ fontSize: 12, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {[DATE_LABELS[h.date] ?? h.date, TIME_LABELS[h.time_slot] ?? h.time_slot, h.place].filter(Boolean).join(' · ') || '채팅방이 열렸어요'}
+                            {[DATE_LABELS[h.date] ?? h.date, TIME_LABELS[h.time_slot] ?? h.time_slot, h.place].filter(Boolean).join(' · ') || 'Chat room is open'}
                           </p>
                         </div>
                         <MessageCircle size={18} color={C.success} strokeWidth={2.2} style={{ flexShrink: 0 }} />

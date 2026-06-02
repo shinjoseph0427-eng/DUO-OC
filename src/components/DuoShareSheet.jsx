@@ -37,7 +37,7 @@ export default function DuoShareSheet({ duo, onClose, showToast }) {
         backgroundColor: '#0d0d0d',
       });
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('이미지를 만들지 못했어');
+      if (!blob) throw new Error('Could not create the image');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -46,28 +46,28 @@ export default function DuoShareSheet({ duo, onClose, showToast }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      showToast?.('이미지가 저장됐어! 인스타 스토리에 올려봐 🔥', 'success');
+      showToast?.('Image saved! Post it to your story.', 'success');
     } catch (e) {
       console.error('card export failed:', e);
-      showToast?.('이미지 저장에 실패했어. 다시 시도해줘.', 'error');
+      showToast?.('Failed to save the image. Please try again.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleShareLink = async () => {
-    const shareData = { title: 'Duo OC', text: '우리 Duo OC 카드 봐봐 👀', url: shareUrl };
+    const shareData = { title: 'Duo OC', text: 'Check out our Duo OC card', url: shareUrl };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        showToast?.('링크 복사됨', 'success');
+        showToast?.('Link copied', 'success');
       }
     } catch (e) {
       if (e?.name !== 'AbortError') {
         await navigator.clipboard.writeText(shareUrl).catch(() => {});
-        showToast?.('링크 복사됨', 'success');
+        showToast?.('Link copied', 'success');
       }
     }
   };
@@ -127,7 +127,7 @@ export default function DuoShareSheet({ duo, onClose, showToast }) {
           </button>
 
           <p style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.5px', color: C.muted, textTransform: 'uppercase', margin: '6px 0 14px' }}>
-            카드 공유
+            Share card
           </p>
 
           {/* ── Section 1: 9:16 capture target ── */}
@@ -236,7 +236,7 @@ export default function DuoShareSheet({ duo, onClose, showToast }) {
               boxShadow: '0 10px 26px rgba(255,107,0,0.3)',
             }}
           >
-            {saving ? '저장 중…' : '이미지 저장하기'}
+            {saving ? 'Saving…' : 'Save image'}
           </button>
 
           <button
@@ -248,11 +248,11 @@ export default function DuoShareSheet({ duo, onClose, showToast }) {
               color: C.white, fontSize: 15, fontWeight: 700, cursor: 'pointer',
             }}
           >
-            링크도 공유하기
+            Share link too
           </button>
 
           <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', margin: '14px 0 0', lineHeight: 1.5 }}>
-            저장한 이미지를 인스타 스토리에 올리고 @duo_oc 태그해봐
+            Post the saved image to your Instagram story and tag @duo_oc
           </p>
         </motion.div>
       </motion.div>
