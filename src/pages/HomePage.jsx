@@ -998,6 +998,42 @@ export default function HomePage({ go, onLogout, currentUser, profile, myDuo, my
               </div>
             </div>
 
+            <div style={{ padding: '16px 16px 0' }}>
+              <GlassCard glow="rgba(255,107,0,0.10)" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 14,
+                    background: C.amberT08,
+                    border: `0.5px solid ${C.brownBorder}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Calendar size={19} color={C.amber} strokeWidth={2.2} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 900, color: C.white }}>
+                      This Week
+                    </p>
+                    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: C.muted }}>
+                      Set your availability and find people whose week overlaps with yours.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+                  <ActionButton onClick={() => go('weekly_card')} Icon={Calendar}>
+                    Set week
+                  </ActionButton>
+                  <ActionButton onClick={() => go('weekly_explore')} variant="secondary" Icon={Compass}>
+                    Explore
+                  </ActionButton>
+                </div>
+              </GlassCard>
+            </div>
+
             {/* ── Nearby duos ──────────────────────────────────────────── */}
             {nearbyDuos.length > 0 && (
               <div style={{ padding: '20px 16px 0' }}>

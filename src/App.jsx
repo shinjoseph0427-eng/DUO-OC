@@ -24,6 +24,8 @@ import EditProfile from './pages/EditProfile.jsx';
 import EditDuoProfile from './pages/EditDuoProfile.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import PublicDuoPage from './pages/PublicDuoPage.jsx';
+import WeeklyCardPage from './pages/WeeklyCardPage.jsx';
+import WeeklyExplorePage from './pages/WeeklyExplorePage.jsx';
 import SoloExplorePage from './pages/SoloExplorePage.jsx';
 import SoloInboxPage from './pages/SoloInboxPage.jsx';
 import SoloChatPage from './pages/SoloChatPage.jsx';
@@ -46,6 +48,7 @@ const PAGES = [
   'duo_detail', 'hangouts', 'chat', 'chat_thread', 'duo_room',
   'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
   'create_plan', 'privacy', 'public_duo',
+  'weekly_card', 'weekly_explore',
   'solo_explore', 'solo_inbox', 'solo_chat',
 ];
 
@@ -63,6 +66,7 @@ const ONBOARDED_PAGES = [
   'home', 'explore', 'duo_detail', 'hangouts', 'chat',
   'chat_thread', 'duo_room', 'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
   'edit_profile', 'edit_duo_profile', 'create_plan',
+  'weekly_card', 'weekly_explore',
   'solo_explore', 'solo_inbox', 'solo_chat',
 ];
 
@@ -348,6 +352,8 @@ export default function App() {
         {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
         {page === 'public_duo'       && <PublicDuoPage duoId={publicDuoId} go={go} />}
+        {page === 'weekly_card'      && <WeeklyCardPage currentUser={currentUser} go={go} showToast={showToast} />}
+        {page === 'weekly_explore'   && <WeeklyExplorePage currentUser={currentUser} go={go} showToast={showToast} />}
         {page === 'solo_explore'     && <SoloExplorePage currentUser={currentUser} profile={profile} go={go} showToast={showToast} />}
         {page === 'solo_inbox'       && <SoloInboxPage currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'solo_chat'        && (selectedChat
