@@ -3,11 +3,11 @@ import { Home, Search, Calendar, MessageCircle, User } from 'lucide-react';
 import { C } from '../tokens';
 
 const TABS = [
-  { key: 'home',     label: 'Home',     Icon: Home           },
-  { key: 'explore',  label: 'Explore',  Icon: Search         },
-  { key: 'hangouts', label: 'Hangouts', Icon: Calendar       },
-  { key: 'chat',     label: 'Chat',     Icon: MessageCircle  },
-  { key: 'me',       label: 'Me',       Icon: User           },
+  { key: 'home',           label: 'Home',     Icon: Home          },
+  { key: 'weekly_explore', label: 'Explore',  Icon: Search        },
+  { key: 'weekly_card',    label: 'Week',     Icon: Calendar      },
+  { key: 'solo_inbox',     label: 'Messages', Icon: MessageCircle },
+  { key: 'me',             label: 'Me',       Icon: User          },
 ];
 
 export default function BottomNav({ activePage, onNavigate, badges = {}, pulseTab = null }) {

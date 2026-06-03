@@ -61,7 +61,7 @@ function parsePublicDuoId() {
   return m ? m[1] : null;
 }
 const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
-const NAV_TAB_PAGES = ['home', 'explore', 'hangouts', 'chat', 'me'];
+const NAV_TAB_PAGES = ['home', 'weekly_explore', 'weekly_card', 'solo_inbox', 'me'];
 const ONBOARDED_PAGES = [
   'home', 'explore', 'duo_detail', 'hangouts', 'chat',
   'chat_thread', 'duo_room', 'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
