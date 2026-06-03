@@ -3,23 +3,15 @@ import BottomNav from './components/BottomNav.jsx';
 import Toast from './components/Toast.jsx';
 import HomePage from './pages/HomePage.jsx';
 import DuoDetailPage from './pages/DuoDetailPage.jsx';
-import ChatListPage from './pages/ChatListPage.jsx';
-import ChatThreadPage from './pages/ChatThreadPage.jsx';
-import DuoRoomPage from './pages/DuoRoomPage.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import OnboardingFlow from './pages/OnboardingFlow.jsx';
 import AuthPage from './pages/AuthPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
-import ExplorePage from './pages/ExplorePage.jsx';
 import MyDuosPage from './pages/MyDuosPage.jsx';
 import MyDuoPage from './pages/MyDuoPage.jsx';
 import FindHomie from './pages/FindHomie.jsx';
 import HomieProfilePage from './pages/HomieProfilePage.jsx';
 import HomieInboxPage from './pages/HomieInboxPage.jsx';
-import ProposeHangout from './pages/ProposeHangout.jsx';
-import HangoutsPage from './pages/HangoutsPage.jsx';
-import CreatePlanPage from './pages/CreatePlanPage.jsx';
-import CounterHangout from './pages/CounterHangout.jsx';
 import EditProfile from './pages/EditProfile.jsx';
 import EditDuoProfile from './pages/EditDuoProfile.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
@@ -39,15 +31,13 @@ import { getNotifications } from './lib/notifications.js';
 import { acceptInvite } from './lib/invites.js';
 import { supabase } from './lib/supabaseClient.js';
 import { requestPushPermission, watchTokenRefresh } from './lib/firebase.js';
-import { usePlanStatus } from './hooks/usePlanStatus';
-import { useReviewPrompt } from './hooks/useReviewPrompt';
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
 const PAGES = [
-  'landing', 'auth', 'login', 'onboarding', 'home', 'explore',
-  'duo_detail', 'hangouts', 'chat', 'chat_thread', 'duo_room',
-  'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout', 'edit_profile', 'edit_duo_profile',
-  'create_plan', 'privacy', 'public_duo',
+  'landing', 'auth', 'login', 'onboarding', 'home',
+  'duo_detail',
+  'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'edit_profile', 'edit_duo_profile',
+  'privacy', 'public_duo',
   'weekly_card', 'weekly_explore',
   'solo_explore', 'solo_inbox', 'solo_chat',
 ];
@@ -63,9 +53,9 @@ function parsePublicDuoId() {
 const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'weekly_explore', 'weekly_card', 'solo_inbox', 'me'];
 const ONBOARDED_PAGES = [
-  'home', 'explore', 'duo_detail', 'hangouts', 'chat',
-  'chat_thread', 'duo_room', 'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'propose_hangout', 'counter_hangout',
-  'edit_profile', 'edit_duo_profile', 'create_plan',
+  'home', 'duo_detail',
+  'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox',
+  'edit_profile', 'edit_duo_profile',
   'weekly_card', 'weekly_explore',
   'solo_explore', 'solo_inbox', 'solo_chat',
 ];
@@ -88,10 +78,6 @@ export default function App() {
   const [profileReady,    setProfileReady]    = useState(false);
   const [profile,         setProfile]         = useState(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
-
-  // Auto-expire elapsed plans and fire post-hangout review prompts.
-  usePlanStatus();
-  useReviewPrompt();
 
   // Post-signup onboarding guide (bottom sheet + tab pulse).
   const guide = useOnboardingGuide(onboardingComplete);
@@ -310,9 +296,6 @@ export default function App() {
   const isAuthPage = AUTH_PAGES.includes(page);
   const activeTab  = NAV_TAB_PAGES.includes(page) ? page : null;
   const editDuoForRoute = page === 'edit_duo_profile' ? selectedDuo : null;
-  const duoRoomDuo = selectedDuo
-    ?? myDuos.find((duo) => (duo?.duo_members?.length ?? 0) >= 2)
-    ?? myDuo;
   if (!authReady || (currentUser && !profileReady)) {
     return <div className="app-loading" />;
   }
@@ -325,20 +308,9 @@ export default function App() {
         {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} showToast={showToast} />}
         {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onComplete={handleOnboardingComplete} showToast={showToast} />}
         {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
-        {page === 'explore'     && <ExplorePage currentUser={currentUser} go={go} showToast={showToast} />}
         {page === 'duo_detail'  && (selectedDuo
           ? <DuoDetailPage duo={selectedDuo} go={go} goBack={goBack} onLogout={handleLogout} currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} showToast={showToast} />
           : fallback('Duo not found'))}
-        {page === 'hangouts'    && <HangoutsPage currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} go={go} onLogout={handleLogout} showToast={showToast} />}
-        {page === 'create_plan' && <CreatePlanPage currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} selectedDuo={selectedDuo} go={go} goBack={goBack} />}
-        {page === 'propose_hangout' && <ProposeHangout currentUser={currentUser} duo={selectedDuo} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
-        {page === 'chat'        && <ChatListPage go={go} onLogout={handleLogout} currentUser={currentUser} />}
-        {page === 'chat_thread' && (selectedChat
-          ? <ChatThreadPage chat={selectedChat} go={go} goBack={goBack} currentUser={currentUser} myDuo={myDuo} />
-          : fallback('Chat not found', 'chat'))}
-        {page === 'duo_room'    && (duoRoomDuo
-          ? <DuoRoomPage currentUser={currentUser} myDuo={duoRoomDuo} go={go} goBack={goBack} />
-          : fallback('Duo not found', 'me'))}
         {page === 'me'          && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}
         {page === 'my_duo'      && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}
         {page === 'my_duos'     && <MyDuosPage currentUser={currentUser} myDuo={myDuo} go={go} />}
@@ -347,7 +319,6 @@ export default function App() {
           ? <HomieProfilePage homie={selectedDuo} currentUser={currentUser} go={go} showToast={showToast} />
           : fallback('Homie not found'))}
         {page === 'homie_inbox'     && <HomieInboxPage currentUser={currentUser} go={go} goBack={goBack} onDuoChanged={refreshMyDuo} />}
-        {page === 'counter_hangout' && <CounterHangout currentUser={currentUser} hangout={selectedHangout} go={go} goBack={goBack} />}
         {page === 'edit_profile'     && <EditProfile currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
