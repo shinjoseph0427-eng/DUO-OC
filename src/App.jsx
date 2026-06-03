@@ -9,6 +9,7 @@ import AuthPage from './pages/AuthPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import MyDuosPage from './pages/MyDuosPage.jsx';
 import MyDuoPage from './pages/MyDuoPage.jsx';
+import MePage from './pages/MePage.jsx';
 import FindHomie from './pages/FindHomie.jsx';
 import HomieProfilePage from './pages/HomieProfilePage.jsx';
 import HomieInboxPage from './pages/HomieInboxPage.jsx';
@@ -311,7 +312,7 @@ export default function App() {
         {page === 'duo_detail'  && (selectedDuo
           ? <DuoDetailPage duo={selectedDuo} go={go} goBack={goBack} onLogout={handleLogout} currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} showToast={showToast} />
           : fallback('Duo not found'))}
-        {page === 'me'          && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}
+        {page === 'me'          && <MePage currentUser={currentUser} profile={profile} go={go} showToast={showToast} onLogout={handleLogout} />}
         {page === 'my_duo'      && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}
         {page === 'my_duos'     && <MyDuosPage currentUser={currentUser} myDuo={myDuo} go={go} />}
         {page === 'find_homie'      && <FindHomie currentUser={currentUser} go={go} goBack={goBack} />}
