@@ -1,17 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Check, Users } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { C } from '../tokens';
-import { createDuo } from '../lib/duos.js';
 import { updateProfile } from '../lib/profile.js';
-import { createInvite } from '../lib/invites.js';
 import { uploadPhoto } from '../lib/upload.js';
 import { logError } from '../lib/logger.js';
 
-const VIBES = ['Coffee', 'Boba', 'Gym', 'Beach', 'Bowling', 'Food', 'Nightlife', 'Shopping', 'Drives', 'Games'];
-
 // Steps: 1 = About you, 2 = Photos, 3 = WEEKLY start.
-// Legacy duo/invite helpers remain in place but are no longer the default path.
 
 function FieldLabel({ children }) {
   return (
@@ -73,34 +68,6 @@ function TextInput({ value, onChange, placeholder, type = 'text', prefix, error,
   );
 }
 
-function VibePill({ selected, onClick, children }) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      whileTap={{ scale: 0.92 }}
-      transition={{ duration: 0.1 }}
-      animate={{
-        background:  selected ? C.amberT14 : C.cardElevated,
-        borderColor: selected ? C.amberT35  : 'rgba(255,255,255,0.08)',
-        color:       selected ? C.amber : C.muted,
-      }}
-      style={{
-        border:     '0.5px solid',
-        borderRadius: 9999,
-        padding:    '9px 16px',
-        fontSize:   13,
-        fontWeight: 600,
-        cursor:     'pointer',
-        userSelect: 'none',
-      }}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
 function useField(initial = '') {
   const [value,   setValue]   = useState(initial);
   const [focused, setFocused] = useState(false);
@@ -113,28 +80,19 @@ function useField(initial = '') {
   };
 }
 
-export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos = [], onComplete, showToast }) {
-  const hasDuo = Boolean(myDuo || myDuos.length > 0);
+export default function OnboardingFlow({ go, currentUser, profile, onComplete, showToast }) {
   const hasProfileBasics = Boolean(profile?.name && profile?.birth_year);
-  const hasPendingInvite = typeof window !== 'undefined' && Boolean(sessionStorage.getItem('duo_oc_invite_token'));
-  const [step,          setStep]          = useState(hasProfileBasics && !hasDuo ? 3 : 1);
+  const [step,          setStep]          = useState(hasProfileBasics ? 3 : 1);
   const [errors,        setErrors]        = useState({});
   const [loading,       setLoading]       = useState(false);
   const [photos,        setPhotos]        = useState([null, null, null]);
   const [uploadingIndex,setUploadingIndex]= useState(null);
   const [photoError,    setPhotoError]    = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteSent,    setInviteSent]    = useState(false);
-  const [inviteUrl,     setInviteUrl]     = useState('');
 
   const name      = useField('');
   const age       = useField('');
   const city      = useField('');
   const instagram = useField('');
-  const duoName   = useField('');
-  const partnerName    = useField('');
-  const partnerContact = useField('');
-  const [vibes, setVibes] = useState([]);
 
   useEffect(() => {
     if (!profile) return;
@@ -144,13 +102,8 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     instagram.set(profile.instagram ?? '');
     const stored = profile.photos ?? [];
     setPhotos([stored[0] ?? null, stored[1] ?? null, stored[2] ?? null]);
-    if (profile.name && profile.birth_year && !hasDuo) setStep(3);
-  }, [profile, hasDuo]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const toggleVibe = (v) => {
-    setVibes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
-    setErrors((e) => ({ ...e, vibes: undefined }));
-  };
+    if (profile.name && profile.birth_year) setStep(3);
+  }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearErr = (field) => setErrors((e) => ({ ...e, [field]: undefined }));
 
@@ -186,15 +139,6 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     return Object.keys(errs).length === 0;
   };
 
-  // Validate legacy match-card fields
-  const validateStep3 = () => {
-    const errs = {};
-    if (!duoName.value.trim()) errs.duoName = 'Give your card a name.';
-    if (vibes.length < 1)      errs.vibes   = 'Pick at least one vibe.';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
   const buildProfileUpdate = () => ({
     name:       name.value.trim(),
     birth_year: new Date().getFullYear() - parseInt(age.value),
@@ -211,20 +155,6 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
 
   // Step 2 solo path: save profile → Done
   const saveProfileBasics = () => updateProfile(currentUser.id, buildProfileUpdate());
-
-  const handleCreateYourDuo = async () => {
-    if (!currentUser) return;
-    try {
-      setLoading(true);
-      await saveProfileBasics();
-      setStep(4);
-    } catch (err) {
-      logError('profile save error', err);
-      showToast?.('Could not save your profile yet.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleStartWeekly = async () => {
     if (!currentUser) return;
@@ -244,128 +174,10 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     }
   };
 
-  const handleJoinPendingInvite = async () => {
-    if (!currentUser) return;
-    try {
-      setLoading(true);
-      await saveProfileBasics();
-      if (onComplete) {
-        onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
-      } else {
-        go('me');
-      }
-    } catch (err) {
-      logError('invite profile save error', err);
-      showToast?.('Could not save your profile yet.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Legacy optional invite path
-  const handleInviteFriend = () => setStep(4);
-
-  // Step 4 → Done
-  const handleCreateDuo = async () => {
-    if (!validateStep3() || !currentUser) return;
-    try {
-      setLoading(true);
-      await Promise.all([
-        saveProfileBasics(),
-        createDuo(currentUser.id, {
-          name:       duoName.value.trim(),
-          city:       city.value.trim() || '',
-          vibes,
-          spots:      [],
-          lookingFor: '',
-          instagram:  instagram.value.trim().replace(/^@/, '') || '',
-        }),
-      ]);
-      showToast?.('Card created!', 'success');
-      setStep(5);
-    } catch (err) {
-      logError('create card error', err);
-      showToast?.('Could not create your card yet.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 4 — generate an invite link for the partner, then show the waiting view.
-  // The optional card itself is only created once the invite is accepted.
-  const handleSendInvite = async () => {
-    if (!currentUser || inviteLoading) return;
-    setInviteLoading(true);
-    try {
-      const token = await createInvite(currentUser.id);
-      const url = `${window.location.origin}?invite=${token}`;
-      setInviteUrl(url);
-      const shareText = partnerName.value.trim()
-        ? `Hey ${partnerName.value.trim()}, join me on WEEKLY.`
-        : 'Join me on WEEKLY.';
-      try {
-        if (navigator.share) {
-          await navigator.share({ title: 'Join me on WEEKLY', text: shareText, url });
-        } else {
-          await navigator.clipboard.writeText(url);
-          showToast?.('Invite link copied!', 'success');
-        }
-      } catch (shareErr) {
-        if (shareErr?.name !== 'AbortError') {
-          await navigator.clipboard.writeText(url).catch(() => {});
-          showToast?.('Invite link copied!', 'success');
-        }
-      }
-      setInviteSent(true);
-    } catch (err) {
-      logError('invite create error', err);
-      showToast?.('Could not create invite link.', 'error');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  // Legacy invite helper
-  const handleInviteHomie = async () => {
-    if (!currentUser || inviteLoading) return;
-    setInviteLoading(true);
-    try {
-      const token = await createInvite(currentUser.id);
-      const url = `${window.location.origin}?invite=${token}`;
-
-      if (navigator.share) {
-        await navigator.share({
-          title: 'Join me on WEEKLY',
-          text: 'Join me on WEEKLY.',
-          url,
-        });
-      } else {
-        await navigator.clipboard.writeText(url);
-        showToast?.('Invite link copied!', 'success');
-      }
-    } catch (err) {
-      if (err?.name !== 'AbortError') {
-        logError('invite create error', err);
-        showToast?.('Could not create invite link.', 'error');
-      }
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleFindDuos = () => {
-    if (onComplete) {
-      onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
-    } else {
-      go('me');
-    }
-  };
-
   const back = () => {
     if (step === 1) { go('landing'); return; }
     if (step === 2) { setStep(1); return; }
     if (step === 3) { setStep(2); return; }
-    if (step === 4) { setStep(3); return; }
   };
 
   const progress = step === 1 ? 33 : step === 2 ? 66 : 100;
@@ -376,11 +188,9 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
     ? 'Step 2 of 3 — Photos'
     : step === 3
     ? 'Step 3 of 3 - Start WEEKLY'
-    : step === 4
-    ? 'Optional - Invite'
     : null;
 
-  const showBackBtn = step <= 4;
+  const showBackBtn = step <= 3;
   const showFooterCTA = step === 1 || step === 2;
 
   return (
@@ -635,7 +445,7 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
               {/* Default path: save profile and enter the WEEKLY app */}
               <motion.button
                 type="button"
-                onClick={hasPendingInvite ? handleJoinPendingInvite : handleStartWeekly}
+                onClick={handleStartWeekly}
                 disabled={loading}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.1 }}
@@ -663,227 +473,6 @@ export default function OnboardingFlow({ go, currentUser, profile, myDuo, myDuos
             </>
           )}
 
-          {/* ── Step 4: Optional invite ── */}
-          {step === 4 && (
-            <>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
-                {stepLabel}
-              </p>
-
-              {!inviteSent ? (
-                <>
-                  <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
-                    Invite someone you know
-                  </h1>
-                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
-                    This is optional. You can invite a friend, or continue into WEEKLY and set your week.
-                  </p>
-
-                  <FieldLabel>Partner's name</FieldLabel>
-                  <TextInput
-                    value={partnerName.value}
-                    onChange={(e) => partnerName.set(e.target.value)}
-                    onFocus={partnerName.onFocus}
-                    onBlur={partnerName.onBlur}
-                    focused={partnerName.focused}
-                    placeholder="e.g. Miles"
-                  />
-                  <div style={{ height: 16 }} />
-                  <FieldLabel>Their email or phone</FieldLabel>
-                  <TextInput
-                    value={partnerContact.value}
-                    onChange={(e) => partnerContact.set(e.target.value)}
-                    onFocus={partnerContact.onFocus}
-                    onBlur={partnerContact.onBlur}
-                    focused={partnerContact.focused}
-                    placeholder="email@example.com or (000) 000-0000"
-                  />
-                  <p style={{ fontSize: 12, color: C.muted, margin: '8px 0 24px', lineHeight: 1.5 }}>
-                    We'll create a private invite link for you to send them.
-                  </p>
-
-                  <motion.button
-                    type="button"
-                    onClick={handleSendInvite}
-                    disabled={inviteLoading}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      width: '100%', height: 58, borderRadius: 16, border: 'none',
-                      background: C.gradientCTA, color: '#fff', fontSize: 16, fontWeight: 800,
-                      cursor: inviteLoading ? 'not-allowed' : 'pointer',
-                      boxShadow: `0 4px 20px ${C.amberT35}`, opacity: inviteLoading ? 0.6 : 1,
-                      letterSpacing: '-0.2px',
-                    }}
-                  >
-                    {inviteLoading ? 'Creating link...' : 'Create invite link'}
-                  </motion.button>
-
-                  <button
-                    type="button"
-                    onClick={handleFindDuos}
-                    style={{
-                      display: 'block', margin: '18px auto 0', background: 'none', border: 'none',
-                      color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline',
-                    }}
-                  >
-                    Already sent the invite?
-                  </button>
-                </>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '24px 8px' }}>
-                  <div style={{
-                    width: 72, height: 72, borderRadius: '50%', background: C.amberT08,
-                    border: `0.5px solid ${C.brownBorder}`, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
-                  }}>
-                    <Users size={32} color={C.amber} strokeWidth={2.2} />
-                  </div>
-                  <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.6px', margin: '0 0 10px' }}>
-                    Invite link ready
-                  </h1>
-                  <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, margin: '0 auto 24px', maxWidth: 300 }}>
-                    {partnerName.value.trim()
-                      ? `${partnerName.value.trim()} just needs to tap your invite link.`
-                      : 'They just need to tap your invite link.'}{' '}
-                    You can keep using WEEKLY while they accept.
-                  </p>
-
-                  <motion.button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(inviteUrl)
-                        .then(() => showToast?.('Invite link copied!', 'success'))
-                        .catch(() => {});
-                    }}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      width: '100%', height: 52, borderRadius: 16, border: '0.5px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.04)', color: C.white, fontSize: 15, fontWeight: 700,
-                      cursor: 'pointer', marginBottom: 12,
-                    }}
-                  >
-                    Copy invite link again
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    onClick={handleFindDuos}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.1 }}
-                    style={{
-                      width: '100%', height: 58, borderRadius: 16, border: 'none',
-                      background: C.gradientCTA, color: '#fff', fontSize: 16, fontWeight: 800,
-                      cursor: 'pointer', boxShadow: `0 4px 20px ${C.amberT35}`,
-                    }}
-                  >
-                    Done
-                  </motion.button>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── Step 5: Done ── */}
-          {step === 5 && (
-            <div
-              style={{
-                minHeight:      'calc(100vh - 64px)',
-                display:        'flex',
-                flexDirection:  'column',
-                alignItems:     'center',
-                justifyContent: 'center',
-                textAlign:      'center',
-                padding:        '0 8px',
-              }}
-            >
-              {/* Check circle */}
-              <div
-                style={{
-                  width:          72,
-                  height:         72,
-                  borderRadius:   '50%',
-                  background:     C.gradientCTA,
-                  display:        'flex',
-                  alignItems:     'center',
-                  justifyContent: 'center',
-                  marginBottom:   28,
-                  boxShadow:      `0 8px 32px ${C.amberT35}`,
-                }}
-              >
-                <Check size={34} color={C.cream} strokeWidth={2.5} />
-              </div>
-
-              <h1
-                style={{
-                  fontSize:      32,
-                  fontWeight:    800,
-                  letterSpacing: '-1px',
-                  margin:        '0 0 12px',
-                  color:         C.white,
-                }}
-              >
-                You are all set.
-              </h1>
-              <p
-                style={{
-                  fontSize:    15,
-                  color:       C.muted,
-                  lineHeight:  1.6,
-                  margin:      '0 0 48px',
-                  maxWidth:    260,
-                }}
-              >
-                Your profile is ready. Set your week, find overlap, and chat if you both say yes.
-              </p>
-
-              <motion.button
-                type="button"
-                onClick={handleInviteHomie}
-                disabled={inviteLoading}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.1 }}
-                style={{
-                  width:         '100%',
-                  maxWidth:      320,
-                  height:        54,
-                  borderRadius:  16,
-                  border:        '0.5px solid rgba(255,255,255,0.1)',
-                  background:    'rgba(255,255,255,0.04)',
-                  color:         inviteLoading ? C.muted : C.white,
-                  fontSize:      15,
-                  fontWeight:    700,
-                  cursor:        inviteLoading ? 'not-allowed' : 'pointer',
-                  marginBottom:  12,
-                }}
-              >
-                {inviteLoading ? 'Creating link...' : 'Create invite link'}
-              </motion.button>
-
-              <motion.button
-                type="button"
-                onClick={handleFindDuos}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.1 }}
-                style={{
-                  width:         '100%',
-                  maxWidth:      320,
-                  height:        58,
-                  borderRadius:  16,
-                  border:        'none',
-                  background:    C.gradientCTA,
-                  color:         '#fff',
-                  fontSize:      17,
-                  fontWeight:    800,
-                  cursor:        'pointer',
-                  letterSpacing: '-0.2px',
-                  boxShadow:     `0 4px 24px ${C.amberT35}`,
-                }}
-              >
-                Go Home
-              </motion.button>
-            </div>
-          )}
         </motion.main>
       </AnimatePresence>
 

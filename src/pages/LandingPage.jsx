@@ -483,19 +483,6 @@ function Toast() {
 
 // ── Main landing page ─────────────────────────────────────────────────────
 export default function LandingPage({ go }) {
-  const [inviterName, setInviterName] = useState(null);
-
-  // Preserve invite-link flow
-  useEffect(() => {
-    const token = sessionStorage.getItem('duo_oc_invite_token');
-    if (!token) return;
-    import('../lib/invites.js').then(({ getInviteByToken }) => {
-      getInviteByToken(token).then(invite => {
-        if (invite?.profiles?.name) setInviterName(invite.profiles.name);
-      });
-    });
-  }, []);
-
   const PAD = { maxWidth: 1100, margin: '0 auto', padding: '0 48px' };
 
   return (
@@ -503,15 +490,6 @@ export default function LandingPage({ go }) {
       <style>{GLOBAL_CSS}</style>
 
       <div style={{ background: BG, color: '#111', minHeight: '100vh', fontFamily: FONT_B }}>
-
-        {/* ── Invite banner ── */}
-        {inviterName && (
-          <div style={{ background: '#fff5f0', borderBottom: '1px solid rgba(255,92,0,0.15)', padding: '12px 24px', textAlign: 'center' }}>
-            <span style={{ fontFamily: FONT_B, fontSize: 13, color: ORANGE, fontWeight: 500 }}>
-              {inviterName} invited you to join WEEKLY
-            </span>
-          </div>
-        )}
 
         {/* ── Nav ── */}
         <nav style={{

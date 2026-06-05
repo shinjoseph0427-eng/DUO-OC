@@ -84,9 +84,6 @@ export async function sendPushForNotification(notificationId) {
 // Per-type lifetime (ms) before a notification is auto-deleted by the DB
 // cleanup job. Defaults to 30 days for any unlisted type.
 const NOTIFICATION_TTL_MS = {
-  hangout_request:   72 * 60 * 60 * 1000, // 72 hours
-  hangout_cancelled: 24 * 60 * 60 * 1000, // 24 hours
-  homie_request:      7 * 24 * 60 * 60 * 1000, // 7 days
   match:             30 * 24 * 60 * 60 * 1000, // 30 days
 }
 const DEFAULT_NOTIFICATION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days

@@ -21,13 +21,9 @@ function nextStepFromRaw(raw) {
 
 export function useOnboardingGuide(onboardingComplete) {
   const [raw, setRaw] = useState(readRaw);
-  // Step 3 ("Homie accepted") is event-gated. When the guide reaches step 3 by
-  // normal progression we keep it dormant until jumpToStep(3) is fired by the
-  // homie_accepted event. paused is initialised so a reload mid-flow stays gated.
-  const [paused, setPaused] = useState(() => nextStepFromRaw(readRaw()) === 3);
 
   const currentStep = nextStepFromRaw(raw);
-  const isActive = Boolean(onboardingComplete) && currentStep !== null && !paused;
+  const isActive = Boolean(onboardingComplete) && currentStep !== null;
 
   const advanceStep = useCallback(() => {
     setRaw((prev) => {
@@ -36,7 +32,6 @@ export function useOnboardingGuide(onboardingComplete) {
       const nextCompleted = Math.min(completed + 1, LAST_STEP);
       const val = nextCompleted >= LAST_STEP ? 'done' : String(nextCompleted);
       persist(val);
-      setPaused(nextStepFromRaw(val) === 3); // pause when entering step 3 normally
       return val;
     });
   }, []);
@@ -44,25 +39,7 @@ export function useOnboardingGuide(onboardingComplete) {
   const skipAll = useCallback(() => {
     persist('done');
     setRaw('done');
-    setPaused(false);
   }, []);
 
-  // Forward-only jump used by the homie_accepted event to surface step 3.
-  const jumpToStep = useCallback((step) => {
-    setRaw((prev) => {
-      if (prev === 'done') return prev;
-      const completed = Number.isFinite(Number(prev)) ? Number(prev) : 0;
-      const targetCompleted = step - 1;
-      if (targetCompleted <= completed) {
-        setPaused(false); // already at/past this step — just lift the pause
-        return prev;
-      }
-      const val = String(targetCompleted);
-      persist(val);
-      setPaused(false);
-      return val;
-    });
-  }, []);
-
-  return { currentStep, isActive, advanceStep, skipAll, jumpToStep };
+  return { currentStep, isActive, advanceStep, skipAll };
 }

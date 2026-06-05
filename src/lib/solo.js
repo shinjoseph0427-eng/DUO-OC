@@ -1,6 +1,5 @@
 // src/lib/solo.js
-// Solo 1:1 feature — cloned from the homie.js pattern with the duo coupling removed.
-// Does not modify the existing homie.js / duos.js (additive layer).
+// Solo 1:1 feature — send/accept requests and open chats between two users.
 
 import { supabase } from "./supabaseClient.js";
 import { sendPushForNotification } from "./notifications.js";
