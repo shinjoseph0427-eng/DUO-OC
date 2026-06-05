@@ -156,7 +156,7 @@ export default function BottomNav({ activePage, onNavigate, badges = {}, pulseTa
             paddingLeft:  12,
           }}
         >
-          DUO OC
+          WEEKLY
         </div>
 
         {TABS.map((tab) => {

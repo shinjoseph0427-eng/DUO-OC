@@ -1,4 +1,4 @@
-// Design tokens — DUO OC: clean white + orange
+// Design tokens — WEEKLY: clean white + orange
 // 85-90% white/light surfaces, 10-15% orange accent
 
 export const C = {

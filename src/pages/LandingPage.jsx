@@ -545,13 +545,13 @@ export default function LandingPage({ go }) {
                 fontFamily: FONT_H, fontWeight: 800, fontSize: 62,
                 letterSpacing: -3.5, lineHeight: 0.9, color: '#111', margin: '0 0 24px',
               }}>
-                Set<br />your <span style={{ color: ORANGE }}>week.</span><br />
-                <span style={{ color: '#ddd' }}>Meet your overlap.</span>
+                Meet<br />people free<br />
+                <span style={{ color: ORANGE }}>this week.</span>
               </h1>
 
               {/* Subtext */}
               <p style={{ fontFamily: FONT_B, fontSize: 15, fontWeight: 300, color: '#aaa', lineHeight: 1.7, margin: '0 0 32px', maxWidth: 360 }}>
-                Find people whose week overlaps with yours. Send a request, then chat if you both say yes.
+                Set your weekly availability. Match with locals. Meet up.
               </p>
 
               {/* Primary CTA */}
