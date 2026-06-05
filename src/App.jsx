@@ -174,7 +174,7 @@ export default function App() {
     setProfile((prev) => ({ ...(prev ?? {}), ...nextProfileUpdates, onboarding_complete: true }));
     setPageStack([]);
     setOnboardingComplete(true);
-    setPage('home');
+    setPage('weekly_card'); // land new users straight on their first weekly card
   };
 
   const fallback = (title, activePage = 'home') => (

@@ -92,6 +92,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
   const name      = useField('');
   const age       = useField('');
   const city      = useField('');
+  const bio       = useField('');
   const instagram = useField('');
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
     name.set(profile.name ?? '');
     age.set(profile.birth_year ? String(new Date().getFullYear() - Number(profile.birth_year)) : '');
     city.set(profile.city ?? '');
+    bio.set(profile.bio ?? '');
     instagram.set(profile.instagram ?? '');
     const stored = profile.photos ?? [];
     setPhotos([stored[0] ?? null, stored[1] ?? null, stored[2] ?? null]);
@@ -143,6 +145,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
     name:       name.value.trim(),
     birth_year: new Date().getFullYear() - parseInt(age.value),
     city:       city.value.trim() || null,
+    bio:        bio.value.trim() || null,
     instagram:  instagram.value.trim().replace(/^@/, '') || null,
     photos:     photos.filter(Boolean),
     onboarding_complete: true,
@@ -164,7 +167,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
       if (onComplete) {
         onComplete({ name: name.value.trim(), birth_year: new Date().getFullYear() - parseInt(age.value) });
       } else {
-        go('home');
+        go('weekly_card');
       }
     } catch (err) {
       logError('profile save error', err);
@@ -178,20 +181,23 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
     if (step === 1) { go('landing'); return; }
     if (step === 2) { setStep(1); return; }
     if (step === 3) { setStep(2); return; }
+    if (step === 4) { setStep(3); return; }
   };
 
-  const progress = step === 1 ? 33 : step === 2 ? 66 : 100;
+  const progress = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
 
   const stepLabel = step === 1
-    ? 'Step 1 of 3 — Profile'
+    ? 'Step 1 of 4 — About you'
     : step === 2
-    ? 'Step 2 of 3 — Photos'
+    ? 'Step 2 of 4 — Photos'
     : step === 3
-    ? 'Step 3 of 3 - Start WEEKLY'
+    ? 'Step 3 of 4 — Your profile'
+    : step === 4
+    ? 'Step 4 of 4 — Start WEEKLY'
     : null;
 
-  const showBackBtn = step <= 3;
-  const showFooterCTA = step === 1 || step === 2;
+  const showBackBtn = step <= 4;
+  const showFooterCTA = step === 1 || step === 2 || step === 3;
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white, paddingBottom: 32 }}>
@@ -307,30 +313,6 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
                 error={errors.age}
               />
               <FieldError>{errors.age}</FieldError>
-
-              <FieldLabel>Area <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
-              <TextInput
-                value={city.value}
-                onChange={(e) => city.set(e.target.value)}
-                onFocus={city.onFocus}
-                onBlur={city.onBlur}
-                focused={city.focused}
-                placeholder="e.g. Irvine, Newport Beach"
-              />
-
-              <FieldLabel>Instagram <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
-              <TextInput
-                value={instagram.value}
-                onChange={(e) => instagram.set(e.target.value)}
-                onFocus={instagram.onFocus}
-                onBlur={instagram.onBlur}
-                focused={instagram.focused}
-                placeholder="yourhandle"
-                prefix="@"
-              />
-              <p style={{ fontSize: 12, color: C.muted, margin: '-8px 0 0', lineHeight: 1.4 }}>
-                Optional. You control what you share after you match.
-              </p>
             </>
           )}
 
@@ -411,8 +393,60 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
             </>
           )}
 
-          {/* ── Step 3: Start WEEKLY ── */}
+          {/* ── Step 3: Your profile ── */}
           {step === 3 && (
+            <>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
+                {stepLabel}
+              </p>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.8px', margin: '0 0 6px' }}>
+                A little more about you
+              </h1>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5, margin: '0 0 28px' }}>
+                All optional. You control what you share before you match.
+              </p>
+
+              <FieldLabel>Area <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
+              <TextInput
+                value={city.value}
+                onChange={(e) => city.set(e.target.value)}
+                onFocus={city.onFocus}
+                onBlur={city.onBlur}
+                focused={city.focused}
+                placeholder="e.g. Irvine, Newport Beach"
+              />
+
+              <FieldLabel>Bio <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
+              <TextInput
+                value={bio.value}
+                onChange={(e) => bio.set(e.target.value.slice(0, 120))}
+                onFocus={bio.onFocus}
+                onBlur={bio.onBlur}
+                focused={bio.focused}
+                placeholder="A line about you and what you're into"
+              />
+              <p style={{ fontSize: 12, color: C.muted, margin: '-8px 0 16px', lineHeight: 1.4 }}>
+                {bio.value.length}/120
+              </p>
+
+              <FieldLabel>Instagram <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
+              <TextInput
+                value={instagram.value}
+                onChange={(e) => instagram.set(e.target.value)}
+                onFocus={instagram.onFocus}
+                onBlur={instagram.onBlur}
+                focused={instagram.focused}
+                placeholder="yourhandle"
+                prefix="@"
+              />
+              <p style={{ fontSize: 12, color: C.muted, margin: '-8px 0 0', lineHeight: 1.4 }}>
+                Only shared after you both match.
+              </p>
+            </>
+          )}
+
+          {/* ── Step 4: Start WEEKLY ── */}
+          {step === 4 && (
             <>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
                 {stepLabel}
@@ -442,7 +476,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
                 </p>
               </div>
 
-              {/* Default path: save profile and enter the WEEKLY app */}
+              {/* Save profile and go straight to setting this week */}
               <motion.button
                 type="button"
                 onClick={handleStartWeekly}
@@ -464,11 +498,11 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
                   opacity:      loading ? 0.6 : 1,
                 }}
               >
-                {loading ? 'Saving...' : 'Finish setup'}
+                {loading ? 'Saving...' : 'Set my week'}
               </motion.button>
 
               <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-                You can set your week from Home right after this.
+                Next you'll pick the days and times you're free this week.
               </p>
             </>
           )}
@@ -476,7 +510,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
         </motion.main>
       </AnimatePresence>
 
-      {/* Sticky footer CTA (steps 1 and 3 only) */}
+      {/* Sticky footer CTA (input steps 1-3) */}
       {showFooterCTA && (
         <footer
           className="glass"
@@ -494,7 +528,8 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
             type="button"
             onClick={
               step === 1 ? handleNextFromStep1
-              : () => setStep(3)
+              : step === 2 ? () => setStep(3)
+              : () => setStep(4)
             }
             disabled={
               loading ||
