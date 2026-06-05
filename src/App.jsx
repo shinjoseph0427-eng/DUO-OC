@@ -2,19 +2,12 @@ import { useState, useEffect } from 'react';
 import BottomNav from './components/BottomNav.jsx';
 import Toast from './components/Toast.jsx';
 import HomePage from './pages/HomePage.jsx';
-import DuoDetailPage from './pages/DuoDetailPage.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import OnboardingFlow from './pages/OnboardingFlow.jsx';
 import AuthPage from './pages/AuthPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
-import MyDuosPage from './pages/MyDuosPage.jsx';
-import MyDuoPage from './pages/MyDuoPage.jsx';
 import MePage from './pages/MePage.jsx';
-import FindHomie from './pages/FindHomie.jsx';
-import HomieProfilePage from './pages/HomieProfilePage.jsx';
-import HomieInboxPage from './pages/HomieInboxPage.jsx';
 import EditProfile from './pages/EditProfile.jsx';
-import EditDuoProfile from './pages/EditDuoProfile.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import PublicDuoPage from './pages/PublicDuoPage.jsx';
 import WeeklyCardPage from './pages/WeeklyCardPage.jsx';
@@ -23,9 +16,7 @@ import SoloExplorePage from './pages/SoloExplorePage.jsx';
 import SoloInboxPage from './pages/SoloInboxPage.jsx';
 import SoloChatPage from './pages/SoloChatPage.jsx';
 import OnboardingGuide, { STEP_TABS } from './components/OnboardingGuide.jsx';
-import RequestModal from './components/RequestModal.jsx';
 import { signOut } from './lib/auth.js';
-import { getMyDuo, getMyDuos } from './lib/duos.js';
 import { getMyProfile, isProfileOnboardingComplete, saveFcmToken } from './lib/profile.js';
 import { getConfirmedChatCount } from './lib/messages.js';
 import { getNotifications } from './lib/notifications.js';
@@ -36,8 +27,7 @@ import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
 const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home',
-  'duo_detail',
-  'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox', 'edit_profile', 'edit_duo_profile',
+  'me', 'edit_profile',
   'privacy', 'public_duo',
   'weekly_card', 'weekly_explore',
   'solo_explore', 'solo_inbox', 'solo_chat',
@@ -54,9 +44,8 @@ function parsePublicDuoId() {
 const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'weekly_explore', 'weekly_card', 'solo_inbox', 'me'];
 const ONBOARDED_PAGES = [
-  'home', 'duo_detail',
-  'me', 'my_duo', 'my_duos', 'find_homie', 'homie_profile', 'homie_inbox',
-  'edit_profile', 'edit_duo_profile',
+  'home',
+  'me', 'edit_profile',
   'weekly_card', 'weekly_explore',
   'solo_explore', 'solo_inbox', 'solo_chat',
 ];
@@ -66,13 +55,9 @@ export default function App() {
   const [publicDuoId]     = useState(initialPublicDuoId);
   const [page,            setPage]            = useState(initialPublicDuoId ? 'public_duo' : 'landing');
   const [pageStack,       setPageStack]       = useState([]);
-  const [selectedDuo,     setSelectedDuo]     = useState(null);
   const [selectedChat,    setSelectedChat]    = useState(null);
   const [currentUser,     setCurrentUser]     = useState(null);
-  const [myDuo,           setMyDuo]           = useState(null);
-  const [myDuos,          setMyDuos]          = useState([]);
   const [selectedHangout, setSelectedHangout] = useState(null);
-  const [selectedRequestId, setSelectedRequestId] = useState(null);
   const [toast,           setToast]           = useState(null);
   const [chatBadge,       setChatBadge]       = useState(false);
   const [authReady,       setAuthReady]       = useState(false);
@@ -118,8 +103,6 @@ export default function App() {
         setAuthReady(true);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
-        setMyDuo(null);
-        setMyDuos([]);
         setProfile(null);
         setProfileReady(true);
         setOnboardingComplete(false);
@@ -141,16 +124,10 @@ export default function App() {
     }
 
     setProfileReady(false);
-    Promise.all([
-      getMyProfile(currentUser.id),
-      getMyDuo(currentUser.id),
-      getMyDuos(currentUser.id).catch(() => []),
-    ]).then(([nextProfile, nextDuo, nextMyDuos]) => {
+    getMyProfile(currentUser.id).then((nextProfile) => {
       if (cancelled) return;
       const complete = isProfileOnboardingComplete(nextProfile);
       setProfile(nextProfile);
-      setMyDuo(nextDuo);
-      setMyDuos(nextMyDuos ?? []);
       setOnboardingComplete(complete);
       setProfileReady(true);
       setPage((prev) => {
@@ -172,19 +149,6 @@ export default function App() {
 
     return () => { cancelled = true; };
   }, [currentUser]);
-
-  useEffect(() => {
-    if (currentUser) {
-      Promise.all([
-        getMyDuo(currentUser.id),
-        getMyDuos(currentUser.id).catch(() => []),
-      ]).then(([nextDuo, nextMyDuos]) => {
-        setMyDuo(nextDuo);
-        setMyDuos(nextMyDuos ?? []);
-        setOnboardingComplete(isProfileOnboardingComplete(profile));
-      }).catch(() => {});
-    }
-  }, [currentUser, profile]);
 
   // Keep the saved FCM token fresh (re-fetch + save when the tab regains focus).
   useEffect(() => {
@@ -224,7 +188,6 @@ export default function App() {
       return;
     }
     if (!opts.noStack) setPageStack((prev) => [...prev, page]);
-    setSelectedDuo(duo);
     if (chat)     setSelectedChat(chat);
     if (hangout)  setSelectedHangout(hangout);
     if (newPage === 'chat') setChatBadge(false);
@@ -253,17 +216,13 @@ export default function App() {
   const handleOnboardingComplete = async (nextProfileUpdates = {}) => {
     setProfile((prev) => ({ ...(prev ?? {}), ...nextProfileUpdates, onboarding_complete: true }));
     setPageStack([]);
-
-    const nextDuo = currentUser ? await refreshMyDuo() : null;
-    const hasDuo = Boolean(nextDuo);
     setOnboardingComplete(true);
 
     const pendingInvite = sessionStorage.getItem('duo_oc_invite_token');
     if (pendingInvite && currentUser) {
       sessionStorage.removeItem('duo_oc_invite_token');
       acceptInvite(pendingInvite, currentUser.id)
-        .then(async () => {
-          await refreshMyDuo();
+        .then(() => {
           setPage('home');
         })
         .catch(err => {
@@ -272,22 +231,8 @@ export default function App() {
           setPage('home');
         });
     } else {
-      setPage(hasDuo ? 'me' : 'home');
+      setPage('home');
     }
-
-    if (currentUser) getMyDuo(currentUser.id).then(setMyDuo).catch(() => {});
-  };
-
-  const refreshMyDuo = async () => {
-    if (!currentUser) return null;
-    const [nextDuo, nextMyDuos] = await Promise.all([
-      getMyDuo(currentUser.id),
-      getMyDuos(currentUser.id).catch(() => []),
-    ]);
-    setMyDuo(nextDuo);
-    setMyDuos(nextMyDuos ?? []);
-    setOnboardingComplete(isProfileOnboardingComplete(profile));
-    return nextDuo;
   };
 
   const fallback = (title, activePage = 'home') => (
@@ -296,7 +241,6 @@ export default function App() {
 
   const isAuthPage = AUTH_PAGES.includes(page);
   const activeTab  = NAV_TAB_PAGES.includes(page) ? page : null;
-  const editDuoForRoute = page === 'edit_duo_profile' ? selectedDuo : null;
   if (!authReady || (currentUser && !profileReady)) {
     return <div className="app-loading" />;
   }
@@ -307,21 +251,10 @@ export default function App() {
         {page === 'landing'     && <LandingPage go={go} />}
         {page === 'auth'        && <AuthPage initialMode="signup" go={go} onLogin={setCurrentUser} showToast={showToast} />}
         {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} showToast={showToast} />}
-        {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onComplete={handleOnboardingComplete} showToast={showToast} />}
-        {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
-        {page === 'duo_detail'  && (selectedDuo
-          ? <DuoDetailPage duo={selectedDuo} go={go} goBack={goBack} onLogout={handleLogout} currentUser={currentUser} myDuo={myDuo} myDuos={myDuos} showToast={showToast} />
-          : fallback('Duo not found'))}
+        {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} profile={profile} onComplete={handleOnboardingComplete} showToast={showToast} />}
+        {page === 'home'        && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} showToast={showToast} />}
         {page === 'me'          && <MePage currentUser={currentUser} profile={profile} go={go} showToast={showToast} onLogout={handleLogout} />}
-        {page === 'my_duo'      && <MyDuoPage currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} go={go} goBack={goBack} refreshMyDuo={refreshMyDuo} showToast={showToast} onLogout={handleLogout} />}
-        {page === 'my_duos'     && <MyDuosPage currentUser={currentUser} myDuo={myDuo} go={go} />}
-        {page === 'find_homie'      && <FindHomie currentUser={currentUser} go={go} goBack={goBack} />}
-        {page === 'homie_profile'   && (selectedDuo
-          ? <HomieProfilePage homie={selectedDuo} currentUser={currentUser} go={go} showToast={showToast} />
-          : fallback('Homie not found'))}
-        {page === 'homie_inbox'     && <HomieInboxPage currentUser={currentUser} go={go} goBack={goBack} onDuoChanged={refreshMyDuo} />}
         {page === 'edit_profile'     && <EditProfile currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
-        {page === 'edit_duo_profile' && <EditDuoProfile currentUser={currentUser} duo={editDuoForRoute} myDuo={myDuo} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
         {page === 'public_duo'       && <PublicDuoPage duoId={publicDuoId} go={go} />}
         {page === 'weekly_card'      && <WeeklyCardPage currentUser={currentUser} go={go} showToast={showToast} />}
@@ -331,7 +264,7 @@ export default function App() {
         {page === 'solo_chat'        && (selectedChat
           ? <SoloChatPage match={selectedChat} currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />
           : fallback('Chat not found', 'home'))}
-        {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} myDuo={myDuo} myDuos={myDuos} onOpenPlanRequest={setSelectedRequestId} showToast={showToast} />}
+        {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} showToast={showToast} />}
       </div>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
       {!isAuthPage && currentUser && onboardingComplete && guide.isActive && (
@@ -340,15 +273,6 @@ export default function App() {
           navigate={(p) => go(p, null, null, null, null, { noStack: true })}
           advanceStep={guide.advanceStep}
           skipAll={guide.skipAll}
-        />
-      )}
-      {selectedRequestId && currentUser && (
-        <RequestModal
-          requestId={selectedRequestId}
-          currentUserId={currentUser.id}
-          showToast={showToast}
-          go={go}
-          onClose={() => setSelectedRequestId(null)}
         />
       )}
       {!isAuthPage && currentUser && (

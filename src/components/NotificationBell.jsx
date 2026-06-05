@@ -8,32 +8,13 @@ import {
   markAllAsRead,
   subscribeNotifications,
 } from '../lib/notifications.js';
-import { getMyHomieRequests, acceptHomieRequest } from '../lib/homie.js';
 import { acceptPlanRequest, declinePlanRequest, formatPlanDateLabel } from '../lib/hangouts.js';
 import { getChatByHangoutId } from '../lib/messages.js';
 import HomieAcceptedCelebration from './HomieAcceptedCelebration.jsx';
 
-function getSender(request) {
-  return request?.profiles ?? request?.profile ?? request?.from_profile ?? {};
-}
-
 const TYPE_META = {
-  match:             { label: (p) => `${p.matched_duo_name ?? 'A duo'} matched with you.`, page: 'hangouts' },
-  hangout_request:   { label: (p) => `${p.duo_name ?? 'A duo'} sent a hangout request.`, page: 'hangouts' },
-  hangout_accepted:  { label: (p) => `${p.duo_name ?? 'A duo'} accepted your hangout request.`, page: 'hangouts' },
-  hangout_confirmed: { label: (p) => `Hangout with ${p.duo_name ?? 'a duo'} confirmed — your chat room is open.`, page: 'chat' },
-  hangout_declined:  { label: (p) => `${p.duo_name ?? 'A duo'} declined your hangout request.`, page: 'hangouts' },
-  homie_request:     { label: () => 'Someone wants to be your homie.', page: 'find_homie' },
-  homie_accepted:    { label: (p) => `${p.accepted_by_name ?? 'Your homie'} accepted. You are now a duo.`, page: 'me' },
   solo_request:      { label: (p) => `${p.sender_name ?? 'Someone'} sent you a 1:1 request.`, page: 'solo_inbox' },
   solo_accepted:     { label: (p) => `${p.partner_name ?? 'Someone'} accepted your 1:1 request.`, page: 'solo_inbox' },
-  plan_request:      { label: (p) => `${p.duo_name ?? 'A duo'} sent a request to join your open plan.`, page: 'hangouts' },
-  plan_accepted:     { label: (p) => `${p.duo_name ?? 'A duo'} accepted your request to join their open plan.`, page: 'hangouts' },
-  plan_declined:     { label: () => 'Your request to join an open plan was declined.', page: 'hangouts' },
-  plan_cancelled:    { label: () => 'An open plan you requested to join was cancelled.', page: 'hangouts' },
-  hangout_cancelled: { label: (p) => (p.cancelled_duo_name ? `${p.cancelled_duo_name} cancelled the hangout` : 'A hangout was cancelled'), page: 'hangouts' },
-  partner_approval_needed: { label: (p) => `${p.requested_by_name ?? 'Your partner'} wants to hang out with ${p.target_duo_name ?? 'another duo'}. You in?`, page: 'hangouts' },
-  partner_notified:        { label: (p) => p.message ?? 'Hangout update.', page: 'hangouts' },
 };
 
 function timeAgo(isoString) {
@@ -48,8 +29,6 @@ function timeAgo(isoString) {
 
 export default function NotificationBell({ currentUser, go, onOpenPlanRequest, showToast }) {
   const [notifs,        setNotifs]        = useState([]);
-  const [homieRequests, setHomieRequests] = useState([]);
-  const [acceptingId,   setAcceptingId]   = useState(null);
   const [planBusyId,    setPlanBusyId]    = useState(null);
   const [celebratePartner, setCelebratePartner] = useState(null);
   const [open,          setOpen]          = useState(false);
@@ -62,28 +41,8 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
     const unsub = subscribeNotifications(currentUser.id, currentUser.id, (n) => {
       setNotifs((prev) => [n, ...prev]);
     });
-    if (currentUser?.id) {
-      getMyHomieRequests(currentUser.id)
-        .then((data) => setHomieRequests(data || []))
-        .catch(() => {});
-    }
     return unsub;
   }, [currentUser]);
-
-  const handleAcceptHomie = async (requestId) => {
-    setAcceptingId(requestId);
-    const partnerName = getSender(homieRequests.find((r) => r.id === requestId))?.name ?? 'your new duo';
-    try {
-      await acceptHomieRequest(requestId);
-      setHomieRequests((prev) => prev.filter((r) => r.id !== requestId));
-      setOpen(false);
-      setCelebratePartner(partnerName);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setAcceptingId(null);
-    }
-  };
 
   // Close on outside click
   useEffect(() => {
@@ -104,7 +63,7 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
     };
   }, [open]);
 
-  const unreadCount = notifs.filter((n) => !n.read).length + homieRequests.length;
+  const unreadCount = notifs.filter((n) => !n.read).length;
 
   const handleNotifClick = async (n) => {
     // plan_request → open detail modal instead of navigating away
@@ -327,79 +286,9 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
               </div>
             </div>
 
-            {/* ── Homie requests ── */}
-            {homieRequests.length > 0 && (
-              <div>
-                <div style={{ padding: '10px 16px 6px', fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Duo requests · {homieRequests.length}
-                </div>
-                {homieRequests.map((request) => {
-                  const sender  = getSender(request);
-                  const avatar  = sender.photos?.[0] || null;
-                  const initials = sender.name?.[0]?.toUpperCase() || '?';
-                  return (
-                    <div key={request.id} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `0.5px solid ${C.border}` }}>
-                      <div style={{
-                        width: 38, height: 38, borderRadius: '50%',
-                        background: avatar ? 'transparent' : C.amberT08,
-                        border: `1px solid ${C.brownBorder}`,
-                        overflow: 'hidden', flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 14, fontWeight: 700, color: C.amber,
-                      }}>
-                        {avatar
-                          ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : initials
-                        }
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white, marginBottom: 1 }}>
-                          {sender.name || 'Someone'}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {[sender.age, sender.city].filter(Boolean).join(' · ') || 'Wants to be your duo partner'}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAcceptHomie(request.id)}
-                        disabled={acceptingId === request.id}
-                        style={{
-                          padding: '7px 14px', borderRadius: 8, border: 'none',
-                          background: acceptingId === request.id ? C.muted : C.amber,
-                          color: '#fff', fontSize: 12, fontWeight: 600,
-                          cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s',
-                        }}
-                      >
-                        {acceptingId === request.id ? '...' : 'Accept'}
-                      </button>
-                    </div>
-                  );
-                })}
-                <div
-                  onClick={() => { go('homie_inbox'); setOpen(false); }}
-                  style={{
-                    padding:      '10px 16px',
-                    fontSize:     13,
-                    color:        C.amber,
-                    fontWeight:   600,
-                    cursor:       'pointer',
-                    borderBottom: `0.5px solid ${C.border}`,
-                  }}
-                >
-                  See all duo requests →
-                </div>
-              </div>
-            )}
-
             {/* ── Notifications ── */}
             {notifs.length > 0 && (
               <div>
-                {homieRequests.length > 0 && (
-                  <div style={{ padding: '10px 16px 6px', fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    Notifications
-                  </div>
-                )}
                 {notifs.map((n) => {
                   // ── Review prompt card ──
                   if (n.type === 'review') {
@@ -540,7 +429,7 @@ export default function NotificationBell({ currentUser, go, onOpenPlanRequest, s
             )}
 
             {/* ── Empty state ── */}
-            {homieRequests.length === 0 && notifs.length === 0 && (
+            {notifs.length === 0 && (
               <div style={{ padding: '32px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>You're all caught up.</div>
                 <div style={{ fontSize: 11, color: C.muted }}>Duo requests and hangout updates show up here.</div>
