@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldAlert } from 'lucide-react';
 import { C } from '../tokens';
-import { reportDuo, blockDuo, SAFETY_MESSAGES } from '../lib/safety.js';
+import { reportDuo, reportUser, blockDuo, blockUser, SAFETY_MESSAGES } from '../lib/safety.js';
 
 const REASONS = [
   { key: 'inappropriate_photos', label: 'Inappropriate photos',   emoji: '' },
@@ -17,6 +17,8 @@ export default function ReportModal({
   reporterUserId,
   reportedDuoId,
   reportedDuoName,
+  reportedUserId,
+  reportedUserName,
   blockerDuoId,
   onClose,
   onBlocked,
@@ -27,9 +29,28 @@ export default function ReportModal({
   const [blockConfirm, setBlockConfirm] = useState(false);
   const [blocking,     setBlocking]     = useState(false);
   const [reporting,    setReporting]    = useState(false);
+  const isUserReport = Boolean(reportedUserId);
+  const targetName = isUserReport ? reportedUserName : reportedDuoName;
+  const targetLabel = isUserReport ? 'user' : 'duo';
 
   const handleBlock = async () => {
     if (!blockConfirm) { setBlockConfirm(true); return; }
+    if (isUserReport) {
+      if (!reporterUserId || !reportedUserId) return;
+      setBlocking(true);
+      try {
+        await blockUser(reporterUserId, reportedUserId);
+        showToast?.('User blocked', 'success');
+        onBlocked?.(reportedUserId);
+        onClose();
+      } catch {
+        showToast?.('Failed to block', 'error');
+      } finally {
+        setBlocking(false);
+      }
+      return;
+    }
+
     if (!reportedDuoId) return;
     if (!blockerDuoId) {
       showToast?.('You need a duo to block', 'error');
@@ -52,7 +73,11 @@ export default function ReportModal({
     if (!reason) { showToast?.('Select a reason', 'error'); return; }
     setReporting(true);
     try {
-      await reportDuo({ reporterUserId, reportedDuoId, reason, detail: detail.trim() || null });
+      if (isUserReport) {
+        await reportUser({ reporterUserId, reportedUserId, reason, detail: detail.trim() || null });
+      } else {
+        await reportDuo({ reporterUserId, reportedDuoId, reason, detail: detail.trim() || null });
+      }
       showToast?.('Report submitted.', 'success');
       onClose();
     } catch (err) {
@@ -125,10 +150,10 @@ export default function ReportModal({
           }}
         >
           <p style={{ fontSize: 14, fontWeight: 700, color: C.white, margin: '0 0 4px' }}>
-            Block this duo
+            Block this {targetLabel}
           </p>
           <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>
-            They won't appear in your feed and can't contact you.
+            They won't appear in your matches and can't contact you.
           </p>
 
           <AnimatePresence mode="wait">
@@ -154,7 +179,7 @@ export default function ReportModal({
                   cursor:       'pointer',
                 }}
               >
-                Block {reportedDuoName ? `"${reportedDuoName}"` : 'this duo'}
+                Block {targetName ? `"${targetName}"` : `this ${targetLabel}`}
               </motion.button>
             ) : (
               <motion.div

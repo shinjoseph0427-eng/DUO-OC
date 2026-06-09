@@ -27,6 +27,7 @@ import {
 } from '../lib/soloPlans.js';
 import { endSoloMatch } from '../lib/solo.js';
 import TopBar from '../components/TopBar.jsx';
+import ReportModal from '../components/ReportModal.jsx';
 
 function gradientFor(id = '') {
   const code = id ? id.charCodeAt(0) : 0;
@@ -458,6 +459,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
   const [sending,  setSending]  = useState(false);
   const [loading,  setLoading]  = useState(true);
   const [showEnd,  setShowEnd]  = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [plan,     setPlan]     = useState(null);
   const [planGuests, setPlanGuests] = useState([]);
   const [planForm, setPlanForm] = useState({
@@ -701,12 +703,20 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         onBack={goBack ?? (() => go('home'))}
         onLogoClick={() => go('home')}
         rightContent={
-          <button
-            onClick={() => setShowEnd(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.muted, padding: '4px 6px', whiteSpace: 'nowrap' }}
-          >
-            Leave
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => setShowReport(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 650, color: C.danger, padding: '4px 4px', whiteSpace: 'nowrap' }}
+            >
+              Report
+            </button>
+            <button
+              onClick={() => setShowEnd(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.muted, padding: '4px 4px', whiteSpace: 'nowrap' }}
+            >
+              Leave
+            </button>
+          </div>
         }
       />
 
@@ -858,6 +868,17 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
             </div>
           </motion.div>
         </div>
+      )}
+
+      {showReport && (
+        <ReportModal
+          reporterUserId={currentUser?.id}
+          reportedUserId={partner?.id}
+          reportedUserName={partnerName}
+          onClose={() => setShowReport(false)}
+          onBlocked={() => go('solo_inbox')}
+          showToast={showToast}
+        />
       )}
     </div>
   );

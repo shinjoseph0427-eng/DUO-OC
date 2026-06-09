@@ -19,6 +19,8 @@ import { signOut } from './lib/auth.js';
 import { getMyProfile, isProfileOnboardingComplete, saveFcmToken } from './lib/profile.js';
 import { supabase } from './lib/supabaseClient.js';
 import { requestPushPermission, watchTokenRefresh } from './lib/firebase.js';
+import { getMyReceivedSoloRequests } from './lib/solo.js';
+import { getNotifications, subscribeNotifications } from './lib/notifications.js';
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
 const PAGES = [
@@ -50,6 +52,7 @@ export default function App() {
   const [profileReady,    setProfileReady]    = useState(false);
   const [profile,         setProfile]         = useState(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [inboxHasUnread, setInboxHasUnread] = useState(false);
 
   // Post-signup onboarding guide (bottom sheet + tab pulse).
   const guide = useOnboardingGuide(onboardingComplete);
@@ -130,6 +133,50 @@ export default function App() {
     if (!currentUser?.id || !onboardingComplete) return undefined;
     return watchTokenRefresh(currentUser.id);
   }, [currentUser?.id, onboardingComplete]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !onboardingComplete) {
+      setInboxHasUnread(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const messageTypes = new Set([
+      'solo_request',
+      'solo_accepted',
+      'plan_proposed',
+      'plan_confirmed',
+      'plan_guest_invited',
+      'plan_guest_accepted',
+      'plan_guest_declined',
+    ]);
+
+    const refreshInboxBadge = async () => {
+      const [requests, notifications] = await Promise.all([
+        getMyReceivedSoloRequests().catch(() => []),
+        getNotifications(currentUser.id).catch(() => []),
+      ]);
+      if (cancelled) return;
+      setInboxHasUnread(
+        requests.length > 0 ||
+        notifications.some((n) => !n.read && messageTypes.has(n.type)),
+      );
+    };
+
+    refreshInboxBadge();
+    const unsub = subscribeNotifications(currentUser.id, currentUser.id, (n) => {
+      if (messageTypes.has(n.type)) setInboxHasUnread(true);
+    });
+
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
+  }, [currentUser?.id, onboardingComplete]);
+
+  useEffect(() => {
+    if (page === 'solo_inbox') setInboxHasUnread(false);
+  }, [page]);
 
   const go = (newPage, duo = null, reqData = null, chat = null, opts = {}) => {
     // Unauthenticated user trying to access protected page
@@ -220,6 +267,7 @@ export default function App() {
         <BottomNav
           activePage={activeTab ?? page}
           onNavigate={(tab) => go(tab)}
+          badges={{ solo_inbox: inboxHasUnread }}
           pulseTab={guide.isActive ? STEP_TABS[guide.currentStep] : null}
         />
       )}

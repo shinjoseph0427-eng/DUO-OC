@@ -81,6 +81,35 @@ export async function reportDuo({ reporterUserId, reportedDuoId, reason, detail 
   return { report: null, sanction }
 }
 
+export async function reportUser({ reporterUserId, reportedUserId, reason, detail }) {
+  if (!reporterUserId || !reportedUserId || !reason) throw new Error('Missing required report fields')
+  if (reporterUserId === reportedUserId) throw new Error('You cannot report yourself.')
+
+  const { data: existingReport } = await supabase
+    .from('user_reports')
+    .select('id')
+    .eq('reporter_user_id', reporterUserId)
+    .eq('reported_user_id', reportedUserId)
+    .eq('reason', reason)
+    .maybeSingle()
+
+  if (existingReport) throw new Error(DUPLICATE_REPORT_MESSAGE)
+
+  const { error } = await supabase
+    .from('user_reports')
+    .insert({
+      reporter_user_id: reporterUserId,
+      reported_user_id: reportedUserId,
+      reason,
+      detail: detail || null,
+    })
+
+  if (isDuplicateReportError(error)) throw new Error(DUPLICATE_REPORT_MESSAGE)
+  if (error) throw error
+
+  return { report: null }
+}
+
 export async function blockDuo({ blockerDuoId, blockedDuoId }) {
   const { error } = await supabase
     .from('blocks')
