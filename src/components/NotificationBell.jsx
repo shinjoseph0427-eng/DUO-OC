@@ -12,6 +12,8 @@ import {
 const TYPE_META = {
   solo_request:      { label: (p) => `${p.sender_name ?? 'Someone'} sent you a 1:1 request.`, page: 'solo_inbox' },
   solo_accepted:     { label: (p) => `${p.partner_name ?? 'Someone'} accepted your 1:1 request.`, page: 'solo_inbox' },
+  plan_proposed:     { label: (p) => `${p.sender_name ?? 'Someone'} suggested a plan: ${[p.day, p.time_label, p.place].filter(Boolean).join(' · ')}`, page: 'solo_inbox' },
+  plan_confirmed:    { label: (p) => `${p.partner_name ?? 'Someone'} confirmed your plan.`, page: 'solo_inbox' },
 };
 
 function timeAgo(isoString) {

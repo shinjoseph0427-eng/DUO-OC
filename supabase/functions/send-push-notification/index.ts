@@ -26,6 +26,8 @@ const SUPPORTED_TYPES = new Set([
   "match",
   "solo_request",
   "solo_accepted",
+  "plan_proposed",
+  "plan_confirmed",
 ]);
 
 const PUSH_TITLES: Record<string, string> = {
@@ -37,6 +39,8 @@ const PUSH_TITLES: Record<string, string> = {
   match: "It's a match!",
   solo_request: "New 1:1 request",
   solo_accepted: "It's a match! 🎉",
+  plan_proposed: "New plan suggestion",
+  plan_confirmed: "Plan confirmed",
 };
 
 const PUSH_BODIES: Record<string, string> = {
@@ -48,6 +52,8 @@ const PUSH_BODIES: Record<string, string> = {
   match: "You matched with a new duo.",
   solo_request: "Someone sent you a 1:1 request.",
   solo_accepted: "Your 1:1 request was accepted.",
+  plan_proposed: "Someone suggested a plan for this week.",
+  plan_confirmed: "Your plan is confirmed.",
 };
 
 // Builds a friendlier body using the notification payload when available.
@@ -77,6 +83,14 @@ function buildPushBody(
   const partnerName =
     typeof payload.partner_name === "string" && payload.partner_name.trim()
       ? payload.partner_name.trim()
+      : null;
+  const timeLabel =
+    typeof payload.time_label === "string" && payload.time_label.trim()
+      ? payload.time_label.trim()
+      : null;
+  const place =
+    typeof payload.place === "string" && payload.place.trim()
+      ? payload.place.trim()
       : null;
 
   switch (type) {
@@ -108,6 +122,14 @@ function buildPushBody(
       return partnerName
         ? `${partnerName} accepted your 1:1 request.`
         : PUSH_BODIES.solo_accepted;
+    case "plan_proposed":
+      return senderName
+        ? `${senderName} suggested ${[timeLabel, place].filter(Boolean).join(" at ") || "a plan"}.`
+        : PUSH_BODIES.plan_proposed;
+    case "plan_confirmed":
+      return partnerName
+        ? `${partnerName} confirmed your plan.`
+        : PUSH_BODIES.plan_confirmed;
     default:
       return PUSH_BODIES[type] ?? "You have a new notification.";
   }

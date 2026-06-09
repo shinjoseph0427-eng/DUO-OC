@@ -4,13 +4,22 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, AlertCircle } from 'lucide-react';
+import { AlertCircle, CalendarPlus, Check, RefreshCw, Send } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import {
   getSoloMessages,
   sendSoloMessage,
   subscribeSoloMessages,
 } from '../lib/soloMessages.js';
+import {
+  PLAN_DAYS,
+  PLAN_TIME_PRESETS,
+  confirmSoloPlan,
+  describePlan,
+  getSoloPlan,
+  proposeSoloPlan,
+  subscribeSoloPlan,
+} from '../lib/soloPlans.js';
 import { endSoloMatch } from '../lib/solo.js';
 import TopBar from '../components/TopBar.jsx';
 
@@ -89,6 +98,182 @@ function Bubble({ msg, isMine, partnerPhoto, partnerName, showAvatar }) {
   );
 }
 
+function PlanPanel({
+  plan,
+  currentUserId,
+  partnerName,
+  submitting,
+  form,
+  setForm,
+  showForm,
+  setShowForm,
+  onPropose,
+  onConfirm,
+}) {
+  const isConfirmed = plan?.status === 'confirmed';
+  const proposedByMe = plan?.proposed_by === currentUserId;
+  const needsMyConfirm = plan?.status === 'proposed' && !proposedByMe;
+
+  return (
+    <section
+      style={{
+        padding: '10px 16px',
+        borderBottom: `1px solid ${C.border}`,
+        background: C.bg2,
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          background: C.cardElevated,
+          border: `1px solid ${isConfirmed ? C.greenBorder : C.brownBorder}`,
+          borderRadius: 14,
+          padding: 12,
+          boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, color: isConfirmed ? C.success : C.amber, fontSize: 11, fontWeight: 850, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              {isConfirmed ? 'Plan confirmed' : plan ? 'Plan proposed' : 'Make a plan'}
+            </p>
+            <p style={{ margin: '4px 0 0', color: C.white, fontSize: 14, fontWeight: 850, lineHeight: 1.35 }}>
+              {plan ? describePlan(plan) : `Suggest one concrete thing with ${partnerName} this week.`}
+            </p>
+            {plan && (
+              <p style={{ margin: '4px 0 0', color: C.muted, fontSize: 12, lineHeight: 1.35 }}>
+                {isConfirmed
+                  ? 'You both said yes.'
+                  : proposedByMe
+                  ? 'Waiting for them to confirm.'
+                  : 'Accept it or suggest a different one.'}
+              </p>
+            )}
+          </div>
+
+          {!isConfirmed && (
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              style={{
+                border: 'none',
+                borderRadius: 10,
+                background: C.amberT08,
+                color: C.amber,
+                width: 36,
+                height: 34,
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+              aria-label={plan ? 'Suggest different plan' : 'Suggest a plan'}
+            >
+              <CalendarPlus size={17} />
+            </button>
+          )}
+        </div>
+
+        {needsMyConfirm && (
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              minHeight: 38,
+              border: 'none',
+              borderRadius: 10,
+              background: C.gradientCTA,
+              color: C.cream,
+              fontSize: 13,
+              fontWeight: 850,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 7,
+              cursor: submitting ? 'default' : 'pointer',
+              opacity: submitting ? 0.72 : 1,
+            }}
+          >
+            {submitting ? <RefreshCw size={15} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Check size={15} />}
+            Accept plan
+          </button>
+        )}
+
+        {showForm && !isConfirmed && (
+          <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '86px minmax(0, 1fr)', gap: 8 }}>
+              <select
+                value={form.day}
+                onChange={(e) => setForm((p) => ({ ...p, day: e.target.value }))}
+                style={PLAN_INPUT}
+              >
+                {PLAN_DAYS.map((d) => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+              <select
+                value={form.time_label}
+                onChange={(e) => setForm((p) => ({ ...p, time_label: e.target.value }))}
+                style={PLAN_INPUT}
+              >
+                {PLAN_TIME_PRESETS.map((time) => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+            </div>
+            <input
+              value={form.place}
+              onChange={(e) => setForm((p) => ({ ...p, place: e.target.value.slice(0, 120) }))}
+              placeholder="Place or area"
+              style={PLAN_INPUT}
+            />
+            <input
+              value={form.activity}
+              onChange={(e) => setForm((p) => ({ ...p, activity: e.target.value.slice(0, 120) }))}
+              placeholder="Activity"
+              style={PLAN_INPUT}
+            />
+            <button
+              type="button"
+              onClick={onPropose}
+              disabled={submitting || !form.time_label.trim()}
+              style={{
+                minHeight: 38,
+                border: 'none',
+                borderRadius: 10,
+                background: submitting ? C.cardDeep : C.gradientCTA,
+                color: submitting ? C.muted : C.cream,
+                fontSize: 13,
+                fontWeight: 850,
+                cursor: submitting ? 'default' : 'pointer',
+              }}
+            >
+              {submitting ? 'Saving...' : plan ? 'Suggest different' : 'Send plan'}
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const PLAN_INPUT = {
+  width: '100%',
+  minHeight: 38,
+  boxSizing: 'border-box',
+  border: `1px solid ${C.border}`,
+  borderRadius: 10,
+  background: C.bg,
+  color: C.text,
+  fontSize: 13,
+  outline: 'none',
+  padding: '9px 10px',
+  fontFamily: 'inherit',
+};
+
 // ── Main page ─────────────────────────────────────────────
 export default function SoloChatPage({ match, currentUser, go, goBack, showToast }) {
   const [messages, setMessages] = useState([]);
@@ -96,6 +281,15 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
   const [sending,  setSending]  = useState(false);
   const [loading,  setLoading]  = useState(true);
   const [showEnd,  setShowEnd]  = useState(false);
+  const [plan,     setPlan]     = useState(null);
+  const [planForm, setPlanForm] = useState({
+    day: 'fri',
+    time_label: 'Evening',
+    place: '',
+    activity: '',
+  });
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [planSubmitting, setPlanSubmitting] = useState(false);
   const endRef = useRef(null);
 
   const partner      = match?.partner ?? {};
@@ -129,6 +323,26 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
 
     return () => { cancelled = true; unsub?.(); };
   }, [matchId, scrollToBottom]);
+
+  useEffect(() => {
+    if (!matchId) return undefined;
+    let cancelled = false;
+    const applyPlan = (nextPlan) => {
+      if (!nextPlan || cancelled) return;
+      setPlan(nextPlan);
+      setPlanForm({
+        day: nextPlan.day ?? 'fri',
+        time_label: nextPlan.time_label ?? 'Evening',
+        place: nextPlan.place ?? '',
+        activity: nextPlan.activity ?? '',
+      });
+      if (nextPlan.status === 'confirmed') setShowPlanForm(false);
+    };
+
+    getSoloPlan(matchId).then(applyPlan).catch(() => {});
+    const unsub = subscribeSoloPlan(matchId, applyPlan);
+    return () => { cancelled = true; unsub?.(); };
+  }, [matchId]);
 
   // Send (optimistic update)
   const handleSend = async () => {
@@ -172,6 +386,35 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
       go('home');
     } catch (e) {
       showToast?.(e?.message ?? 'Failed to leave', 'error');
+    }
+  };
+
+  const handleProposePlan = async () => {
+    if (!matchId || planSubmitting) return;
+    setPlanSubmitting(true);
+    try {
+      const nextPlan = await proposeSoloPlan(matchId, planForm);
+      if (nextPlan) setPlan(nextPlan);
+      setShowPlanForm(false);
+      showToast?.('Plan sent', 'success');
+    } catch (e) {
+      showToast?.(e?.message ?? 'Could not send plan', 'error');
+    } finally {
+      setPlanSubmitting(false);
+    }
+  };
+
+  const handleConfirmPlan = async () => {
+    if (!plan?.id || planSubmitting) return;
+    setPlanSubmitting(true);
+    try {
+      const nextPlan = await confirmSoloPlan(plan.id);
+      if (nextPlan) setPlan(nextPlan);
+      showToast?.('Plan confirmed', 'success');
+    } catch (e) {
+      showToast?.(e?.message ?? 'Could not confirm plan', 'error');
+    } finally {
+      setPlanSubmitting(false);
     }
   };
 
@@ -227,6 +470,19 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
           )}
         </div>
       </div>
+
+      <PlanPanel
+        plan={plan}
+        currentUserId={currentUser?.id}
+        partnerName={partnerName}
+        submitting={planSubmitting}
+        form={planForm}
+        setForm={setPlanForm}
+        showForm={showPlanForm}
+        setShowForm={setShowPlanForm}
+        onPropose={handleProposePlan}
+        onConfirm={handleConfirmPlan}
+      />
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column' }}>
