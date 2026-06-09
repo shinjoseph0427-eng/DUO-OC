@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft } from 'lucide-react';
+import { Check, ChevronLeft, Loader, Navigation } from 'lucide-react';
 import { C } from '../tokens';
 import { updateProfile } from '../lib/profile.js';
 import { uploadPhoto } from '../lib/upload.js';
@@ -88,6 +88,9 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
   const [photos,        setPhotos]        = useState([null, null, null]);
   const [uploadingIndex,setUploadingIndex]= useState(null);
   const [photoError,    setPhotoError]    = useState('');
+  const [locState,      setLocState]      = useState('idle');
+  const [lat,           setLat]           = useState(null);
+  const [lng,           setLng]           = useState(null);
 
   const name      = useField('');
   const age       = useField('');
@@ -100,6 +103,9 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
     name.set(profile.name ?? '');
     age.set(profile.birth_year ? String(new Date().getFullYear() - Number(profile.birth_year)) : '');
     city.set(profile.city ?? '');
+    setLat(profile.lat ?? null);
+    setLng(profile.lng ?? null);
+    if (profile.lat != null && profile.lng != null) setLocState('success');
     bio.set(profile.bio ?? '');
     instagram.set(profile.instagram ?? '');
     const stored = profile.photos ?? [];
@@ -145,11 +151,35 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
     name:       name.value.trim(),
     birth_year: new Date().getFullYear() - parseInt(age.value),
     city:       city.value.trim() || null,
+    lat:        lat ?? null,
+    lng:        lng ?? null,
     bio:        bio.value.trim() || null,
     instagram:  instagram.value.trim().replace(/^@/, '') || null,
     photos:     photos.filter(Boolean),
     onboarding_complete: true,
   });
+
+  const handleUpdateLocation = () => {
+    if (!navigator.geolocation) {
+      setLocState('denied');
+      showToast?.('Location is not available in this browser.', 'error');
+      return;
+    }
+
+    setLocState('requesting');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude);
+        setLng(pos.coords.longitude);
+        setLocState('success');
+        showToast?.('Location saved for nearby matches.', 'success');
+      },
+      () => {
+        setLocState('denied');
+        showToast?.('Location access denied. You can still continue with your area.', 'error');
+      },
+    );
+  };
 
   // Step 1 → Step 2
   const handleNextFromStep1 = () => {
@@ -415,6 +445,46 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
                 focused={city.focused}
                 placeholder="e.g. Irvine, Newport Beach"
               />
+
+              <motion.button
+                type="button"
+                onClick={handleUpdateLocation}
+                disabled={locState === 'requesting'}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 38,
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  margin: '-4px 0 20px',
+                  background: C.amberT08,
+                  border: `0.5px solid ${C.amberT22}`,
+                  color: locState === 'success' ? C.success : C.amber,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: locState === 'requesting' ? 'default' : 'pointer',
+                }}
+              >
+                {locState === 'requesting' ? (
+                  <>
+                    <Loader size={13} style={{ animation: 'spin 0.8s linear infinite' }} />
+                    Detecting...
+                  </>
+                ) : locState === 'success' ? (
+                  <>
+                    <Check size={13} strokeWidth={2.5} />
+                    Location saved
+                  </>
+                ) : (
+                  <>
+                    <Navigation size={13} strokeWidth={2} />
+                    Use my location
+                  </>
+                )}
+              </motion.button>
 
               <FieldLabel>Bio <span style={{ color: C.muted, fontWeight: 400 }}>(optional)</span></FieldLabel>
               <TextInput
