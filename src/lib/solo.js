@@ -122,12 +122,18 @@ export async function sendSoloRequest(toUserId) {
   }
 
   // Notify + push the recipient (SECURITY DEFINER RPC creates the row and returns its id).
-  try {
-    const { data: notif } = await supabase.rpc("notify_solo_request", { p_request_id: data.id });
-    const row = Array.isArray(notif) ? notif[0] : notif;
-    if (row?.id) await sendPushForNotification(row.id);
-  } catch (e) {
-    console.warn("notify_solo_request failed:", e?.message);
+  const { data: notif, error: notifyError } = await supabase.rpc("notify_solo_request", {
+    p_request_id: data.id,
+  });
+  if (notifyError) throw notifyError;
+
+  const row = Array.isArray(notif) ? notif[0] : notif;
+  if (row?.id) {
+    try {
+      await sendPushForNotification(row.id);
+    } catch (e) {
+      console.warn("sendPushForNotification failed:", e?.message);
+    }
   }
 
   return data;
@@ -194,12 +200,18 @@ export async function acceptSoloRequest(requestId) {
   if (error) throw error;
 
   // Notify + push the original sender that their request was accepted.
-  try {
-    const { data: notif } = await supabase.rpc("notify_solo_accepted", { p_request_id: requestId });
-    const row = Array.isArray(notif) ? notif[0] : notif;
-    if (row?.id) await sendPushForNotification(row.id);
-  } catch (e) {
-    console.warn("notify_solo_accepted failed:", e?.message);
+  const { data: notif, error: notifyError } = await supabase.rpc("notify_solo_accepted", {
+    p_request_id: requestId,
+  });
+  if (notifyError) throw notifyError;
+
+  const row = Array.isArray(notif) ? notif[0] : notif;
+  if (row?.id) {
+    try {
+      await sendPushForNotification(row.id);
+    } catch (e) {
+      console.warn("sendPushForNotification failed:", e?.message);
+    }
   }
 
   return data; // match_id
