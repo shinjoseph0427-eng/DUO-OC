@@ -107,7 +107,7 @@ export async function updateWeeklyCard(id, fields = {}) {
 /**
  * Overlap matches for a given week (defaults to this week) via the RPC.
  * @param {string} [weekStart]
- * @returns {Promise<Array>} [{ id, username, name, photos, city, lat, lng, overlap_days, overlap_slots, distance_km }]
+ * @returns {Promise<Array>} [{ id, username, name, photos, city, lat, lng, place, vibe, overlap_days, overlap_slots, distance_km }]
  */
 export async function getWeeklyMatches(weekStart) {
   const ws = weekStart ?? currentWeekStart();

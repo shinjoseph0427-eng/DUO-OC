@@ -248,7 +248,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
 
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, display: 'flex', flexDirection: 'column' }}>
-      <TopBar showBack onBack={goBack ?? (() => go('solo_explore'))} onLogoClick={() => go('home')} />
+      <TopBar showBack onBack={goBack ?? (() => go('weekly_explore'))} onLogoClick={() => go('home')} />
 
       <div style={{ flex: 1, padding: '12px 16px 100px', overflowY: 'auto' }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: C.white, margin: '4px 0 14px' }}>

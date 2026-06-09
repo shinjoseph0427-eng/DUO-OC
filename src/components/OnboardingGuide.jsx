@@ -3,7 +3,13 @@ import { C } from '../tokens.js';
 
 // Maps each guide step to the BottomNav tab it points at — used by App.jsx to
 // pulse the matching tab while the sheet is open.
-export const STEP_TABS = { 1: 'home', 2: 'explore', 3: 'me', 4: 'hangouts', 5: 'chat' };
+export const STEP_TABS = {
+  1: 'home',
+  2: 'weekly_explore',
+  3: 'weekly_card',
+  4: 'solo_inbox',
+  5: 'me',
+};
 
 const TOTAL_STEPS = 5;
 
@@ -13,12 +19,12 @@ const STEP_COPY = {
   1: {
     title: 'Welcome to WEEKLY!',
     body:  'This is your home. Set your week, see requests, and reopen chats from here.',
-    cta:   'Set my week →',
+    cta:   'Explore this week →',
   },
   2: {
     title: 'Find people whose week overlaps',
     body:  'Pick when you are free, then browse people who share at least one day and time with you.',
-    cta:   'Explore this week →',
+    cta:   'Set my week →',
   },
   3: {
     title: 'Send a request',
@@ -45,8 +51,8 @@ export default function OnboardingGuide({ currentStep, navigate, advanceStep, sk
   // skipped safely once the user enters the new weekly path.
   const handleCta = () => {
     switch (currentStep) {
-      case 1: advanceStep(); navigate('weekly_card'); break;
-      case 2: skipAll(); navigate('weekly_explore'); break;
+      case 1: advanceStep(); navigate('weekly_explore'); break;
+      case 2: advanceStep(); navigate('weekly_card'); break;
       case 3: advanceStep(); navigate('solo_inbox'); break;
       case 4: advanceStep(); navigate('solo_inbox'); break;
       case 5: skipAll(); break;

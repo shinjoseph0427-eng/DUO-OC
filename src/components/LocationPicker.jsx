@@ -66,14 +66,14 @@ export default function LocationPicker({ activity, value, onChange }) {
     let cancelled = false;
     setStatus('loading');
 
-    const useFallback = () => {
+    const applyFallback = () => {
       if (cancelled) return;
       setResults(OC_FALLBACK);
       setStatus('fallback');
     };
 
     if (!navigator.geolocation) {
-      useFallback();
+      applyFallback();
       return () => { cancelled = true; };
     }
 
@@ -88,16 +88,16 @@ export default function LocationPicker({ activity, value, onChange }) {
           const data = await r.json();
           if (cancelled) return;
           if (data.fallback || !Array.isArray(data.results) || data.results.length === 0) {
-            useFallback();
+            applyFallback();
           } else {
             setResults(data.results);
             setStatus('ready');
           }
         } catch {
-          useFallback();
+          applyFallback();
         }
       },
-      () => useFallback(),
+      () => applyFallback(),
       { timeout: 8000 },
     );
 

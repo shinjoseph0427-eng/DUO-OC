@@ -1,19 +1,7 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import BottomNav from './components/BottomNav.jsx';
 import Toast from './components/Toast.jsx';
-import HomePage from './pages/HomePage.jsx';
-import LandingPage from './pages/LandingPage.jsx';
-import OnboardingFlow from './pages/OnboardingFlow.jsx';
-import AuthPage from './pages/AuthPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
-import MePage from './pages/MePage.jsx';
-import EditProfile from './pages/EditProfile.jsx';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
-import WeeklyCardPage from './pages/WeeklyCardPage.jsx';
-import WeeklyExplorePage from './pages/WeeklyExplorePage.jsx';
-import SoloExplorePage from './pages/SoloExplorePage.jsx';
-import SoloInboxPage from './pages/SoloInboxPage.jsx';
-import SoloChatPage from './pages/SoloChatPage.jsx';
 import OnboardingGuide, { STEP_TABS } from './components/OnboardingGuide.jsx';
 import { signOut } from './lib/auth.js';
 import { getMyProfile, isProfileOnboardingComplete, saveFcmToken } from './lib/profile.js';
@@ -23,12 +11,24 @@ import { getMyReceivedSoloRequests } from './lib/solo.js';
 import { getNotifications, subscribeNotifications } from './lib/notifications.js';
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
+const HomePage = lazy(() => import('./pages/HomePage.jsx'));
+const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
+const OnboardingFlow = lazy(() => import('./pages/OnboardingFlow.jsx'));
+const AuthPage = lazy(() => import('./pages/AuthPage.jsx'));
+const MePage = lazy(() => import('./pages/MePage.jsx'));
+const EditProfile = lazy(() => import('./pages/EditProfile.jsx'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage.jsx'));
+const WeeklyCardPage = lazy(() => import('./pages/WeeklyCardPage.jsx'));
+const WeeklyExplorePage = lazy(() => import('./pages/WeeklyExplorePage.jsx'));
+const SoloInboxPage = lazy(() => import('./pages/SoloInboxPage.jsx'));
+const SoloChatPage = lazy(() => import('./pages/SoloChatPage.jsx'));
+
 const PAGES = [
   'landing', 'auth', 'login', 'onboarding', 'home',
   'me', 'edit_profile',
   'privacy',
   'weekly_card', 'weekly_explore',
-  'solo_explore', 'solo_inbox', 'solo_chat',
+  'solo_inbox', 'solo_chat',
 ];
 
 const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy'];
@@ -39,7 +39,7 @@ const ONBOARDED_PAGES = [
   'home',
   'me', 'edit_profile',
   'weekly_card', 'weekly_explore',
-  'solo_explore', 'solo_inbox', 'solo_chat',
+  'solo_inbox', 'solo_chat',
 ];
 
 export default function App() {
@@ -236,6 +236,7 @@ export default function App() {
 
   return (
     <div className="app-content" style={{ paddingBottom: !isAuthPage && currentUser ? 64 : 0 }}>
+      <Suspense fallback={<div className="app-loading" />}>
       <div key={page} className="page-enter">
         {page === 'landing'     && <LandingPage go={go} />}
         {page === 'auth'        && <AuthPage initialMode="signup" go={go} onLogin={setCurrentUser} showToast={showToast} />}
@@ -247,13 +248,13 @@ export default function App() {
         {page === 'privacy'          && <PrivacyPolicyPage go={go} goBack={goBack} />}
         {page === 'weekly_card'      && <WeeklyCardPage currentUser={currentUser} go={go} showToast={showToast} />}
         {page === 'weekly_explore'   && <WeeklyExplorePage currentUser={currentUser} go={go} showToast={showToast} />}
-        {page === 'solo_explore'     && <SoloExplorePage currentUser={currentUser} profile={profile} go={go} showToast={showToast} />}
         {page === 'solo_inbox'       && <SoloInboxPage currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />}
         {page === 'solo_chat'        && (selectedChat
           ? <SoloChatPage match={selectedChat} currentUser={currentUser} go={go} goBack={goBack} showToast={showToast} />
           : fallback('Chat not found', 'home'))}
         {!PAGES.includes(page)      && <HomePage go={go} onLogout={handleLogout} currentUser={currentUser} profile={profile} showToast={showToast} />}
       </div>
+      </Suspense>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
       {!isAuthPage && currentUser && onboardingComplete && guide.isActive && (
         <OnboardingGuide
