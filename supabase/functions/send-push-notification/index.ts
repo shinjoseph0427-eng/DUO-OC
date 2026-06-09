@@ -28,6 +28,9 @@ const SUPPORTED_TYPES = new Set([
   "solo_accepted",
   "plan_proposed",
   "plan_confirmed",
+  "plan_guest_invited",
+  "plan_guest_accepted",
+  "plan_guest_declined",
 ]);
 
 const PUSH_TITLES: Record<string, string> = {
@@ -41,6 +44,9 @@ const PUSH_TITLES: Record<string, string> = {
   solo_accepted: "It's a match! 🎉",
   plan_proposed: "New plan suggestion",
   plan_confirmed: "Plan confirmed",
+  plan_guest_invited: "You're invited as a +1",
+  plan_guest_accepted: "Your +1 is coming",
+  plan_guest_declined: "Your +1 declined",
 };
 
 const PUSH_BODIES: Record<string, string> = {
@@ -54,6 +60,9 @@ const PUSH_BODIES: Record<string, string> = {
   solo_accepted: "Your 1:1 request was accepted.",
   plan_proposed: "Someone suggested a plan for this week.",
   plan_confirmed: "Your plan is confirmed.",
+  plan_guest_invited: "A friend invited you to join this week's plan.",
+  plan_guest_accepted: "Your friend accepted the +1 invite.",
+  plan_guest_declined: "Your friend declined the +1 invite.",
 };
 
 // Builds a friendlier body using the notification payload when available.
@@ -91,6 +100,14 @@ function buildPushBody(
   const place =
     typeof payload.place === "string" && payload.place.trim()
       ? payload.place.trim()
+      : null;
+  const inviterName =
+    typeof payload.inviter_name === "string" && payload.inviter_name.trim()
+      ? payload.inviter_name.trim()
+      : null;
+  const guestName =
+    typeof payload.guest_name === "string" && payload.guest_name.trim()
+      ? payload.guest_name.trim()
       : null;
 
   switch (type) {
@@ -130,6 +147,18 @@ function buildPushBody(
       return partnerName
         ? `${partnerName} confirmed your plan.`
         : PUSH_BODIES.plan_confirmed;
+    case "plan_guest_invited":
+      return inviterName
+        ? `${inviterName} invited you as their +1.`
+        : PUSH_BODIES.plan_guest_invited;
+    case "plan_guest_accepted":
+      return guestName
+        ? `${guestName} is coming as your +1.`
+        : PUSH_BODIES.plan_guest_accepted;
+    case "plan_guest_declined":
+      return guestName
+        ? `${guestName} can't make it as your +1.`
+        : PUSH_BODIES.plan_guest_declined;
     default:
       return PUSH_BODIES[type] ?? "You have a new notification.";
   }

@@ -14,6 +14,9 @@ const TYPE_META = {
   solo_accepted:     { label: (p) => `${p.partner_name ?? 'Someone'} accepted your 1:1 request.`, page: 'solo_inbox' },
   plan_proposed:     { label: (p) => `${p.sender_name ?? 'Someone'} suggested a plan: ${[p.day, p.time_label, p.place].filter(Boolean).join(' · ')}`, page: 'solo_inbox' },
   plan_confirmed:    { label: (p) => `${p.partner_name ?? 'Someone'} confirmed your plan.`, page: 'solo_inbox' },
+  plan_guest_invited:  { label: (p) => `${p.inviter_name ?? 'Someone'} invited you as their +1.`, page: 'solo_inbox' },
+  plan_guest_accepted: { label: (p) => `${p.guest_name ?? 'Your friend'} is coming as your +1.`, page: 'solo_inbox' },
+  plan_guest_declined: { label: (p) => `${p.guest_name ?? 'Your friend'} can't make it as your +1.`, page: 'solo_inbox' },
 };
 
 function timeAgo(isoString) {

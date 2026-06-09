@@ -18,6 +18,19 @@ const PLAN_FIELDS = `
   updated_at
 `.trim();
 
+const GUEST_FIELDS = `
+  id,
+  plan_id,
+  invited_by,
+  guest_user_id,
+  status,
+  created_at,
+  updated_at,
+  responded_at,
+  guest:profiles!solo_plan_guests_guest_user_id_fkey(id, username, name, photos, city),
+  inviter:profiles!solo_plan_guests_invited_by_fkey(id, username, name, photos, city)
+`.trim();
+
 export const PLAN_DAYS = [
   { value: "mon", label: "Mon" },
   { value: "tue", label: "Tue" },
@@ -133,4 +146,81 @@ export async function getSoloPlanById(planId) {
 
   if (error) throw error;
   return data ?? null;
+}
+
+export async function getSoloPlanGuests(planId) {
+  if (!planId) return [];
+
+  const { data, error } = await supabase
+    .from("solo_plan_guests")
+    .select(GUEST_FIELDS)
+    .eq("plan_id", planId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return [];
+    throw error;
+  }
+  return data ?? [];
+}
+
+export async function searchSoloPlanGuestCandidates(planId, query) {
+  const trimmed = query?.trim() ?? "";
+  if (!planId || trimmed.length < 2) return [];
+
+  const { data, error } = await supabase.rpc("search_solo_plan_guest_candidates", {
+    p_plan_id: planId,
+    p_query: trimmed.replace(/^@/, ""),
+  });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function inviteSoloPlanGuest(planId, guestUserId) {
+  const { data, error } = await supabase.rpc("invite_solo_plan_guest", {
+    p_plan_id: planId,
+    p_guest_user_id: guestUserId,
+  });
+
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] ?? null : data;
+  if (result?.notification_id) {
+    await sendPushForNotification(result.notification_id);
+  }
+  return result?.invite_id ?? null;
+}
+
+export async function respondSoloPlanGuest(inviteId, accept) {
+  const { data, error } = await supabase.rpc("respond_solo_plan_guest", {
+    p_invite_id: inviteId,
+    p_accept: accept,
+  });
+
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] ?? null : data;
+  if (result?.notification_id) {
+    await sendPushForNotification(result.notification_id);
+  }
+  return result?.invite_id ?? null;
+}
+
+export function subscribeSoloPlanGuests(planId, onChange) {
+  if (!planId) return () => {};
+
+  const channel = supabase
+    .channel(`solo_plan_guests:${planId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "solo_plan_guests",
+        filter: `plan_id=eq.${planId}`,
+      },
+      () => onChange()
+    )
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
 }

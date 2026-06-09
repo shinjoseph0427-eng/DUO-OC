@@ -16,9 +16,14 @@ import {
   PLAN_TIME_PRESETS,
   confirmSoloPlan,
   describePlan,
+  getSoloPlanGuests,
   getSoloPlan,
+  inviteSoloPlanGuest,
   proposeSoloPlan,
+  respondSoloPlanGuest,
+  searchSoloPlanGuestCandidates,
   subscribeSoloPlan,
+  subscribeSoloPlanGuests,
 } from '../lib/soloPlans.js';
 import { endSoloMatch } from '../lib/solo.js';
 import TopBar from '../components/TopBar.jsx';
@@ -100,19 +105,29 @@ function Bubble({ msg, isMine, partnerPhoto, partnerName, showAvatar }) {
 
 function PlanPanel({
   plan,
+  guests,
   currentUserId,
   partnerName,
   submitting,
+  guestSubmitting,
   form,
   setForm,
   showForm,
   setShowForm,
+  guestQuery,
+  setGuestQuery,
+  guestResults,
+  onInviteGuest,
+  onRespondGuest,
   onPropose,
   onConfirm,
 }) {
   const isConfirmed = plan?.status === 'confirmed';
   const proposedByMe = plan?.proposed_by === currentUserId;
   const needsMyConfirm = plan?.status === 'proposed' && !proposedByMe;
+  const myGuest = guests.find((g) => g.invited_by === currentUserId);
+  const myGuestInvite = guests.find((g) => g.guest_user_id === currentUserId);
+  const othersGuests = guests.filter((g) => g.invited_by !== currentUserId && g.guest_user_id !== currentUserId);
 
   return (
     <section
@@ -255,6 +270,105 @@ function PlanPanel({
             </button>
           </div>
         )}
+
+        {plan && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+            <p style={{ margin: '0 0 8px', color: C.white, fontSize: 13, fontWeight: 850 }}>
+              Bring a friend
+            </p>
+
+            {myGuestInvite && (
+              <div style={{ ...GUEST_ROW, background: C.amberT08, borderColor: C.brownBorder }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={GUEST_TITLE}>
+                    {myGuestInvite.inviter?.name || myGuestInvite.inviter?.username || 'Someone'} invited you
+                  </p>
+                  <p style={GUEST_SUB}>Optional +1 · plan stays on either way</p>
+                </div>
+                {myGuestInvite.status === 'pending' ? (
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button type="button" onClick={() => onRespondGuest(myGuestInvite, false)} disabled={guestSubmitting} style={GUEST_SMALL_BTN}>
+                      No
+                    </button>
+                    <button type="button" onClick={() => onRespondGuest(myGuestInvite, true)} disabled={guestSubmitting} style={{ ...GUEST_SMALL_BTN, background: C.gradientCTA, color: C.cream, border: 'none' }}>
+                      Yes
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ ...GUEST_STATUS, color: myGuestInvite.status === 'accepted' ? C.success : C.muted }}>
+                    {myGuestInvite.status}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {myGuest ? (
+              <div style={GUEST_ROW}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={GUEST_TITLE}>
+                    {myGuest.guest?.name || myGuest.guest?.username || 'Friend'}
+                  </p>
+                  <p style={GUEST_SUB}>Your +1</p>
+                </div>
+                <span style={{ ...GUEST_STATUS, color: myGuest.status === 'accepted' ? C.success : myGuest.status === 'declined' ? C.danger : C.amber }}>
+                  {myGuest.status}
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <input
+                  value={guestQuery}
+                  onChange={(e) => setGuestQuery(e.target.value)}
+                  placeholder="@username or name"
+                  style={PLAN_INPUT}
+                />
+                {guestQuery.trim().length >= 2 && (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {guestResults.length > 0 ? guestResults.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => onInviteGuest(user)}
+                        disabled={guestSubmitting}
+                        style={GUEST_PICK_BTN}
+                      >
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {user.name || user.username || 'Someone'}
+                          {user.username ? ` · @${user.username}` : ''}
+                        </span>
+                        <span style={{ color: C.amber, fontWeight: 850 }}>Invite</span>
+                      </button>
+                    )) : (
+                      <p style={{ margin: 0, color: C.muted, fontSize: 12 }}>
+                        No matching profiles.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {othersGuests.length > 0 && (
+              <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                {othersGuests.map((guest) => (
+                  <div key={guest.id} style={GUEST_ROW}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={GUEST_TITLE}>
+                        {guest.guest?.name || guest.guest?.username || 'Friend'}
+                      </p>
+                      <p style={GUEST_SUB}>
+                        {guest.inviter?.name || guest.inviter?.username || 'Their'} +1
+                      </p>
+                    </div>
+                    <span style={{ ...GUEST_STATUS, color: guest.status === 'accepted' ? C.success : guest.status === 'declined' ? C.danger : C.amber }}>
+                      {guest.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -274,6 +388,69 @@ const PLAN_INPUT = {
   fontFamily: 'inherit',
 };
 
+const GUEST_ROW = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 10,
+  border: `1px solid ${C.border}`,
+  borderRadius: 10,
+  padding: '9px 10px',
+  background: C.bg,
+};
+
+const GUEST_TITLE = {
+  margin: 0,
+  color: C.white,
+  fontSize: 13,
+  fontWeight: 800,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const GUEST_SUB = {
+  margin: '2px 0 0',
+  color: C.muted,
+  fontSize: 11,
+};
+
+const GUEST_STATUS = {
+  fontSize: 12,
+  fontWeight: 850,
+  textTransform: 'capitalize',
+  flexShrink: 0,
+};
+
+const GUEST_SMALL_BTN = {
+  minWidth: 42,
+  minHeight: 30,
+  borderRadius: 9,
+  border: `1px solid ${C.border}`,
+  background: C.bg,
+  color: C.white,
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: 'pointer',
+};
+
+const GUEST_PICK_BTN = {
+  width: '100%',
+  minHeight: 36,
+  border: `1px solid ${C.border}`,
+  borderRadius: 10,
+  background: C.bg,
+  color: C.white,
+  fontSize: 12,
+  fontWeight: 750,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  padding: '8px 10px',
+  cursor: 'pointer',
+};
+
 // ── Main page ─────────────────────────────────────────────
 export default function SoloChatPage({ match, currentUser, go, goBack, showToast }) {
   const [messages, setMessages] = useState([]);
@@ -282,6 +459,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
   const [loading,  setLoading]  = useState(true);
   const [showEnd,  setShowEnd]  = useState(false);
   const [plan,     setPlan]     = useState(null);
+  const [planGuests, setPlanGuests] = useState([]);
   const [planForm, setPlanForm] = useState({
     day: 'fri',
     time_label: 'Evening',
@@ -290,6 +468,9 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
   });
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [planSubmitting, setPlanSubmitting] = useState(false);
+  const [guestQuery, setGuestQuery] = useState('');
+  const [guestResults, setGuestResults] = useState([]);
+  const [guestSubmitting, setGuestSubmitting] = useState(false);
   const endRef = useRef(null);
 
   const partner      = match?.partner ?? {};
@@ -343,6 +524,51 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
     const unsub = subscribeSoloPlan(matchId, applyPlan);
     return () => { cancelled = true; unsub?.(); };
   }, [matchId]);
+
+  const reloadGuests = useCallback((planId) => {
+    if (!planId) {
+      setPlanGuests([]);
+      return Promise.resolve([]);
+    }
+    return getSoloPlanGuests(planId)
+      .then((rows) => {
+        setPlanGuests(rows);
+        return rows;
+      })
+      .catch(() => []);
+  }, []);
+
+  useEffect(() => {
+    reloadGuests(plan?.id);
+  }, [plan?.id, reloadGuests]);
+
+  useEffect(() => {
+    if (!plan?.id) return undefined;
+    return subscribeSoloPlanGuests(plan.id, () => reloadGuests(plan.id));
+  }, [plan?.id, reloadGuests]);
+
+  useEffect(() => {
+    if (!plan?.id || guestQuery.trim().length < 2) {
+      setGuestResults([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const t = setTimeout(() => {
+      searchSoloPlanGuestCandidates(plan.id, guestQuery)
+        .then((rows) => {
+          if (!cancelled) setGuestResults(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setGuestResults([]);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [plan?.id, guestQuery]);
 
   // Send (optimistic update)
   const handleSend = async () => {
@@ -418,6 +644,36 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
     }
   };
 
+  const handleInviteGuest = async (user) => {
+    if (!plan?.id || !user?.id || guestSubmitting) return;
+    setGuestSubmitting(true);
+    try {
+      await inviteSoloPlanGuest(plan.id, user.id);
+      setGuestQuery('');
+      setGuestResults([]);
+      await reloadGuests(plan.id);
+      showToast?.('Friend invited', 'success');
+    } catch (e) {
+      showToast?.(e?.message ?? 'Could not invite friend', 'error');
+    } finally {
+      setGuestSubmitting(false);
+    }
+  };
+
+  const handleRespondGuest = async (invite, accept) => {
+    if (!invite?.id || guestSubmitting) return;
+    setGuestSubmitting(true);
+    try {
+      await respondSoloPlanGuest(invite.id, accept);
+      await reloadGuests(invite.plan_id);
+      showToast?.(accept ? 'You joined as +1' : 'Invite declined', 'success');
+    } catch (e) {
+      showToast?.(e?.message ?? 'Could not update invite', 'error');
+    } finally {
+      setGuestSubmitting(false);
+    }
+  };
+
   // No matchId → error screen
   if (!matchId) {
     return (
@@ -473,13 +729,20 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
 
       <PlanPanel
         plan={plan}
+        guests={planGuests}
         currentUserId={currentUser?.id}
         partnerName={partnerName}
         submitting={planSubmitting}
+        guestSubmitting={guestSubmitting}
         form={planForm}
         setForm={setPlanForm}
         showForm={showPlanForm}
         setShowForm={setShowPlanForm}
+        guestQuery={guestQuery}
+        setGuestQuery={setGuestQuery}
+        guestResults={guestResults}
+        onInviteGuest={handleInviteGuest}
+        onRespondGuest={handleRespondGuest}
         onPropose={handleProposePlan}
         onConfirm={handleConfirmPlan}
       />
