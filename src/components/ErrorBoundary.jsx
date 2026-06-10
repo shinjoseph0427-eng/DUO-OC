@@ -5,16 +5,34 @@ import { Component } from 'react';
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, info) {
     // Log for debugging; wire up to a crash reporter (Sentry) here later.
     console.error('[DUO OC] Uncaught error:', error, info);
+
+    const message = String(error?.message ?? error ?? '');
+    const isChunkLoadError =
+      error?.name === 'ChunkLoadError' ||
+      /failed to fetch dynamically imported module/i.test(message) ||
+      /importing a module script failed/i.test(message) ||
+      /loading chunk/i.test(message);
+
+    if (!isChunkLoadError) return;
+
+    try {
+      const key = 'duo_oc_chunk_reload_v1';
+      if (sessionStorage.getItem(key) === '1') return;
+      sessionStorage.setItem(key, '1');
+      window.location.reload();
+    } catch {
+      window.location.reload();
+    }
   }
 
   handleReload = () => {
