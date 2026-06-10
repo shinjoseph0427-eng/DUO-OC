@@ -24,7 +24,7 @@ const DAY_ORDER  = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 const OC_IMAGES = [
   '/oc_01.jpg', '/oc_02.jpg', '/oc_03.jpg', '/oc_04.jpg',
-  '/oc_05.jpg', '/oc_06.jpg', '/oc_07.jpg',
+  '/oc_05.jpg', '/oc_06.jpg',
 ];
 
 // Stable index pick from an id (same id → same starting photo, no Math.random).
