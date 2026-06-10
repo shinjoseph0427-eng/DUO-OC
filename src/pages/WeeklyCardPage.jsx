@@ -1,9 +1,8 @@
 // src/pages/WeeklyCardPage.jsx
 // "When are you free this week?" — create/edit your weekly availability card.
 
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { C } from '../tokens';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { getMyWeeklyCard, createWeeklyCard } from '../lib/weeklyCards.js';
 import TopBar from '../components/TopBar.jsx';
 
@@ -19,42 +18,6 @@ const DAYS = [
   { v: 'sun', label: 'Sun' },
 ];
 
-// Orange particle burst from the Save button center.
-function SaveParticles({ buttonRef }) {
-  const rect = buttonRef.current?.getBoundingClientRect();
-  if (!rect) return null;
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-  return (
-    <>
-      {[...Array(8)].map((_, i) => (
-        <motion.div
-          key={i}
-          style={{
-            position: 'fixed',
-            left: centerX,
-            top: centerY,
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: ORANGE,
-            pointerEvents: 'none',
-            zIndex: 9999,
-          }}
-          initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-          animate={{
-            scale: [0, 1.2, 0],
-            x: [0, (i % 2 ? 1 : -1) * (Math.random() * 60 + 20)],
-            y: [0, -(Math.random() * 60 + 20)],
-            opacity: [1, 1, 0],
-          }}
-          transition={{ duration: 0.6, delay: i * 0.05, ease: 'easeOut' }}
-        />
-      ))}
-    </>
-  );
-}
-
 export default function WeeklyCardPage({ currentUser, go, showToast }) {
   const [days,    setDays]    = useState([]);
   // Preserved from the loaded card and saved back unchanged (logic untouched).
@@ -63,8 +26,6 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
   const [vibe,    setVibe]    = useState('');
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
-  const [particles, setParticles] = useState(false);
-  const buttonRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser?.id) { setLoading(false); return; }
@@ -86,11 +47,10 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
     setDays(days.includes(v) ? days.filter((x) => x !== v) : [...days, v]);
 
   const canSave = days.length > 0 && !saving;
+  const selectedLabel = DAYS.filter((d) => days.includes(d.v)).map((d) => d.label).join(' · ');
 
   const handleSave = async () => {
     if (!canSave) return;
-    setParticles(true);
-    setTimeout(() => setParticles(false), 600);
     setSaving(true);
     try {
       await createWeeklyCard({
@@ -108,95 +68,97 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', height: '100dvh', background: C.bg, color: C.white, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100dvh', height: '100dvh', background: '#fafafa', display: 'flex', flexDirection: 'column' }}>
       <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
 
       <div style={{ flex: 1, minHeight: 0, padding: '12px 16px 16px', display: 'flex', flexDirection: 'column' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 900, color: C.white, margin: '4px 0 6px', letterSpacing: '-0.5px' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 500, color: '#1a1a1a', margin: '4px 0 6px' }}>
           This Week
         </h1>
-        <p style={{ fontSize: 14, color: C.muted, margin: '0 0 18px', lineHeight: 1.5 }}>
-          Pick the days you are open. We'll use them to find people whose week overlaps with yours.
+        <p style={{ fontSize: 14, color: '#888', margin: '0 0 18px' }}>
+          Which days are you free?
         </p>
 
         {loading ? (
-          <div className="shimmer" style={{ flex: 1, borderRadius: 16, background: C.cardElevated }} />
+          <div className="shimmer" style={{ flex: 1, borderRadius: 18, background: '#fff' }} />
         ) : (
           // Days row — 7 cards in a row, filling the available height.
-          <div style={{ display: 'flex', flexDirection: 'row', gap: 6, flex: 1, minHeight: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 8, flex: 1, minHeight: 0 }}>
             {DAYS.map((d) => {
               const selected = days.includes(d.v);
               return (
-                <motion.button
+                <button
                   key={d.v}
                   type="button"
                   onClick={() => toggleDay(d.v)}
-                  whileTap={{ scale: 0.96 }}
-                  transition={{ duration: 0.1 }}
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    border: `1.5px solid ${ORANGE}`,
-                    borderRadius: 14,
+                    position: 'relative',
+                    border: `2px solid ${selected ? ORANGE : '#e8e8e8'}`,
+                    borderRadius: 18,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     background: selected ? ORANGE : '#fff',
                     cursor: 'pointer',
                     padding: 0,
+                    transform: selected ? 'scale(1.04)' : 'scale(1)',
+                    boxShadow: selected ? '0 8px 24px rgba(255,140,0,0.35)' : 'none',
+                    transition: 'all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 >
+                  {selected && (
+                    <span style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: '#fff',
+                    }} />
+                  )}
                   <span style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: selected ? '#fff' : ORANGE,
+                    fontSize: selected ? 15 : 14,
+                    fontWeight: 600,
+                    color: selected ? '#fff' : '#bbb',
                     textAlign: 'center',
                   }}>
                     {d.label}
                   </span>
-                </motion.button>
+                </button>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* Save */}
+      {/* Bottom — selected days + Save */}
       {!loading && (
-        <div style={{
-          padding: '12px 16px calc(12px + env(safe-area-inset-bottom))',
-          borderTop: `1px solid ${C.border}`, background: C.bg, flexShrink: 0,
-        }}>
+        <div style={{ padding: '10px 16px calc(16px + env(safe-area-inset-bottom))', background: '#fafafa', flexShrink: 0 }}>
+          <p style={{ fontSize: 12, color: ORANGE, fontWeight: 500, textAlign: 'center', margin: '0 0 10px', minHeight: 16 }}>
+            {selectedLabel}
+          </p>
           <motion.button
-            ref={buttonRef}
             type="button"
             onClick={handleSave}
             disabled={!canSave}
             whileTap={canSave ? { scale: 0.97 } : {}}
             transition={{ duration: 0.1 }}
             style={{
-              width: '100%', padding: '18px 0', borderRadius: 30, border: 'none',
-              background: canSave ? ORANGE : '#D1D5DB',
-              color: '#fff',
-              fontSize: 16, fontWeight: 800,
+              width: '100%', padding: '18px 0', borderRadius: 32, border: 'none',
+              background: canSave ? ORANGE : '#e8e8e8',
+              color: canSave ? '#fff' : '#bbb',
+              fontSize: 16, fontWeight: 600,
               cursor: canSave ? 'pointer' : 'default',
-              boxShadow: canSave ? '0 10px 26px rgba(255,140,0,0.3)' : 'none',
             }}
           >
             {saving ? 'Saving…' : 'Save My Week'}
           </motion.button>
-          {days.length === 0 && (
-            <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>
-              Pick at least one day to set your week
-            </p>
-          )}
         </div>
       )}
-
-      {/* Particle burst overlay */}
-      <AnimatePresence>
-        {particles && <SaveParticles buttonRef={buttonRef} />}
-      </AnimatePresence>
     </div>
   );
 }
