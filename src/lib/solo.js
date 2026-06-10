@@ -252,12 +252,22 @@ export async function getMySoloMatches() {
 
   if (error) throw error;
 
-  return (data || []).map((m) => ({
+  const mapped = (data || []).map((m) => ({
     matchId: m.id,
     status: m.status,
     matchedAt: m.matched_at,
     partner: m.user_a_profile?.id === myId ? m.user_b_profile : m.user_a_profile,
   }));
+
+  // Dedup by matchId — a row should never repeat, but guard the UI against any
+  // query-level duplication so the same chat can't render twice.
+  const byId = new Map();
+  for (const m of mapped) {
+    if (!byId.has(m.matchId)) byId.set(m.matchId, m);
+  }
+  const deduped = [...byId.values()];
+
+  return deduped;
 }
 
 export async function getSoloMatch(matchId) {

@@ -213,6 +213,9 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
       .finally(() => setLoading(false));
   }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety net: never render the same chat twice even if the source array repeats.
+  const uniqueMatches = [...new Map(matches.map((m) => [m.matchId, m])).values()];
+
   const openMatch = (match) => {
     go('solo_chat', null, null, { matchId: match.matchId, partner: match.partner });
   };
@@ -266,10 +269,10 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
 
         {!loading && (
           <>
-            <SectionHeader title="Active Chats" count={matches.length} />
-            {matches.length > 0 ? (
+            <SectionHeader title="Active Chats" count={uniqueMatches.length} />
+            {uniqueMatches.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {matches.map(match => (
+                {uniqueMatches.map(match => (
                   <MatchCard
                     key={match.matchId}
                     match={match}
@@ -306,7 +309,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
         )}
 
         {/* Empty state */}
-        {!loading && requests.length === 0 && matches.length === 0 && (
+        {!loading && requests.length === 0 && uniqueMatches.length === 0 && (
           <EmptyState
             icon={Inbox}
             title="No requests yet"
@@ -316,7 +319,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
             style={{ marginTop: 14 }}
           />
         )}
-        {!loading && requests.length === 0 && matches.length > 0 && (
+        {!loading && requests.length === 0 && uniqueMatches.length > 0 && (
           <p style={{ fontSize: 13, color: C.muted, margin: '0 2px' }}>
             No requests waiting.
           </p>
