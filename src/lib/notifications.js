@@ -41,8 +41,13 @@ export async function markAllAsRead(userId) {
 export function subscribeNotifications(userId, currentUserId, callback) {
   if (!userId || userId !== currentUserId) return () => {}
 
+  const channelId =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}:${Math.random().toString(36).slice(2)}`
+
   const channel = supabase
-    .channel(`notif:${userId}`)
+    .channel(`notif:${userId}:${channelId}`)
     .on(
       'postgres_changes',
       {
