@@ -6,11 +6,14 @@ import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { Calendar, Heart, MapPin, X } from 'lucide-react';
 import { getMyWeeklyCard, getWeeklyMatches } from '../lib/weeklyCards.js';
 import { sendSoloRequest } from '../lib/solo.js';
+import { supabase } from '../lib/supabaseClient.js';
 
 // ── tokens ──────────────────────────────────────────────────
 const ORANGE = '#FF8C00';
 const PAGE_BG = '#fafafa';
 const SWIPE_THRESHOLD = 90;
+const BROWSE_PAGE_SIZE = 20;   // signed-out browse page size
+const PREFETCH_AT = 5;         // prefetch the next page when this many cards remain
 
 const DAY_ORDER  = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
@@ -18,6 +21,23 @@ const DAY_LABELS = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri',
 // oc_07.jpg was removed from the project, so this stack uses the 6 available
 // photos (stable per user via charCode sum).
 const OC_IMAGES = ['/oc_01.jpg', '/oc_02.jpg', '/oc_03.jpg', '/oc_04.jpg', '/oc_05.jpg', '/oc_06.jpg'];
+
+// Adapts a browse_weekly_profiles() row (signed-out feed) into the match shape
+// the card + overlap components already expect. No distance/overlap_days are
+// available pre-login, so the overlap bar will show only the other user's days.
+function adaptBrowseRow(row) {
+  return {
+    id:       row.user_id,
+    user_id:  row.user_id,
+    name:     row.name,
+    age:      row.age,
+    city:     row.city,
+    bio:      row.bio,
+    photos:   row.photos,
+    days:     row.days,
+    vibe:     row.vibe,
+  };
+}
 
 // ── helpers ─────────────────────────────────────────────────
 function asList(value) {
@@ -265,19 +285,44 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
 
   const lock = useRef(false);
 
+  // Signed-out browse pagination state.
+  const browseOffset = useRef(0);
+  const browseExhausted = useRef(false);
+  const browseLoadingMore = useRef(false);
+
+  // Fetch one page of the public browse feed; advances the offset cursor.
+  const fetchBrowsePage = useCallback(async (offset) => {
+    const { data, error } = await supabase.rpc('browse_weekly_profiles', {
+      p_limit: BROWSE_PAGE_SIZE,
+      p_offset: offset,
+    });
+    if (error) throw error;
+    const rows = (data ?? []).map(adaptBrowseRow);
+    browseOffset.current = offset + rows.length;
+    if (rows.length < BROWSE_PAGE_SIZE) browseExhausted.current = true;
+    return rows;
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
-    let card = null;
-    if (currentUser) {
-      card = await getMyWeeklyCard().catch(() => null);
+
+    // Signed-out: browse real public weekly cards via the anon RPC.
+    if (!currentUser) {
+      setMyCard(null);
+      browseOffset.current = 0;
+      browseExhausted.current = false;
+      const rows = await fetchBrowsePage(0).catch(() => []);
+      setMatches(rows);
+      setIndex(0);
+      x.set(0);
+      setLoading(false);
+      return;
     }
+
+    const card = await getMyWeeklyCard().catch(() => null);
     setMyCard(card);
 
-    let list = [];
-    if (currentUser) {
-      list = await getWeeklyMatches().catch(() => []);
-    }
-
+    const list = await getWeeklyMatches().catch(() => []);
     const myDaySet = new Set(asList(card?.days).map(normDay));
     const sorted = [...list].sort((a, b) => {
       const ov = overlapScore(b, myDaySet) - overlapScore(a, myDaySet);
@@ -291,11 +336,31 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
     setIndex(0);
     x.set(0);
     setLoading(false);
-  }, [currentUser, x]);
+  }, [currentUser, x, fetchBrowsePage]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Signed-out: prefetch the next browse page as the user nears the end.
+  const prefetchMore = useCallback(async () => {
+    if (currentUser || browseLoadingMore.current || browseExhausted.current) return;
+    browseLoadingMore.current = true;
+    try {
+      const rows = await fetchBrowsePage(browseOffset.current);
+      if (rows.length) setMatches((prev) => [...prev, ...rows]);
+    } catch {
+      /* ignore — keep showing what we have */
+    } finally {
+      browseLoadingMore.current = false;
+    }
+  }, [currentUser, fetchBrowsePage]);
+
+  useEffect(() => {
+    if (!currentUser && !loading && matches.length - index <= PREFETCH_AT) {
+      prefetchMore();
+    }
+  }, [currentUser, loading, matches.length, index, prefetchMore]);
 
   const myDaySet = useMemo(() => new Set(asList(myCard?.days).map(normDay)), [myCard]);
   const current = matches[index] ?? null;
@@ -412,12 +477,34 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
             }}>
               <Calendar size={28} color={ORANGE} strokeWidth={2} />
             </div>
-            <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111' }}>
-              You've seen everyone this week
-            </p>
-            <p style={{ margin: '8px 0 0', fontSize: 14, color: '#999' }}>
-              Check back next week
-            </p>
+            {currentUser ? (
+              <>
+                <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111' }}>
+                  You've seen everyone this week
+                </p>
+                <p style={{ margin: '8px 0 0', fontSize: 14, color: '#999' }}>
+                  Check back next week
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111' }}>
+                  Sign up to see more people this week
+                </p>
+                <button
+                  type="button"
+                  onClick={() => go('auth')}
+                  style={{
+                    marginTop: 18, height: 48, padding: '0 28px', borderRadius: 24,
+                    background: ORANGE, color: '#fff', border: 'none',
+                    fontSize: 15, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 6px 18px rgba(255,140,0,0.4)',
+                  }}
+                >
+                  Join Weekly
+                </button>
+              </>
+            )}
           </div>
         )}
 
