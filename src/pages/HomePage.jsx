@@ -27,12 +27,48 @@ const OC_IMAGES = [
   '/oc_05.jpg', '/oc_06.jpg', '/oc_07.jpg',
 ];
 
-// Stable image pick from an id (same id → same photo, no Math.random).
-function ocImageFor(id = '') {
+// Stable index pick from an id (same id → same starting photo, no Math.random).
+function ocIndexFor(id = '') {
   const s = String(id);
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return OC_IMAGES[h % OC_IMAGES.length];
+  return h % OC_IMAGES.length;
+}
+
+function ocImageFor(id = '') {
+  return OC_IMAGES[ocIndexFor(id)];
+}
+
+// Crossfading slideshow of OC location photos. Starts on the id's stable pick,
+// then fades to the next photo every few seconds. Layers sit behind the card's
+// gradient overlay (DOM order = stacking order, all absolutely positioned).
+function LocationBackdrop({ seedId, interval = 4500, fade = 1100 }) {
+  const [idx, setIdx] = useState(() => ocIndexFor(seedId));
+  useEffect(() => {
+    const t = setInterval(
+      () => setIdx((i) => (i + 1) % OC_IMAGES.length),
+      interval,
+    );
+    return () => clearInterval(t);
+  }, [interval]);
+
+  return (
+    <>
+      {OC_IMAGES.map((src, i) => (
+        <div
+          key={src}
+          aria-hidden="true"
+          style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${src})`,
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: i === idx ? 1 : 0,
+            transition: `opacity ${fade}ms ease-in-out`,
+          }}
+        />
+      ))}
+    </>
+  );
 }
 
 function greetingWord() {
@@ -143,11 +179,11 @@ export default function HomePage({ go, currentUser, profile, showToast }) {
           )}
         </motion.div>
 
-        {/* ── Confirmed plan ───────────────────────────────── */}
-        {plan && (
+        {/* ── Plan card (always shown — invites first-timers when empty) ── */}
+        {!loading && (
           <motion.button
             type="button"
-            onClick={() => openChat(plan.match)}
+            onClick={() => (plan ? openChat(plan.match) : go(hasCard ? 'weekly_explore' : 'weekly_card'))}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.24 }}
@@ -155,10 +191,10 @@ export default function HomePage({ go, currentUser, profile, showToast }) {
               display: 'block', width: `calc(100% - 40px)`, margin: '0 20px 22px',
               height: 110, borderRadius: 20, overflow: 'hidden', position: 'relative',
               border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
-              backgroundImage: `url(${ocImageFor(plan.plan.match_id)})`,
-              backgroundSize: 'cover', backgroundPosition: 'center',
+              background: '#000',
             }}
           >
+            <LocationBackdrop seedId={plan ? plan.plan.match_id : (currentUser?.id ?? 'guest')} />
             <div style={{
               position: 'absolute', inset: 0,
               background: 'linear-gradient(to right, rgba(0,0,0,0.65), rgba(0,0,0,0.2))',
@@ -168,16 +204,20 @@ export default function HomePage({ go, currentUser, profile, showToast }) {
               background: ORANGE, color: '#fff', fontSize: 11, fontWeight: 700,
               padding: '4px 10px', borderRadius: 999,
             }}>
-              This {dayLabel(plan.plan.day)}
+              {plan ? `This ${dayLabel(plan.plan.day)}` : 'Orange County'}
             </span>
             <div style={{ position: 'absolute', left: 14, bottom: 12, right: 14 }}>
               <p style={{ fontSize: 17, fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.2,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {plan.plan.activity || plan.plan.place || 'Your hangout'}
+                {plan
+                  ? (plan.plan.activity || plan.plan.place || 'Your hangout')
+                  : 'No plans yet'}
               </p>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: '3px 0 0',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {[plan.plan.place, plan.plan.time_label].filter(Boolean).join(' · ') || 'Tap to view'}
+                {plan
+                  ? ([plan.plan.place, plan.plan.time_label].filter(Boolean).join(' · ') || 'Tap to view')
+                  : (hasCard ? 'Find someone to meet this week →' : 'Set your week to find matches →')}
               </p>
             </div>
           </motion.button>
