@@ -1,11 +1,13 @@
 // src/pages/WeeklyCardPage.jsx
 // "When are you free this week?" — create/edit your weekly availability card.
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { C } from '../tokens';
 import { getMyWeeklyCard, createWeeklyCard } from '../lib/weeklyCards.js';
 import TopBar from '../components/TopBar.jsx';
+
+const ORANGE = '#FF8C00';
 
 const DAYS = [
   { v: 'mon', label: 'Mon' },
@@ -17,52 +19,52 @@ const DAYS = [
   { v: 'sun', label: 'Sun' },
 ];
 
-const SLOTS = [
-  { v: 'morning',   label: 'Morning' },
-  { v: 'afternoon', label: 'Afternoon' },
-  { v: 'evening',   label: 'Evening' },
-];
-
-const LABEL = {
-  fontSize: 11, fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase',
-  color: C.muted, margin: '0 0 12px', display: 'block',
-};
-
-const INPUT = {
-  width: '100%', boxSizing: 'border-box',
-  background: C.cardElevated, border: `0.5px solid ${C.border}`,
-  borderRadius: 14, padding: '14px 16px', fontSize: 15, color: C.white, outline: 'none',
-};
-
-function Chip({ selected, onClick, children }) {
+// Orange particle burst from the Save button center.
+function SaveParticles({ buttonRef }) {
+  const rect = buttonRef.current?.getBoundingClientRect();
+  if (!rect) return null;
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileTap={{ scale: 0.94 }}
-      transition={{ duration: 0.1 }}
-      style={{
-        padding: '10px 0',
-        borderRadius: 12,
-        border: `1px solid ${selected ? C.amber : C.border}`,
-        background: selected ? C.amberT08 : C.cardElevated,
-        color: selected ? C.amber : C.muted,
-        fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        textAlign: 'center',
-      }}
-    >
-      {children}
-    </motion.button>
+    <>
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          style={{
+            position: 'fixed',
+            left: centerX,
+            top: centerY,
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: ORANGE,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+          initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+          animate={{
+            scale: [0, 1.2, 0],
+            x: [0, (i % 2 ? 1 : -1) * (Math.random() * 60 + 20)],
+            y: [0, -(Math.random() * 60 + 20)],
+            opacity: [1, 1, 0],
+          }}
+          transition={{ duration: 0.6, delay: i * 0.05, ease: 'easeOut' }}
+        />
+      ))}
+    </>
   );
 }
 
 export default function WeeklyCardPage({ currentUser, go, showToast }) {
   const [days,    setDays]    = useState([]);
+  // Preserved from the loaded card and saved back unchanged (logic untouched).
   const [slots,   setSlots]   = useState([]);
   const [place,   setPlace]   = useState('');
   const [vibe,    setVibe]    = useState('');
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
+  const [particles, setParticles] = useState(false);
+  const buttonRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser?.id) { setLoading(false); return; }
@@ -80,13 +82,15 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
     return () => { cancelled = true; };
   }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggle = (list, setList, v) =>
-    setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  const toggleDay = (v) =>
+    setDays(days.includes(v) ? days.filter((x) => x !== v) : [...days, v]);
 
   const canSave = days.length > 0 && !saving;
 
   const handleSave = async () => {
     if (!canSave) return;
+    setParticles(true);
+    setTimeout(() => setParticles(false), 600);
     setSaving(true);
     try {
       await createWeeklyCard({
@@ -104,59 +108,56 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', background: C.bg, color: C.white, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100dvh', height: '100dvh', background: C.bg, color: C.white, display: 'flex', flexDirection: 'column' }}>
       <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
 
-      <div style={{ flex: 1, padding: '12px 16px 110px', overflowY: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, padding: '12px 16px 16px', display: 'flex', flexDirection: 'column' }}>
         <h1 style={{ fontSize: 26, fontWeight: 900, color: C.white, margin: '4px 0 6px', letterSpacing: '-0.5px' }}>
           This Week
         </h1>
-        <p style={{ fontSize: 14, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>
-          Pick the days and times you are open. We'll use them to find people whose week overlaps with yours.
+        <p style={{ fontSize: 14, color: C.muted, margin: '0 0 18px', lineHeight: 1.5 }}>
+          Pick the days you are open. We'll use them to find people whose week overlaps with yours.
         </p>
 
         {loading ? (
-          <div className="shimmer" style={{ height: 180, borderRadius: 16, background: C.cardElevated }} />
+          <div className="shimmer" style={{ flex: 1, borderRadius: 16, background: C.cardElevated }} />
         ) : (
-          <>
-            {/* Days */}
-            <span style={LABEL}>Days</span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 26 }}>
-              {DAYS.map((d) => (
-                <Chip key={d.v} selected={days.includes(d.v)} onClick={() => toggle(days, setDays, d.v)}>
-                  {d.label}
-                </Chip>
-              ))}
-            </div>
-
-            {/* Time slots */}
-            <span style={LABEL}>Time of day</span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 26 }}>
-              {SLOTS.map((s) => (
-                <Chip key={s.v} selected={slots.includes(s.v)} onClick={() => toggle(slots, setSlots, s.v)}>
-                  {s.label}
-                </Chip>
-              ))}
-            </div>
-
-            {/* Place */}
-            <span style={LABEL}>Area <span style={{ textTransform: 'none', fontWeight: 600, color: C.muted }}>(optional)</span></span>
-            <input
-              value={place}
-              onChange={(e) => setPlace(e.target.value.slice(0, 80))}
-              placeholder="Neighborhood or area (e.g. Irvine, OC)"
-              style={{ ...INPUT, marginBottom: 22 }}
-            />
-
-            {/* Vibe */}
-            <span style={LABEL}>Vibe <span style={{ textTransform: 'none', fontWeight: 600, color: C.muted }}>(optional)</span></span>
-            <input
-              value={vibe}
-              onChange={(e) => setVibe(e.target.value.slice(0, 60))}
-              placeholder="What are you in the mood for? (e.g. coffee, walk, food)"
-              style={INPUT}
-            />
-          </>
+          // Days row — 7 cards in a row, filling the available height.
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 6, flex: 1, minHeight: 0 }}>
+            {DAYS.map((d) => {
+              const selected = days.includes(d.v);
+              return (
+                <motion.button
+                  key={d.v}
+                  type="button"
+                  onClick={() => toggleDay(d.v)}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ duration: 0.1 }}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: `1.5px solid ${ORANGE}`,
+                    borderRadius: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: selected ? ORANGE : '#fff',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: selected ? '#fff' : ORANGE,
+                    textAlign: 'center',
+                  }}>
+                    {d.label}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -167,18 +168,19 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
           borderTop: `1px solid ${C.border}`, background: C.bg, flexShrink: 0,
         }}>
           <motion.button
+            ref={buttonRef}
             type="button"
             onClick={handleSave}
             disabled={!canSave}
-            whileTap={canSave ? { scale: 0.98 } : {}}
+            whileTap={canSave ? { scale: 0.97 } : {}}
             transition={{ duration: 0.1 }}
             style={{
-              width: '100%', padding: '16px 0', borderRadius: 14, border: 'none',
-              background: canSave ? C.gradientCTA : C.cardDeep,
-              color: canSave ? '#fff' : C.muted,
+              width: '100%', padding: '18px 0', borderRadius: 30, border: 'none',
+              background: canSave ? ORANGE : '#D1D5DB',
+              color: '#fff',
               fontSize: 16, fontWeight: 800,
               cursor: canSave ? 'pointer' : 'default',
-              boxShadow: canSave ? '0 10px 26px rgba(255,107,0,0.3)' : 'none',
+              boxShadow: canSave ? '0 10px 26px rgba(255,140,0,0.3)' : 'none',
             }}
           >
             {saving ? 'Saving…' : 'Save My Week'}
@@ -190,6 +192,11 @@ export default function WeeklyCardPage({ currentUser, go, showToast }) {
           )}
         </div>
       )}
+
+      {/* Particle burst overlay */}
+      <AnimatePresence>
+        {particles && <SaveParticles buttonRef={buttonRef} />}
+      </AnimatePresence>
     </div>
   );
 }
