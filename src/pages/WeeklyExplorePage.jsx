@@ -254,6 +254,16 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
   const [requesting, setRequesting] = useState(new Set());
 
   const load = useCallback(async (isRefresh = false) => {
+    // Signed-out visitors can open Explore, but have no weekly card to match
+    // against — show the empty state (its CTA routes to login) without erroring.
+    if (!currentUser) {
+      setMyCard(null);
+      setMatches([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
@@ -282,6 +292,10 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
   }, [load]);
 
   const handleRequest = async (match) => {
+    // Signed-out visitors can browse Explore, but sending a request needs an
+    // account — route them to login instead.
+    if (!currentUser) { go('login'); return; }
+
     const toUserId = getMatchUserId(match);
     if (!toUserId || requested.has(toUserId) || requesting.has(toUserId)) return;
 

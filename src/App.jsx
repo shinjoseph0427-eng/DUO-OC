@@ -31,7 +31,9 @@ const PAGES = [
   'solo_inbox', 'solo_chat',
 ];
 
-const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy'];
+// Pages a signed-out visitor may view. Home + Explore are open; the landing
+// page stays reachable (e.g. /landing) but is no longer the default entry.
+const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy', 'home', 'weekly_explore'];
 
 const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'weekly_explore', 'weekly_card', 'solo_inbox', 'me'];
@@ -43,7 +45,7 @@ const ONBOARDED_PAGES = [
 ];
 
 export default function App() {
-  const [page,            setPage]            = useState('landing');
+  const [page,            setPage]            = useState('home');
   const [pageStack,       setPageStack]       = useState([]);
   const [selectedChat,    setSelectedChat]    = useState(null);
   const [currentUser,     setCurrentUser]     = useState(null);
@@ -86,7 +88,7 @@ export default function App() {
         setProfileReady(true);
         setOnboardingComplete(false);
         setPageStack([]);
-        setPage('landing');
+        setPage('home');
         setAuthReady(true);
         window.scrollTo(0, 0);
       }
@@ -179,9 +181,10 @@ export default function App() {
   }, [page]);
 
   const go = (newPage, duo = null, reqData = null, chat = null, opts = {}) => {
-    // Unauthenticated user trying to access protected page
+    // Unauthenticated user triggering a protected action/page → send straight
+    // to login (no modal). After signing in they land on home.
     if (!PUBLIC_PAGES.includes(newPage) && !currentUser) {
-      setPage('landing');
+      setPage('login');
       return;
     }
     if (currentUser && !onboardingComplete && ONBOARDED_PAGES.includes(newPage)) {
@@ -202,7 +205,7 @@ export default function App() {
   const goBack = () => {
     setPageStack((prev) => {
       if (prev.length === 0) {
-        setPage(currentUser ? (onboardingComplete ? 'home' : 'onboarding') : 'landing');
+        setPage(currentUser ? (onboardingComplete ? 'home' : 'onboarding') : 'home');
         window.scrollTo(0, 0);
         return prev;
       }
