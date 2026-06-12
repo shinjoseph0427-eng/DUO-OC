@@ -1,13 +1,15 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import BottomNav from './components/BottomNav.jsx';
 import Toast from './components/Toast.jsx';
+import IncomingRequestCard from './components/IncomingRequestCard.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import OnboardingGuide, { STEP_TABS } from './components/OnboardingGuide.jsx';
 import { signOut } from './lib/auth.js';
 import { getMyProfile, isProfileOnboardingComplete, saveFcmToken } from './lib/profile.js';
 import { supabase } from './lib/supabaseClient.js';
 import { requestPushPermission, watchTokenRefresh } from './lib/firebase.js';
-import { getMyReceivedSoloRequests } from './lib/solo.js';
+import { getMyReceivedSoloRequests, acceptSoloRequest, declineSoloRequest } from './lib/solo.js';
 import { getNotifications, subscribeNotifications } from './lib/notifications.js';
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
@@ -53,6 +55,8 @@ export default function App() {
   const [profile,         setProfile]         = useState(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [inboxHasUnread, setInboxHasUnread] = useState(false);
+  // Transient "X wants to hang out" card shown on incoming solo requests.
+  const [incomingRequest, setIncomingRequest] = useState(null);
 
   // Post-signup onboarding guide (bottom sheet + tab pulse).
   const guide = useOnboardingGuide(onboardingComplete);
@@ -166,6 +170,8 @@ export default function App() {
     refreshInboxBadge();
     const unsub = subscribeNotifications(currentUser.id, currentUser.id, (n) => {
       if (messageTypes.has(n.type)) setInboxHasUnread(true);
+      // Pop the live request card the instant a new solo request lands.
+      if (n.type === 'solo_request' && n.payload?.request_id) setIncomingRequest(n);
     });
 
     return () => {
@@ -177,6 +183,42 @@ export default function App() {
   useEffect(() => {
     if (page === 'solo_inbox') setInboxHasUnread(false);
   }, [page]);
+
+  // Auto-dismiss the live request card after a few seconds.
+  useEffect(() => {
+    if (!incomingRequest) return undefined;
+    const t = setTimeout(() => setIncomingRequest(null), 6000);
+    return () => clearTimeout(t);
+  }, [incomingRequest]);
+
+  const handleAcceptIncoming = async () => {
+    const reqId = incomingRequest?.payload?.request_id;
+    setIncomingRequest(null);
+    if (!reqId) return;
+    try {
+      await acceptSoloRequest(reqId);
+      showToast('Request accepted! Say hi 👋', 'success');
+      go('solo_inbox');
+    } catch (e) {
+      showToast(e?.message ?? 'Could not accept request', 'error');
+    }
+  };
+
+  const handleDeclineIncoming = async () => {
+    const reqId = incomingRequest?.payload?.request_id;
+    setIncomingRequest(null);
+    if (!reqId) return;
+    try {
+      await declineSoloRequest(reqId);
+    } catch {
+      /* best-effort — the request stays pending in the inbox */
+    }
+  };
+
+  const handleViewIncoming = () => {
+    setIncomingRequest(null);
+    go('solo_inbox');
+  };
 
   const go = (newPage, duo = null, reqData = null, chat = null, opts = {}) => {
     // Unauthenticated user triggering a protected action/page → send straight
@@ -256,6 +298,17 @@ export default function App() {
       </div>
       </Suspense>
       <Toast message={toast?.msg} type={toast?.type} visible={!!toast} />
+      <AnimatePresence>
+        {incomingRequest && currentUser && (
+          <IncomingRequestCard
+            key={incomingRequest.id ?? incomingRequest.payload?.request_id}
+            notif={incomingRequest}
+            onView={handleViewIncoming}
+            onAccept={handleAcceptIncoming}
+            onDecline={handleDeclineIncoming}
+          />
+        )}
+      </AnimatePresence>
       {!isAuthPage && currentUser && onboardingComplete && guide.isActive && (
         <OnboardingGuide
           currentStep={guide.currentStep}

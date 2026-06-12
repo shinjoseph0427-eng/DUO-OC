@@ -8,6 +8,7 @@ import {
   markAllAsRead,
   subscribeNotifications,
 } from '../lib/notifications.js';
+import { acceptSoloRequest, declineSoloRequest } from '../lib/solo.js';
 
 const TYPE_META = {
   solo_request:      { label: (p) => `${p.sender_name ?? 'Someone'} sent you a 1:1 request.`, page: 'solo_inbox' },
@@ -32,6 +33,7 @@ function timeAgo(isoString) {
 export default function NotificationBell({ currentUser, go, showToast }) {
   const [notifs,        setNotifs]        = useState([]);
   const [open,          setOpen]          = useState(false);
+  const [reqState,      setReqState]      = useState({}); // notifId -> 'accepting'|'declining'|'accepted'|'declined'
   const panelRef = useRef(null);
   const btnRef   = useRef(null);
 
@@ -87,6 +89,43 @@ export default function NotificationBell({ currentUser, go, showToast }) {
       setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {
       showToast?.('Could not mark notifications read yet.', 'error');
+    }
+  };
+
+  const markNotifRead = (n) => {
+    if (n.read) return;
+    markAsRead(n.id).catch(() => {});
+    setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+  };
+
+  const handleAcceptRequest = async (n) => {
+    const reqId = n.payload?.request_id;
+    if (!reqId || reqState[n.id]) return;
+    setReqState((s) => ({ ...s, [n.id]: 'accepting' }));
+    try {
+      await acceptSoloRequest(reqId);
+      setReqState((s) => ({ ...s, [n.id]: 'accepted' }));
+      markNotifRead(n);
+      showToast?.('Request accepted! Say hi 👋', 'success');
+      go?.('solo_inbox');
+      setOpen(false);
+    } catch (e) {
+      setReqState((s) => { const c = { ...s }; delete c[n.id]; return c; });
+      showToast?.(e?.message ?? 'Could not accept request', 'error');
+    }
+  };
+
+  const handleDeclineRequest = async (n) => {
+    const reqId = n.payload?.request_id;
+    if (!reqId || reqState[n.id]) return;
+    setReqState((s) => ({ ...s, [n.id]: 'declining' }));
+    try {
+      await declineSoloRequest(reqId);
+      setReqState((s) => ({ ...s, [n.id]: 'declined' }));
+      markNotifRead(n);
+    } catch (e) {
+      setReqState((s) => { const c = { ...s }; delete c[n.id]; return c; });
+      showToast?.(e?.message ?? 'Could not decline request', 'error');
     }
   };
 
@@ -222,6 +261,42 @@ export default function NotificationBell({ currentUser, go, showToast }) {
                         <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0' }}>
                           {timeAgo(n.created_at)}
                         </p>
+
+                        {/* Inline accept / decline for incoming solo requests. */}
+                        {n.type === 'solo_request' && n.payload?.request_id && (
+                          (reqState[n.id] === 'accepted' || reqState[n.id] === 'declined') ? (
+                            <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, margin: '8px 0 0' }}>
+                              {reqState[n.id] === 'accepted' ? 'Accepted ✓' : 'Declined'}
+                            </p>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleDeclineRequest(n); }}
+                                disabled={!!reqState[n.id]}
+                                style={{
+                                  flex: 1, padding: '7px 0', borderRadius: 9,
+                                  background: 'transparent', border: `1px solid ${C.border}`,
+                                  color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                }}
+                              >
+                                {reqState[n.id] === 'declining' ? '…' : 'Decline'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleAcceptRequest(n); }}
+                                disabled={!!reqState[n.id]}
+                                style={{
+                                  flex: 1, padding: '7px 0', borderRadius: 9,
+                                  background: C.amber, border: 'none',
+                                  color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                                }}
+                              >
+                                {reqState[n.id] === 'accepting' ? '…' : 'Accept'}
+                              </button>
+                            </div>
+                          )
+                        )}
                       </div>
                       {!n.read && (
                         <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.amber, flexShrink: 0, marginTop: 4 }} />
