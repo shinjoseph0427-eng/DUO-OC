@@ -47,7 +47,7 @@ export default function MePage({ currentUser, profile, go, showToast, onLogout }
     if (deleting) return;
     setDeleting(true);
     try {
-      await deleteAccount(); // soft-delete + signOut → App routes to landing
+      await deleteAccount(); // soft-delete + signOut → App routes to home
     } catch (err) {
       showToast?.(err?.message ?? 'Failed to delete account. Please try again.', 'error');
       setDeleting(false);

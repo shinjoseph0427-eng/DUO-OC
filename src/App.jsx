@@ -12,7 +12,6 @@ import { getNotifications, subscribeNotifications } from './lib/notifications.js
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
-const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const OnboardingFlow = lazy(() => import('./pages/OnboardingFlow.jsx'));
 const AuthPage = lazy(() => import('./pages/AuthPage.jsx'));
 const MePage = lazy(() => import('./pages/MePage.jsx'));
@@ -24,18 +23,17 @@ const SoloInboxPage = lazy(() => import('./pages/SoloInboxPage.jsx'));
 const SoloChatPage = lazy(() => import('./pages/SoloChatPage.jsx'));
 
 const PAGES = [
-  'landing', 'auth', 'login', 'onboarding', 'home',
+  'auth', 'login', 'onboarding', 'home',
   'me', 'edit_profile',
   'privacy',
   'weekly_card', 'weekly_explore',
   'solo_inbox', 'solo_chat',
 ];
 
-// Pages a signed-out visitor may view. Home + Explore are open; the landing
-// page stays reachable (e.g. /landing) but is no longer the default entry.
-const PUBLIC_PAGES  = ['landing', 'auth', 'login', 'privacy', 'home', 'weekly_explore'];
+// Pages a signed-out visitor may view. Home + Explore are open.
+const PUBLIC_PAGES  = ['auth', 'login', 'privacy', 'home', 'weekly_explore'];
 
-const AUTH_PAGES    = ['landing', 'auth', 'login', 'onboarding'];
+const AUTH_PAGES    = ['auth', 'login', 'onboarding'];
 const NAV_TAB_PAGES = ['home', 'weekly_explore', 'weekly_card', 'solo_inbox', 'me'];
 const ONBOARDED_PAGES = [
   'home',
@@ -238,10 +236,9 @@ export default function App() {
   }
 
   return (
-    <div className="app-content" style={{ paddingBottom: !isAuthPage && currentUser ? 64 : 0 }}>
+    <div className="app-content" style={{ paddingBottom: !isAuthPage ? 64 : 0 }}>
       <Suspense fallback={<div className="app-loading" />}>
       <div key={page} className="page-enter">
-        {page === 'landing'     && <LandingPage go={go} />}
         {page === 'auth'        && <AuthPage initialMode="signup" go={go} onLogin={setCurrentUser} showToast={showToast} />}
         {page === 'login'       && <AuthPage initialMode="login"  go={go} onLogin={setCurrentUser} showToast={showToast} />}
         {page === 'onboarding'  && <OnboardingFlow go={go} currentUser={currentUser} profile={profile} onComplete={handleOnboardingComplete} showToast={showToast} />}
@@ -267,7 +264,9 @@ export default function App() {
           skipAll={guide.skipAll}
         />
       )}
-      {!isAuthPage && currentUser && (
+      {/* Nav is shown to signed-out visitors too so Explore/Home stay reachable;
+          protected tabs route to login via go(). */}
+      {!isAuthPage && (
         <BottomNav
           activePage={activeTab ?? page}
           onNavigate={(tab) => go(tab)}

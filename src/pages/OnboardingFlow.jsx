@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronLeft, Loader, Navigation } from 'lucide-react';
 import { C } from '../tokens';
+import { signOut } from '../lib/auth.js';
 import { updateProfile } from '../lib/profile.js';
 import { uploadPhoto } from '../lib/upload.js';
 import { logError } from '../lib/logger.js';
@@ -208,7 +209,8 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
   };
 
   const back = () => {
-    if (step === 1) { go('landing'); return; }
+    // No landing page to return to — backing out of step 1 abandons signup.
+    if (step === 1) { signOut(); return; }
     if (step === 2) { setStep(1); return; }
     if (step === 3) { setStep(2); return; }
     if (step === 4) { setStep(3); return; }

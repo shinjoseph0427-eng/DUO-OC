@@ -168,7 +168,7 @@ export default function AuthPage({ go, onLogin, initialMode = 'signup' }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.white }}>
-      <TopBar showBack onBack={() => go('landing')} onLogoClick={() => go('landing')} />
+      <TopBar showBack onBack={() => go('home')} onLogoClick={() => go('home')} />
 
       <div style={{ padding: '32px 24px 80px' }}>
         <h1
