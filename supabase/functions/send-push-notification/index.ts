@@ -31,6 +31,7 @@ const SUPPORTED_TYPES = new Set([
   "plan_guest_invited",
   "plan_guest_accepted",
   "plan_guest_declined",
+  "solo_left",
 ]);
 
 const PUSH_TITLES: Record<string, string> = {
@@ -47,6 +48,7 @@ const PUSH_TITLES: Record<string, string> = {
   plan_guest_invited: "You're invited as a +1",
   plan_guest_accepted: "Your +1 is coming",
   plan_guest_declined: "Your +1 declined",
+  solo_left: "Chat ended",
 };
 
 const PUSH_BODIES: Record<string, string> = {
@@ -63,6 +65,7 @@ const PUSH_BODIES: Record<string, string> = {
   plan_guest_invited: "A friend invited you to join this week's plan.",
   plan_guest_accepted: "Your friend accepted the +1 invite.",
   plan_guest_declined: "Your friend declined the +1 invite.",
+  solo_left: "The other person has left the chat.",
 };
 
 // Builds a friendlier body using the notification payload when available.
@@ -108,6 +111,10 @@ function buildPushBody(
   const guestName =
     typeof payload.guest_name === "string" && payload.guest_name.trim()
       ? payload.guest_name.trim()
+      : null;
+  const leaverName =
+    typeof payload.leaver_name === "string" && payload.leaver_name.trim()
+      ? payload.leaver_name.trim()
       : null;
 
   switch (type) {
@@ -159,6 +166,10 @@ function buildPushBody(
       return guestName
         ? `${guestName} can't make it as your +1.`
         : PUSH_BODIES.plan_guest_declined;
+    case "solo_left":
+      return leaverName
+        ? `${leaverName} has left the chat.`
+        : PUSH_BODIES.solo_left;
     default:
       return PUSH_BODIES[type] ?? "You have a new notification.";
   }

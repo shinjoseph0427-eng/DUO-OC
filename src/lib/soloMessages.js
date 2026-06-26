@@ -3,6 +3,7 @@
 // Does not modify the existing messages.js / duoRoomMessages.js.
 
 import { supabase } from "./supabaseClient.js";
+import { getMySoloMatches } from "./solo.js";
 
 // profiles display fields — actual schema (name + photos[]).
 const SENDER_FIELDS = "id, username, name, photos";
@@ -16,7 +17,7 @@ export async function getSoloMessages(matchId, opts = {}) {
   let query = supabase
     .from("solo_messages")
     .select(`
-      id, match_id, sender_user_id, content, created_at,
+      id, match_id, sender_user_id, content, is_system, created_at,
       sender:profiles!solo_messages_sender_user_id_fkey(${SENDER_FIELDS})
     `)
     .eq("match_id", matchId)
@@ -40,7 +41,7 @@ export async function getLatestSoloMessages(matchIds = []) {
   const { data, error } = await supabase
     .from("solo_messages")
     .select(`
-      id, match_id, sender_user_id, content, created_at,
+      id, match_id, sender_user_id, content, is_system, created_at,
       sender:profiles!solo_messages_sender_user_id_fkey(${SENDER_FIELDS})
     `)
     .in("match_id", ids)
@@ -67,7 +68,7 @@ export async function sendSoloMessage(matchId, content) {
     .from("solo_messages")
     .insert({ match_id: matchId, sender_user_id: myId, content: trimmed })
     .select(`
-      id, match_id, sender_user_id, content, created_at,
+      id, match_id, sender_user_id, content, is_system, created_at,
       sender:profiles!solo_messages_sender_user_id_fkey(${SENDER_FIELDS})
     `)
     .single();
@@ -91,6 +92,12 @@ export function subscribeSoloMessages(matchId, onMessage) {
         filter: `match_id=eq.${matchId}`,
       },
       async (payload) => {
+        // System messages (e.g. "X left the chat") have no author — skip the
+        // sender lookup so a null sender_user_id can't break the subscription.
+        if (payload.new.is_system || !payload.new.sender_user_id) {
+          onMessage({ ...payload.new, sender: null });
+          return;
+        }
         // realtime payload has no join, so fetch the sender separately.
         const { data: sender } = await supabase
           .from("profiles")
@@ -139,4 +146,76 @@ export async function getSoloUnreadCount(matchId, lastReadAt) {
   const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
+}
+
+// ─────────────────────────────────────────────────────────
+// 6. Read state — per-match "last read" markers (solo_match_reads)
+// ─────────────────────────────────────────────────────────
+
+// Mark a match as read up to now for the current user (upsert their marker).
+export async function markSoloMatchRead(matchId) {
+  if (!matchId) return;
+  const { data: me } = await supabase.auth.getUser();
+  const myId = me?.user?.id;
+  if (!myId) return;
+
+  const { error } = await supabase
+    .from("solo_match_reads")
+    .upsert(
+      { match_id: matchId, user_id: myId, last_read_at: new Date().toISOString() },
+      { onConflict: "match_id,user_id" },
+    );
+  // Best-effort: a failed read-marker must never break the chat UI.
+  if (error) console.warn("markSoloMatchRead failed:", error.message);
+}
+
+// Returns Map<matchId, lastReadAt ISO string> for the current user.
+export async function getSoloMatchReads(matchIds = []) {
+  const ids = [...new Set(matchIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const { data: me } = await supabase.auth.getUser();
+  const myId = me?.user?.id;
+  if (!myId) return new Map();
+
+  const { data, error } = await supabase
+    .from("solo_match_reads")
+    .select("match_id, last_read_at")
+    .eq("user_id", myId)
+    .in("match_id", ids);
+
+  if (error) {
+    // Table missing (pre-migration) → treat everything as unread, don't throw.
+    if (error.code === "42P01" || error.code === "PGRST205") return new Map();
+    throw error;
+  }
+
+  const reads = new Map();
+  for (const row of data || []) reads.set(row.match_id, row.last_read_at);
+  return reads;
+}
+
+// Unread count per match for the current user: Map<matchId, count>.
+export async function getSoloUnreadCounts(matchIds = []) {
+  const ids = [...new Set(matchIds.filter(Boolean))];
+  const counts = new Map();
+  if (ids.length === 0) return counts;
+
+  const reads = await getSoloMatchReads(ids).catch(() => new Map());
+  const results = await Promise.all(
+    ids.map((id) => getSoloUnreadCount(id, reads.get(id)).catch(() => 0)),
+  );
+  ids.forEach((id, i) => counts.set(id, results[i]));
+  return counts;
+}
+
+// Total unread messages across all of my active matches (for the tab badge).
+export async function getTotalSoloUnread() {
+  const matches = await getMySoloMatches().catch(() => []);
+  const ids = matches.map((m) => m.matchId);
+  if (ids.length === 0) return 0;
+  const counts = await getSoloUnreadCounts(ids);
+  let total = 0;
+  for (const n of counts.values()) total += n;
+  return total;
 }

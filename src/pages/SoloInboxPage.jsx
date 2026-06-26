@@ -1,7 +1,7 @@
 // src/pages/SoloInboxPage.jsx
 // Accept/decline received Solo requests — cloned from HomieInboxPage, no duo creation.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Inbox, MapPin, MessageCircle } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
@@ -11,7 +11,7 @@ import {
   declineSoloRequest,
   getMySoloMatches,
 } from '../lib/solo.js';
-import { getLatestSoloMessages } from '../lib/soloMessages.js';
+import { getLatestSoloMessages, getSoloUnreadCounts } from '../lib/soloMessages.js';
 import TopBar from '../components/TopBar.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
@@ -62,10 +62,11 @@ function SoloAvatar({ user, size = 52 }) {
   );
 }
 
-function MatchCard({ match, latestMessage, onOpen }) {
+function MatchCard({ match, latestMessage, unreadCount = 0, ended = false, onOpen }) {
   const partner = match.partner ?? {};
   const name = partner.name || partner.username || 'Someone';
   const preview = latestMessage?.content || 'Say hi and start the conversation.';
+  const hasUnread = unreadCount > 0 && !ended;
 
   return (
     <motion.button
@@ -87,6 +88,7 @@ function MatchCard({ match, latestMessage, onOpen }) {
         border: `0.5px solid ${C.border}`,
         cursor: 'pointer',
         textAlign: 'left',
+        opacity: ended ? 0.6 : 1,
       }}
     >
       <SoloAvatar user={partner} />
@@ -97,7 +99,7 @@ function MatchCard({ match, latestMessage, onOpen }) {
         {partner.username && (
           <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>@{partner.username}</p>
         )}
-        <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ fontSize: 12, color: hasUnread ? C.white : C.muted, fontWeight: hasUnread ? 700 : 400, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {preview}
         </p>
         {partner.city && (
@@ -106,7 +108,24 @@ function MatchCard({ match, latestMessage, onOpen }) {
           </p>
         )}
       </div>
-      <MessageCircle size={18} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+      {ended ? (
+        <span style={{
+          flexShrink: 0, padding: '3px 8px', borderRadius: 999,
+          background: 'rgba(17,17,17,0.06)', color: C.muted, fontSize: 11, fontWeight: 700,
+        }}>
+          Ended
+        </span>
+      ) : hasUnread ? (
+        <div style={{
+          flexShrink: 0, minWidth: 20, height: 20, borderRadius: 10, padding: '0 6px',
+          background: C.amber, color: '#fff', fontSize: 11, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </div>
+      ) : (
+        <MessageCircle size={18} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+      )}
     </motion.button>
   );
 }
@@ -193,6 +212,7 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
   const [requests, setRequests] = useState([]);
   const [matches,  setMatches]  = useState([]);
   const [latestMessages, setLatestMessages] = useState(new Map());
+  const [unreadCounts, setUnreadCounts] = useState(new Map());
   const [loading,  setLoading]  = useState(true);
   const [busyId,   setBusyId]   = useState(null);
 
@@ -201,20 +221,33 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
     setLoading(true);
     Promise.all([
       getMyReceivedSoloRequests(),
-      getMySoloMatches(),
+      getMySoloMatches({ includeEnded: true }),
     ])
       .then(async ([nextRequests, nextMatches]) => {
         setRequests(nextRequests);
         setMatches(nextMatches);
-        const latest = await getLatestSoloMessages(nextMatches.map(m => m.matchId)).catch(() => new Map());
+        const matchIds = nextMatches.map(m => m.matchId);
+        // Unread counts only for active matches — ended chats never show unread.
+        const activeIds = nextMatches.filter(m => m.status !== 'ended').map(m => m.matchId);
+        const [latest, unread] = await Promise.all([
+          getLatestSoloMessages(matchIds).catch(() => new Map()),
+          getSoloUnreadCounts(activeIds).catch(() => new Map()),
+        ]);
         setLatestMessages(latest);
+        setUnreadCounts(unread);
       })
       .catch(() => showToast?.('Failed to load', 'error'))
       .finally(() => setLoading(false));
   }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Safety net: never render the same chat twice even if the source array repeats.
-  const uniqueMatches = [...new Map(matches.map((m) => [m.matchId, m])).values()];
+  // Dedup (never render the same chat twice) and sort by most-recent activity:
+  // newest message first, falling back to matchedAt for chats with no messages.
+  const uniqueMatches = useMemo(() => {
+    const deduped = [...new Map(matches.map((m) => [m.matchId, m])).values()];
+    const activityAt = (m) =>
+      latestMessages.get(m.matchId)?.created_at ?? m.matchedAt ?? 0;
+    return deduped.sort((a, b) => new Date(activityAt(b)) - new Date(activityAt(a)));
+  }, [matches, latestMessages]);
 
   const openMatch = (match) => {
     go('solo_chat', null, null, { matchId: match.matchId, partner: match.partner });
@@ -277,6 +310,8 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
                     key={match.matchId}
                     match={match}
                     latestMessage={latestMessages.get(match.matchId)}
+                    unreadCount={unreadCounts.get(match.matchId) ?? 0}
+                    ended={match.status === 'ended'}
                     onOpen={openMatch}
                   />
                 ))}

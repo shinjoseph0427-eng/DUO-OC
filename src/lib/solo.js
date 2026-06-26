@@ -235,20 +235,28 @@ export async function declineSoloRequest(requestId) {
 // 4. Matches
 // ─────────────────────────────────────────────────────────
 
-export async function getMySoloMatches() {
+// includeEnded:false (default) → active matches only, preserving every existing
+// caller's behavior (HomePage, unread-count). The inbox passes includeEnded:true
+// so ended matches stay visible as read-only history.
+export async function getMySoloMatches({ includeEnded = false } = {}) {
   const { data: me } = await supabase.auth.getUser();
   const myId = me?.user?.id;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("solo_matches")
     .select(`
-      id, status, matched_at,
+      id, status, matched_at, ended_at,
       user_a_profile:profiles!solo_matches_user_a_fkey(${PROFILE_FIELDS}),
       user_b_profile:profiles!solo_matches_user_b_fkey(${PROFILE_FIELDS})
     `)
     .or(`user_a.eq.${myId},user_b.eq.${myId}`)
-    .eq("status", "active")
     .order("matched_at", { ascending: false });
+
+  query = includeEnded
+    ? query.in("status", ["active", "ended"])
+    : query.eq("status", "active");
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -309,18 +317,23 @@ export async function updateIsSolo(isSolo) {
 }
 
 // ─────────────────────────────────────────────────────────
-// 6. End match (leave)
+// 6. Leave match — atomic via RPC: ends the match, posts a system message in
+//    the thread, and notifies the other person (+ push). Replaces the old
+//    direct status UPDATE.
 // ─────────────────────────────────────────────────────────
 
-export async function endSoloMatch(matchId) {
-  const { data: me } = await supabase.auth.getUser();
-  const myId = me?.user?.id;
-
-  const { error } = await supabase
-    .from("solo_matches")
-    .update({ status: "ended" })
-    .eq("id", matchId)
-    .or(`user_a.eq.${myId},user_b.eq.${myId}`);
-
+export async function leaveSoloMatch(matchId) {
+  const { data, error } = await supabase.rpc("leave_solo_match", {
+    p_match_id: matchId,
+  });
   if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (row?.notification_id) {
+    try {
+      await sendPushForNotification(row.notification_id);
+    } catch (e) {
+      console.warn("sendPushForNotification failed:", e?.message);
+    }
+  }
 }

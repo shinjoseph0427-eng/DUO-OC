@@ -18,6 +18,7 @@ const TYPE_META = {
   plan_guest_invited:  { label: (p) => `${p.inviter_name ?? 'Someone'} invited you as their +1.`, page: 'solo_inbox' },
   plan_guest_accepted: { label: (p) => `${p.guest_name ?? 'Your friend'} is coming as your +1.`, page: 'solo_inbox' },
   plan_guest_declined: { label: (p) => `${p.guest_name ?? 'Your friend'} can't make it as your +1.`, page: 'solo_inbox' },
+  solo_left:           { label: (p) => `${p.leaver_name ?? 'Someone'} left the chat.`, page: 'solo_inbox' },
 };
 
 function timeAgo(isoString) {

@@ -12,6 +12,8 @@ const PLAN_FIELDS = `
   activity,
   place_lat,
   place_lng,
+  place_type,
+  google_place_id,
   confirmed_by,
   confirmed_at,
   created_at,
@@ -92,6 +94,9 @@ export async function proposeSoloPlan(matchId, fields) {
     p_activity: fields.activity || null,
     p_place_lat: fields.place_lat ?? null,
     p_place_lng: fields.place_lng ?? null,
+    // Venue metadata: category when a suggested venue was picked, else 'other'.
+    p_place_type: fields.place_type || 'other',
+    p_google_place_id: fields.google_place_id ?? null,
   });
 
   if (error) throw error;

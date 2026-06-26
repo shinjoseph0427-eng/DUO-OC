@@ -10,6 +10,7 @@ import {
   getSoloMessages,
   sendSoloMessage,
   subscribeSoloMessages,
+  markSoloMatchRead,
 } from '../lib/soloMessages.js';
 import {
   PLAN_DAYS,
@@ -25,7 +26,8 @@ import {
   subscribeSoloPlan,
   subscribeSoloPlanGuests,
 } from '../lib/soloPlans.js';
-import { endSoloMatch } from '../lib/solo.js';
+import { leaveSoloMatch, getSoloMatch } from '../lib/solo.js';
+import { suggestVenues, CATEGORY_EMOJI, categoryEmojiPrefix } from '../lib/venueSuggest.js';
 import TopBar from '../components/TopBar.jsx';
 import ReportModal from '../components/ReportModal.jsx';
 
@@ -118,10 +120,14 @@ function PlanPanel({
   guestQuery,
   setGuestQuery,
   guestResults,
+  venues = [],
+  venuesLoading = false,
+  onSelectVenue,
   onInviteGuest,
   onRespondGuest,
   onPropose,
   onConfirm,
+  ended = false,
 }) {
   const isConfirmed = plan?.status === 'confirmed';
   const proposedByMe = plan?.proposed_by === currentUserId;
@@ -154,7 +160,7 @@ function PlanPanel({
               {isConfirmed ? 'Plan confirmed' : plan ? 'Plan proposed' : 'Make a plan'}
             </p>
             <p style={{ margin: '4px 0 0', color: C.white, fontSize: 14, fontWeight: 850, lineHeight: 1.35 }}>
-              {plan ? describePlan(plan) : `Suggest one concrete thing with ${partnerName} this week.`}
+              {plan ? `${categoryEmojiPrefix(plan.place_type)}${describePlan(plan)}` : `Suggest one concrete thing with ${partnerName} this week.`}
             </p>
             {plan && (
               <p style={{ margin: '4px 0 0', color: C.muted, fontSize: 12, lineHeight: 1.35 }}>
@@ -167,7 +173,7 @@ function PlanPanel({
             )}
           </div>
 
-          {!isConfirmed && (
+          {!isConfirmed && !ended && (
             <button
               type="button"
               onClick={() => setShowForm((v) => !v)}
@@ -190,7 +196,7 @@ function PlanPanel({
           )}
         </div>
 
-        {needsMyConfirm && (
+        {needsMyConfirm && !ended && (
           <button
             type="button"
             onClick={onConfirm}
@@ -218,7 +224,7 @@ function PlanPanel({
           </button>
         )}
 
-        {showForm && !isConfirmed && (
+        {showForm && !isConfirmed && !ended && (
           <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '86px minmax(0, 1fr)', gap: 8 }}>
               <select
@@ -242,7 +248,13 @@ function PlanPanel({
             </div>
             <input
               value={form.place}
-              onChange={(e) => setForm((p) => ({ ...p, place: e.target.value.slice(0, 120) }))}
+              onChange={(e) => setForm((p) => ({
+                ...p,
+                place: e.target.value.slice(0, 120),
+                // Manual edit clears any picked-venue metadata.
+                place_type: null,
+                google_place_id: null,
+              }))}
               placeholder="Place or area"
               style={PLAN_INPUT}
             />
@@ -252,6 +264,56 @@ function PlanPanel({
               placeholder="Activity"
               style={PLAN_INPUT}
             />
+
+            {/* Suggested venues (business-only, OC). Hidden when nothing to show. */}
+            {(venuesLoading || venues.length > 0) && (
+              <div>
+                <p style={{
+                  margin: '2px 0 6px', fontSize: 11, fontWeight: 600, color: '#888',
+                  textTransform: 'uppercase', letterSpacing: '0.08em',
+                }}>
+                  Suggested spots
+                </p>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, scrollbarWidth: 'none' }}>
+                  {venuesLoading && venues.length === 0
+                    ? [0, 1, 2].map((i) => (
+                        <div key={i} className="shimmer" style={{ flexShrink: 0, width: 180, height: 92, borderRadius: 14, background: C.cardDeep }} />
+                      ))
+                    : venues.map((v) => (
+                        <button
+                          key={v.place_id}
+                          type="button"
+                          onClick={() => onSelectVenue?.(v)}
+                          style={{
+                            flexShrink: 0, width: 180, padding: 12, textAlign: 'left',
+                            background: '#fff', border: '0.5px solid #E8E8E8', borderRadius: 14,
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#FF8C00'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E8E8E8'; }}
+                        >
+                          <p style={{
+                            margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1a1a',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {v.name}
+                          </p>
+                          <p style={{
+                            margin: '3px 0 0', fontSize: 11, color: '#888',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {(CATEGORY_EMOJI[v.category] ?? '📍')} {v.short_address || ''}
+                          </p>
+                          <p style={{ margin: '3px 0 0', fontSize: 11, color: '#888' }}>
+                            ★ {Number(v.rating).toFixed(1)} · {v.user_ratings_total}
+                            {v.price_level ? ` · ${v.price_level}` : ''}
+                          </p>
+                        </button>
+                      ))}
+                </div>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={onPropose}
@@ -272,7 +334,7 @@ function PlanPanel({
           </div>
         )}
 
-        {plan && (
+        {plan && !ended && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
             <p style={{ margin: '0 0 8px', color: C.white, fontSize: 13, fontWeight: 850 }}>
               Bring a friend
@@ -460,6 +522,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
   const [loading,  setLoading]  = useState(true);
   const [showEnd,  setShowEnd]  = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [ended,    setEnded]    = useState(false);
   const [plan,     setPlan]     = useState(null);
   const [planGuests, setPlanGuests] = useState([]);
   const [planForm, setPlanForm] = useState({
@@ -467,8 +530,12 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
     time_label: 'Evening',
     place: '',
     activity: '',
+    place_type: null,
+    google_place_id: null,
   });
   const [showPlanForm, setShowPlanForm] = useState(false);
+  const [venues, setVenues] = useState([]);
+  const [venuesLoading, setVenuesLoading] = useState(false);
   const [planSubmitting, setPlanSubmitting] = useState(false);
   const [guestQuery, setGuestQuery] = useState('');
   const [guestResults, setGuestResults] = useState([]);
@@ -496,16 +563,32 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         setMessages(msgs);
         setLoading(false);
         setTimeout(scrollToBottom, 60);
+        // Opening the chat clears its unread count for me.
+        markSoloMatchRead(matchId);
       })
       .catch(() => setLoading(false));
 
     unsub = subscribeSoloMessages(matchId, (msg) => {
       setMessages(prev => (prev.some(x => x.id === msg.id) ? prev : [...prev, msg]));
       setTimeout(scrollToBottom, 50);
+      // A system message means the other person just left — end the chat live.
+      if (msg.is_system) setEnded(true);
+      // A message arriving while the chat is open counts as read.
+      markSoloMatchRead(matchId);
     });
 
     return () => { cancelled = true; unsub?.(); };
   }, [matchId, scrollToBottom]);
+
+  // Know up-front whether this match has already ended (opened from history).
+  useEffect(() => {
+    if (!matchId) return undefined;
+    let cancelled = false;
+    getSoloMatch(matchId)
+      .then((m) => { if (!cancelled && m?.status === 'ended') setEnded(true); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [matchId]);
 
   useEffect(() => {
     if (!matchId) return undefined;
@@ -518,6 +601,8 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         time_label: nextPlan.time_label ?? 'Evening',
         place: nextPlan.place ?? '',
         activity: nextPlan.activity ?? '',
+        place_type: nextPlan.place_type ?? null,
+        google_place_id: nextPlan.google_place_id ?? null,
       });
       if (nextPlan.status === 'confirmed') setShowPlanForm(false);
     };
@@ -572,6 +657,42 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
     };
   }, [plan?.id, guestQuery]);
 
+  // Venue suggestions (debounced) while composing a plan. Skips once a suggested
+  // venue is chosen (google_place_id set) and when ended/confirmed.
+  useEffect(() => {
+    if (!showPlanForm || ended || plan?.status === 'confirmed') {
+      setVenues([]);
+      setVenuesLoading(false);
+      return undefined;
+    }
+    const place = planForm.place.trim();
+    const activity = planForm.activity.trim();
+    if (planForm.google_place_id || (!place && !activity)) {
+      setVenues([]);
+      setVenuesLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setVenuesLoading(true);
+    const t = setTimeout(() => {
+      suggestVenues(place, activity)
+        .then((rows) => { if (!cancelled) { setVenues(rows); setVenuesLoading(false); } })
+        .catch(() => { if (!cancelled) { setVenues([]); setVenuesLoading(false); } });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [showPlanForm, ended, plan?.status, planForm.place, planForm.activity, planForm.google_place_id]);
+
+  const handleSelectVenue = (v) => {
+    const label = [v.name, v.short_address].filter(Boolean).join(', ');
+    setPlanForm((p) => ({
+      ...p,
+      place: label,
+      place_type: v.category || 'other',
+      google_place_id: v.place_id || null,
+    }));
+    setVenues([]);
+  };
+
   // Send (optimistic update)
   const handleSend = async () => {
     const text = input.trim();
@@ -610,8 +731,8 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
 
   const handleEnd = async () => {
     try {
-      await endSoloMatch(matchId);
-      go('home');
+      await leaveSoloMatch(matchId);
+      go('solo_inbox');
     } catch (e) {
       showToast?.(e?.message ?? 'Failed to leave', 'error');
     }
@@ -710,12 +831,14 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
             >
               Report
             </button>
-            <button
-              onClick={() => setShowEnd(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.muted, padding: '4px 4px', whiteSpace: 'nowrap' }}
-            >
-              Leave
-            </button>
+            {!ended && (
+              <button
+                onClick={() => setShowEnd(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.muted, padding: '4px 4px', whiteSpace: 'nowrap' }}
+              >
+                Leave
+              </button>
+            )}
           </div>
         }
       />
@@ -737,25 +860,33 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         </div>
       </div>
 
-      <PlanPanel
-        plan={plan}
-        guests={planGuests}
-        currentUserId={currentUser?.id}
-        partnerName={partnerName}
-        submitting={planSubmitting}
-        guestSubmitting={guestSubmitting}
-        form={planForm}
-        setForm={setPlanForm}
-        showForm={showPlanForm}
-        setShowForm={setShowPlanForm}
-        guestQuery={guestQuery}
-        setGuestQuery={setGuestQuery}
-        guestResults={guestResults}
-        onInviteGuest={handleInviteGuest}
-        onRespondGuest={handleRespondGuest}
-        onPropose={handleProposePlan}
-        onConfirm={handleConfirmPlan}
-      />
+      {/* Hide the plan panel once ended unless there's a confirmed/proposed plan
+          worth keeping as history (read-only — controls are gated by `ended`). */}
+      {(!ended || plan) && (
+        <PlanPanel
+          ended={ended}
+          plan={plan}
+          guests={planGuests}
+          currentUserId={currentUser?.id}
+          partnerName={partnerName}
+          submitting={planSubmitting}
+          guestSubmitting={guestSubmitting}
+          form={planForm}
+          setForm={setPlanForm}
+          showForm={showPlanForm}
+          setShowForm={setShowPlanForm}
+          guestQuery={guestQuery}
+          setGuestQuery={setGuestQuery}
+          guestResults={guestResults}
+          venues={venues}
+          venuesLoading={venuesLoading}
+          onSelectVenue={handleSelectVenue}
+          onInviteGuest={handleInviteGuest}
+          onRespondGuest={handleRespondGuest}
+          onPropose={handleProposePlan}
+          onConfirm={handleConfirmPlan}
+        />
+      )}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column' }}>
@@ -774,20 +905,46 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
         )}
 
         {!loading && withAvatar.map(msg => (
-          <Bubble
-            key={msg.id}
-            msg={msg}
-            isMine={msg.sender_user_id === currentUser?.id}
-            partnerPhoto={partnerPhoto}
-            partnerName={partnerName}
-            showAvatar={msg.showAvatar}
-          />
+          msg.is_system ? (
+            <p
+              key={msg.id}
+              style={{
+                textAlign: 'center', fontSize: 12, fontStyle: 'italic',
+                color: '#888', margin: '10px 0',
+              }}
+            >
+              {msg.content}
+            </p>
+          ) : (
+            <Bubble
+              key={msg.id}
+              msg={msg}
+              isMine={msg.sender_user_id === currentUser?.id}
+              partnerPhoto={partnerPhoto}
+              partnerName={partnerName}
+              showAvatar={msg.showAvatar}
+            />
+          )
         ))}
 
         <div ref={endRef} style={{ height: 1 }} />
       </div>
 
-      {/* Input */}
+      {/* Ended → banner instead of the composer */}
+      {ended ? (
+        <div style={{
+          padding: '14px 16px max(14px, env(safe-area-inset-bottom))',
+          borderTop: `1px solid ${C.border}`,
+          background: C.bg,
+          textAlign: 'center',
+          flexShrink: 0,
+        }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.muted }}>
+            This conversation has ended
+          </p>
+        </div>
+      ) : (
+      /* Input */
       <div style={{
         padding: '10px 12px',
         paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
@@ -829,6 +986,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
           <Send size={17} color={input.trim() ? '#fff' : C.muted} />
         </button>
       </div>
+      )}
 
       {/* Leave confirmation modal */}
       {showEnd && (
@@ -850,7 +1008,7 @@ export default function SoloChatPage({ match, currentUser, go, goBack, showToast
               Leave this chat?
             </p>
             <p style={{ fontSize: 13, color: C.muted, margin: '0 0 22px', lineHeight: 1.5 }}>
-              The match ends and the chat history<br />will no longer be available.
+              The other person will be notified<br />that you left the chat.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button

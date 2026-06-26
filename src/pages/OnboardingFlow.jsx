@@ -142,7 +142,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
     if (!age.value)              errs.age  = 'Your age is required.';
     else {
       const n = Number(age.value);
-      if (!Number.isFinite(n) || n < 18 || n > 25) errs.age = 'You must be between 18 and 25 to join.';
+      if (!Number.isFinite(n) || n < 18) errs.age = 'You must be 18 or older to join.';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -341,7 +341,7 @@ export default function OnboardingFlow({ go, currentUser, profile, onComplete, s
                 onFocus={age.onFocus}
                 onBlur={age.onBlur}
                 focused={age.focused}
-                placeholder="18 – 25"
+                placeholder="18+"
                 error={errors.age}
               />
               <FieldError>{errors.age}</FieldError>

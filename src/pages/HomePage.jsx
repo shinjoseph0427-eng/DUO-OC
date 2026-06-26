@@ -9,6 +9,7 @@ import NotificationBell from '../components/NotificationBell.jsx';
 import { getMyWeeklyCard } from '../lib/weeklyCards.js';
 import { getMySoloMatches } from '../lib/solo.js';
 import { getSoloPlan, dayLabel } from '../lib/soloPlans.js';
+import { categoryEmojiPrefix } from '../lib/venueSuggest.js';
 
 // ── design tokens (light) ──────────────────────────────────
 const BG        = '#fafafa';
@@ -210,7 +211,7 @@ export default function HomePage({ go, currentUser, profile, showToast }) {
               <p style={{ fontSize: 17, fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.2,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {plan
-                  ? (plan.plan.activity || plan.plan.place || 'Your hangout')
+                  ? `${categoryEmojiPrefix(plan.plan.place_type)}${plan.plan.activity || plan.plan.place || 'Your hangout'}`
                   : 'No plans yet'}
               </p>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: '3px 0 0',

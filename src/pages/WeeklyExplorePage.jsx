@@ -447,7 +447,7 @@ export default function WeeklyExplorePage({ currentUser, go, showToast }) {
         }}
       >
         <span style={{ fontSize: 20, fontWeight: 800, color: '#111', letterSpacing: '-0.5px' }}>Explore</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#999' }}>OC · 18–25</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#999' }}>OC · 18+</span>
       </header>
 
       {/* ── Overlap bar ── */}

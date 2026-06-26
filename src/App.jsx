@@ -10,6 +10,7 @@ import { getMyProfile, isProfileOnboardingComplete, saveFcmToken } from './lib/p
 import { supabase } from './lib/supabaseClient.js';
 import { requestPushPermission, watchTokenRefresh } from './lib/firebase.js';
 import { getMyReceivedSoloRequests, acceptSoloRequest, declineSoloRequest } from './lib/solo.js';
+import { getTotalSoloUnread } from './lib/soloMessages.js';
 import { getNotifications, subscribeNotifications } from './lib/notifications.js';
 import { useOnboardingGuide } from './hooks/useOnboardingGuide';
 
@@ -153,16 +154,19 @@ export default function App() {
       'plan_guest_invited',
       'plan_guest_accepted',
       'plan_guest_declined',
+      'solo_left',
     ]);
 
     const refreshInboxBadge = async () => {
-      const [requests, notifications] = await Promise.all([
+      const [requests, notifications, unreadMessages] = await Promise.all([
         getMyReceivedSoloRequests().catch(() => []),
         getNotifications(currentUser.id).catch(() => []),
+        getTotalSoloUnread().catch(() => 0),
       ]);
       if (cancelled) return;
       setInboxHasUnread(
         requests.length > 0 ||
+        unreadMessages > 0 ||
         notifications.some((n) => !n.read && messageTypes.has(n.type)),
       );
     };
