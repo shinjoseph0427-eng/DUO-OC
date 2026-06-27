@@ -282,16 +282,31 @@ export async function getMySoloMatches({ includeEnded = false } = {}) {
     ? query.in("status", ["active", "ended"])
     : query.eq("status", "active");
 
-  const { data, error } = await query;
+  const [{ data, error }, deletedResult] = await Promise.all([
+    query,
+    includeEnded
+      ? supabase
+          .from("solo_chat_deletions")
+          .select("match_id")
+          .eq("user_id", myId)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
   if (error) throw error;
+  if (deletedResult.error) throw deletedResult.error;
 
-  const mapped = (data || []).map((m) => ({
-    matchId: m.id,
-    status: m.status,
-    matchedAt: m.matched_at,
-    partner: m.user_a_profile?.id === myId ? m.user_b_profile : m.user_a_profile,
-  }));
+  const deletedMatchIds = new Set(
+    (deletedResult.data || []).map((row) => row.match_id),
+  );
+
+  const mapped = (data || [])
+    .filter((m) => !deletedMatchIds.has(m.id))
+    .map((m) => ({
+      matchId: m.id,
+      status: m.status,
+      matchedAt: m.matched_at,
+      partner: m.user_a_profile?.id === myId ? m.user_b_profile : m.user_a_profile,
+    }));
 
   // Dedup by matchId — a row should never repeat, but guard the UI against any
   // query-level duplication so the same chat can't render twice.
@@ -302,6 +317,18 @@ export async function getMySoloMatches({ includeEnded = false } = {}) {
   const deduped = [...byId.values()];
 
   return deduped;
+}
+
+export async function deleteEndedSoloChat(matchId) {
+  const { data: me } = await supabase.auth.getUser();
+  const myId = me?.user?.id;
+  if (!myId) throw new Error("Sign in required");
+
+  const { error } = await supabase
+    .from("solo_chat_deletions")
+    .insert({ match_id: matchId, user_id: myId });
+
+  if (error) throw error;
 }
 
 export async function getSoloMatch(matchId) {

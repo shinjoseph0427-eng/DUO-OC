@@ -1,15 +1,16 @@
 // src/pages/SoloInboxPage.jsx
 // Accept/decline received Solo requests — cloned from HomieInboxPage, no duo creation.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, Inbox, MapPin, MessageCircle } from 'lucide-react';
+import { Check, X, Inbox, MapPin, MessageCircle, Trash2 } from 'lucide-react';
 import { C, AVATAR_GRADIENTS } from '../tokens';
 import {
   getMyReceivedSoloRequests,
   acceptSoloRequest,
   declineSoloRequest,
   getMySoloMatches,
+  deleteEndedSoloChat,
 } from '../lib/solo.js';
 import { getLatestSoloMessages, getSoloUnreadCounts } from '../lib/soloMessages.js';
 import TopBar from '../components/TopBar.jsx';
@@ -62,71 +63,130 @@ function SoloAvatar({ user, size = 52 }) {
   );
 }
 
-function MatchCard({ match, latestMessage, unreadCount = 0, ended = false, onOpen }) {
+function MatchCard({ match, latestMessage, unreadCount = 0, ended = false, onOpen, onDelete }) {
+  const [deleteRevealed, setDeleteRevealed] = useState(false);
+  const didDragRef = useRef(false);
   const partner = match.partner ?? {};
   const name = partner.name || partner.username || 'Someone';
   const preview = latestMessage?.content || 'Say hi and start the conversation.';
   const hasUnread = unreadCount > 0 && !ended;
+  const deleteWidth = 82;
 
   return (
-    <motion.button
-      type="button"
+    <motion.div
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileTap={{ scale: 0.98 }}
+      exit={{ opacity: 0, height: 0, marginBottom: -10 }}
       transition={{ duration: 0.15 }}
-      onClick={() => onOpen(match)}
       style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '14px 16px',
-        background: C.cardElevated,
+        position: 'relative',
+        overflow: 'hidden',
         borderRadius: 16,
-        border: `0.5px solid ${C.border}`,
-        cursor: 'pointer',
-        textAlign: 'left',
-        opacity: ended ? 0.6 : 1,
+        background: ended ? C.danger : C.cardElevated,
       }}
     >
-      <SoloAvatar user={partner} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: 0, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {name}
-        </p>
-        {partner.username && (
-          <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>@{partner.username}</p>
-        )}
-        <p style={{ fontSize: 12, color: hasUnread ? C.white : C.muted, fontWeight: hasUnread ? 700 : 400, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {preview}
-        </p>
-        {partner.city && (
-          <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 3 }}>
-            <MapPin size={10} strokeWidth={2} /> {partner.city}
-          </p>
-        )}
-      </div>
-      {ended ? (
-        <span style={{
-          flexShrink: 0, padding: '3px 8px', borderRadius: 999,
-          background: 'rgba(17,17,17,0.06)', color: C.muted, fontSize: 11, fontWeight: 700,
-        }}>
-          Ended
-        </span>
-      ) : hasUnread ? (
-        <div style={{
-          flexShrink: 0, minWidth: 20, height: 20, borderRadius: 10, padding: '0 6px',
-          background: C.amber, color: '#fff', fontSize: 11, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {unreadCount > 9 ? '9+' : unreadCount}
-        </div>
-      ) : (
-        <MessageCircle size={18} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+      {ended && (
+        <button
+          type="button"
+          aria-label={`Delete chat with ${name}`}
+          title="Delete chat"
+          onFocus={() => setDeleteRevealed(true)}
+          onClick={() => onDelete(match)}
+          style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, width: deleteWidth,
+            border: 'none', background: C.danger, color: '#fff',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', gap: 4, cursor: 'pointer',
+          }}
+        >
+          <Trash2 size={20} strokeWidth={2.2} />
+          <span style={{ fontSize: 11, fontWeight: 750 }}>Delete</span>
+        </button>
       )}
-    </motion.button>
+
+      <motion.button
+        type="button"
+        drag={ended ? 'x' : false}
+        dragConstraints={{ left: -deleteWidth, right: 0 }}
+        dragElastic={0.04}
+        dragMomentum={false}
+        animate={{ x: deleteRevealed ? -deleteWidth : 0 }}
+        whileTap={ended ? undefined : { scale: 0.98 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 42 }}
+        onDragStart={() => {
+          didDragRef.current = true;
+        }}
+        onDragEnd={(_, info) => {
+          setDeleteRevealed(info.offset.x < -34 || info.velocity.x < -350);
+          window.setTimeout(() => {
+            didDragRef.current = false;
+          }, 0);
+        }}
+        onClick={() => {
+          if (didDragRef.current) {
+            didDragRef.current = false;
+            return;
+          }
+          if (deleteRevealed) {
+            setDeleteRevealed(false);
+          } else {
+            onOpen(match);
+          }
+        }}
+        style={{
+          position: 'relative',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '14px 16px',
+          background: C.cardElevated,
+          borderRadius: 16,
+          border: `0.5px solid ${C.border}`,
+          cursor: 'pointer',
+          textAlign: 'left',
+          opacity: ended ? 0.6 : 1,
+          touchAction: ended ? 'pan-y' : 'auto',
+        }}
+      >
+        <SoloAvatar user={partner} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 800, color: C.white, margin: 0, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {name}
+          </p>
+          {partner.username && (
+            <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>@{partner.username}</p>
+          )}
+          <p style={{ fontSize: 12, color: hasUnread ? C.white : C.muted, fontWeight: hasUnread ? 700 : 400, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {preview}
+          </p>
+          {partner.city && (
+            <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <MapPin size={10} strokeWidth={2} /> {partner.city}
+            </p>
+          )}
+        </div>
+        {ended ? (
+          <span style={{
+            flexShrink: 0, padding: '3px 8px', borderRadius: 999,
+            background: 'rgba(17,17,17,0.06)', color: C.muted, fontSize: 11, fontWeight: 700,
+          }}>
+            Ended
+          </span>
+        ) : hasUnread ? (
+          <div style={{
+            flexShrink: 0, minWidth: 20, height: 20, borderRadius: 10, padding: '0 6px',
+            background: C.amber, color: '#fff', fontSize: 11, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </div>
+        ) : (
+          <MessageCircle size={18} color={C.amber} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+        )}
+      </motion.button>
+    </motion.div>
   );
 }
 
@@ -215,6 +275,9 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
   const [unreadCounts, setUnreadCounts] = useState(new Map());
   const [loading,  setLoading]  = useState(true);
   const [busyId,   setBusyId]   = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const cancelDeleteRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -251,6 +314,31 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
 
   const openMatch = (match) => {
     go('solo_chat', null, null, { matchId: match.matchId, partner: match.partner });
+  };
+
+  useEffect(() => {
+    if (!deleteTarget) return undefined;
+    cancelDeleteRef.current?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !deleting) setDeleteTarget(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteTarget, deleting]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteEndedSoloChat(deleteTarget.matchId);
+      setMatches(prev => prev.filter(m => m.matchId !== deleteTarget.matchId));
+      setDeleteTarget(null);
+      showToast?.('Chat deleted', 'success');
+    } catch (e) {
+      showToast?.(e?.message ?? 'Failed to delete chat', 'error');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleAccept = async (req) => {
@@ -305,16 +393,19 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
             <SectionHeader title="Active Chats" count={uniqueMatches.length} />
             {uniqueMatches.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {uniqueMatches.map(match => (
-                  <MatchCard
-                    key={match.matchId}
-                    match={match}
-                    latestMessage={latestMessages.get(match.matchId)}
-                    unreadCount={unreadCounts.get(match.matchId) ?? 0}
-                    ended={match.status === 'ended'}
-                    onOpen={openMatch}
-                  />
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {uniqueMatches.map(match => (
+                    <MatchCard
+                      key={match.matchId}
+                      match={match}
+                      latestMessage={latestMessages.get(match.matchId)}
+                      unreadCount={unreadCounts.get(match.matchId) ?? 0}
+                      ended={match.status === 'ended'}
+                      onOpen={openMatch}
+                      onDelete={setDeleteTarget}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
             ) : (
               <p style={{ fontSize: 13, color: C.muted, margin: '0 2px 2px' }}>
@@ -360,6 +451,79 @@ export default function SoloInboxPage({ currentUser, go, goBack, showToast }) {
           </p>
         )}
       </div>
+
+      <AnimatePresence>
+        {deleteTarget && (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-chat-title"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !deleting && setDeleteTarget(null)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.52)',
+              zIndex: 1200, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', padding: 24,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={(event) => event.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: 340, background: C.bg,
+                borderRadius: 20, border: `0.5px solid ${C.border}`,
+                padding: '26px 22px 20px', textAlign: 'center',
+              }}
+            >
+              <h2
+                id="delete-chat-title"
+                style={{ fontSize: 18, fontWeight: 850, color: C.white, margin: '0 0 9px' }}
+              >
+                {`Are you sure you want to delete chat with ${
+                  deleteTarget.partner?.name || deleteTarget.partner?.username || 'this person'
+                }?`}
+              </h2>
+              <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.55, margin: '0 0 22px' }}>
+                This removes the ended chat from your inbox. This can't be undone.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  ref={cancelDeleteRef}
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                  style={{
+                    flex: 1, minHeight: 44, borderRadius: 12,
+                    border: `1px solid ${C.border}`, background: C.bg,
+                    color: C.muted, fontSize: 14, fontWeight: 650,
+                    cursor: deleting ? 'default' : 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  style={{
+                    flex: 1, minHeight: 44, borderRadius: 12, border: 'none',
+                    background: C.danger, color: '#fff', fontSize: 14,
+                    fontWeight: 750, cursor: deleting ? 'wait' : 'pointer',
+                    opacity: deleting ? 0.7 : 1,
+                  }}
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
