@@ -40,7 +40,7 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 // ─────────────────────────────────────────────────────────
 
 /**
- * Returns users to explore. Excludes self / blocked / already-requested / matched,
+ * Returns users to explore. Excludes self / blocked / pending requests / active matches,
  * sorted by distance.
  * @param {object} currentUser - { id, lat, lng }
  */
@@ -55,12 +55,13 @@ export async function findSoloUsers(currentUser, opts = {}) {
 
   const blockedIds = (blocks || []).flatMap((b) => [b.blocker_id, b.blocked_id]);
 
-  // 2) Users I already sent a request to
+  // 2) Users I currently have a pending request to. Historical requests should
+  // not hide a person forever.
   const { data: sentReqs } = await supabase
     .from("solo_requests")
     .select("to_user_id")
     .eq("from_user_id", currentUser.id)
-    .in("status", ["pending", "accepted"]);
+    .eq("status", "pending");
 
   const sentToIds = (sentReqs || []).map((r) => r.to_user_id);
 
@@ -110,14 +111,39 @@ export async function sendSoloRequest(toUserId) {
   const myId = me?.user?.id;
   if (!myId) throw new Error("Sign in required");
 
+  const { data: existingPending, error: pendingError } = await supabase
+    .from("solo_requests")
+    .select("id")
+    .eq("from_user_id", myId)
+    .eq("to_user_id", toUserId)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (pendingError) throw pendingError;
+  if (existingPending) {
+    throw new Error("You already have a pending request with this person.");
+  }
+
+  const { data: activeMatches, error: matchError } = await supabase
+    .from("solo_matches")
+    .select("id")
+    .eq("status", "active")
+    .or(`and(user_a.eq.${myId},user_b.eq.${toUserId}),and(user_a.eq.${toUserId},user_b.eq.${myId})`)
+    .limit(1);
+
+  if (matchError) throw matchError;
+  if ((activeMatches || []).length > 0) {
+    throw new Error("You already have an active chat with this person.");
+  }
+
   const { data, error } = await supabase
     .from("solo_requests")
-    .insert({ from_user_id: myId, to_user_id: toUserId })
+    .insert({ from_user_id: myId, to_user_id: toUserId, status: "pending" })
     .select()
     .single();
 
   if (error) {
-    if (error.code === "23505") throw new Error("You already sent a request to this person.");
+    if (error.code === "23505") throw new Error("You already have a pending request with this person.");
     throw error;
   }
 
@@ -180,7 +206,7 @@ export async function cancelSoloRequest(requestId) {
 
   const { error } = await supabase
     .from("solo_requests")
-    .delete()
+    .update({ status: "cancelled" })
     .eq("id", requestId)
     .eq("from_user_id", myId)
     .eq("status", "pending");
