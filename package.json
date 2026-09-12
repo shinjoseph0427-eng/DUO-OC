@@ -1,5 +1,5 @@
 {
-  "name": "duo-oc",
+  "name": "weekly",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -7,7 +7,10 @@
     "dev": "vite",
     "dev:vite": "vite",
     "dev:full": "vercel dev",
-    "build": "vite build",
+    "build:website": "node scripts/buildWebsite.mjs",
+    "build": "npm run build:website && vite build",
+    "verify:production": "node scripts/verifyProductionWebsite.mjs",
+    "deploy:verify": "vercel --prod --yes && npm run verify:production",
     "lint": "eslint .",
     "test": "node test/planUtils.test.js",
     "preview": "vite preview",
